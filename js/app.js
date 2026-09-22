@@ -23,7 +23,7 @@ const state = {
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
-  locationName:$('#locationName'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), quickMetrics:$('#quickMetrics'), insight:$('#weatherInsight'),
+  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), quickMetrics:$('#quickMetrics'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
   forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
@@ -95,7 +95,9 @@ function renderAll() {
   const loc = state.location;
 
   refs.locationName.textContent = loc.name || 'Lieu sélectionné';
-  refs.locationMeta.textContent = [loc.admin1, loc.country, Number.isFinite(Number(loc.elevation)) ? `${Math.round(loc.elevation)} m` : ''].filter(Boolean).join(' · ');
+  const elevation = Number(loc.elevation ?? f.elevation);
+  refs.locationElevation.textContent = Number.isFinite(elevation) ? `${Math.round(elevation)} m` : 'alt. —';
+  refs.locationMeta.textContent = [loc.type && loc.type !== 'Localité' ? loc.type : '', loc.admin1, loc.country].filter(Boolean).join(' · ');
   if (document.activeElement !== refs.searchInput) refs.searchInput.value = loc.name || '';
   refs.currentTemp.textContent = `${Math.round(c.temperature_2m ?? hNow.temperature_2m ?? 0)}°`;
   const uvNow = Number(hNow.uv_index);
@@ -109,11 +111,17 @@ function renderAll() {
   refs.confidence.title = 'Indice indicatif lié principalement à l’échéance de prévision ; il ne remplace pas une prévision d’ensemble.';
 
   const lpn = hNow.snowLevel;
+  const visibilityNow = Number(hNow.visibility);
+  const pressureNow = Number(c.pressure_msl ?? hNow.pressure_msl);
+  const cloudNow = Number(hNow.cloud_cover);
   const metrics = [
     ['Précip.', `${round(c.precipitation ?? 0,1)} mm`, '◌'],
     ['Vent', `${Math.round(c.wind_speed_10m ?? 0)} km/h`, '≋'],
     ['Rafales', `${Math.round(c.wind_gusts_10m ?? 0)} km/h`, '⚑'],
     ['Humidité', `${Math.round(c.relative_humidity_2m ?? 0)}%`, '◇'],
+    ['Pression', Number.isFinite(pressureNow) ? `${Math.round(pressureNow)} hPa` : '—', '▣'],
+    ['Visibilité', Number.isFinite(visibilityNow) ? `${(visibilityNow/1000).toFixed(1)} km` : '—', '◎'],
+    ['Nuages', Number.isFinite(cloudNow) ? `${Math.round(cloudNow)}%` : '—', '☁'],
     ['LPN', lpn != null ? `~${Math.round(lpn)} m` : '—', '△']
   ];
   refs.quickMetrics.innerHTML = metrics.map(([k,v,i])=>`<div><i>${i}</i><span>${k}<strong>${v}</strong></span></div>`).join('');
@@ -218,7 +226,16 @@ function renderCockpit(c,h) {
     ['Visibilité', h.visibility != null ? `${(h.visibility/1000).toFixed(1)} km` : '—', 'visibility'],
     ['CAPE', h.cape != null ? `${Math.round(h.cape)} J/kg` : '—', 'cape']
   ];
-  const data = state.expert ? [...rows,...expert] : rows;
+  const desktop = window.matchMedia('(min-width:1101px)').matches;
+  const scientific = [
+    ['Prob. précip.', `${Math.round(h.precipitation_probability ?? 0)} %`, 'precip'],
+    ['Précipitations', `${round(h.precipitation ?? c.precipitation ?? 0,1)} mm/h`, 'precip'],
+    ['Couverture nuageuse', `${Math.round(h.cloud_cover ?? c.cloud_cover ?? 0)} %`, 'cloud'],
+    ['Nuages bas / moy. / hauts', `${Math.round(h.cloud_cover_low ?? 0)} / ${Math.round(h.cloud_cover_mid ?? 0)} / ${Math.round(h.cloud_cover_high ?? 0)} %`, 'cloud'],
+    ['UV', `${round(h.uv_index,1) ?? '—'}`, 'uv'],
+    ['Neige au sol', h.snow_depth != null ? `${round(h.snow_depth*100,1)} cm` : '—', 'snow']
+  ];
+  const data = desktop ? [...rows,...expert,...scientific] : (state.expert ? [...rows,...expert] : rows);
   refs.cockpitGrid.innerHTML = data.map(([label,value,kind])=>`<div class="cockpit-cell" data-kind="${kind}"><span>${label}</span><strong>${value}</strong></div>`).join('');
 }
 
@@ -381,11 +398,11 @@ const doSearch=debounce(async q=>{
   if(q.trim().length<2){refs.searchResults.classList.add('hidden');return;}
   try{
     const items=await geocode(q,7);
-    refs.searchResults.innerHTML=items.length?items.map((x,i)=>`<button type="button" data-result="${i}"><span>⌖</span><div><strong>${escapeHtml(x.name)}</strong><small>${escapeHtml([x.admin1,x.country].filter(Boolean).join(', '))}${x.elevation!=null?` · ${Math.round(x.elevation)} m`:''}</small></div></button>`).join(''):'<div class="search-empty">Aucun lieu trouvé</div>';
+    refs.searchResults.innerHTML=items.length?items.map((x,i)=>`<button type="button" data-result="${i}"><span class="search-kind-icon">${['Sommet','Col','Volcan'].includes(x.type)?'△':['Lac'].includes(x.type)?'≈':'⌖'}</span><div><strong>${escapeHtml(x.name)} <em class="search-type">${escapeHtml(x.type || 'Lieu')}</em></strong><small>${escapeHtml([x.admin1,x.country].filter(Boolean).join(', '))}${x.elevation!=null?` · <b>${Math.round(x.elevation)} m</b>`:''}</small></div></button>`).join(''):'<div class="search-empty">Aucun lieu trouvé</div>';
     refs.searchResults.classList.remove('hidden');
     refs.searchResults.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click',async()=>{refs.searchResults.classList.add('hidden');await loadLocation(items[Number(b.dataset.result)]);}));
   }catch{refs.searchResults.innerHTML='<div class="search-empty">Recherche indisponible</div>';refs.searchResults.classList.remove('hidden');}
-},320);
+},700);
 
 async function useGeolocation(){
   if(!navigator.geolocation){showToast('Géolocalisation non prise en charge.','warn');return;}
@@ -444,6 +461,9 @@ function bindEvents(){
 }
 
 async function init(){
+  state.expert = window.matchMedia('(min-width:1101px)').matches;
+  refs.expertToggle?.setAttribute('aria-pressed', String(state.expert));
+  refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js').catch(()=>{});

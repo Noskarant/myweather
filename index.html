@@ -27,7 +27,7 @@
 
     <form id="searchForm" class="search-box" role="search" autocomplete="off">
       <span class="search-icon">⌕</span>
-      <input id="searchInput" type="search" placeholder="Rechercher une ville, station, village…" aria-label="Rechercher un lieu" />
+      <input id="searchInput" type="search" placeholder="Rechercher un lieu, hameau, sommet, col…" aria-label="Rechercher un lieu" />
       <button type="button" id="geoBtn" class="icon-btn" title="Ma position" aria-label="Utiliser ma position">◎</button>
       <div id="searchResults" class="search-results glass hidden" role="listbox"></div>
     </form>
@@ -46,7 +46,7 @@
         <article class="current-card">
           <div class="current-topline">
             <div class="current-place">
-              <h1 id="locationName">Lyon</h1>
+              <div class="location-title-line"><h1 id="locationName">Lyon</h1><span id="locationElevation" class="location-elevation">— m</span></div>
               <p id="locationMeta">Rhône, France</p>
             </div>
             <div id="confidenceBadge" class="confidence" title="Confiance indicative liée à l’échéance"><span>Fiabilité</span><strong>—</strong></div>

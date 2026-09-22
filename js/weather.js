@@ -2,31 +2,126 @@ import { estimateSnowLevel, weatherCodeInfo } from './utils.js';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE = 'https://geocoding-api.open-meteo.com/v1/search';
+const ELEVATION = 'https://api.open-meteo.com/v1/elevation';
+const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
+const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
 
-export const HOURLY_VARS = [
-  'temperature_2m','relative_humidity_2m','dew_point_2m','apparent_temperature','precipitation_probability',
-  'precipitation','rain','showers','snowfall','snow_depth','weather_code','cloud_cover','cloud_cover_low','cloud_cover_mid',
-  'cloud_cover_high','visibility','wind_speed_10m','wind_direction_10m','wind_gusts_10m','surface_pressure','pressure_msl',
-  'uv_index','cape','wet_bulb_temperature_2m','freezing_level_height'
-];
+const geocodeCache = new Map();
+let lastNominatimRequest = 0;
 
-const CURRENT_VARS = ['temperature_2m','relative_humidity_2m','apparent_temperature','is_day','precipitation','rain','showers','snowfall','weather_code','cloud_cover','pressure_msl','surface_pressure','wind_speed_10m','wind_direction_10m','wind_gusts_10m'];
-const DAILY_VARS = ['weather_code','temperature_2m_max','temperature_2m_min','apparent_temperature_max','apparent_temperature_min','sunrise','sunset','uv_index_max','precipitation_sum','rain_sum','showers_sum','snowfall_sum','precipitation_probability_max','wind_speed_10m_max','wind_gusts_10m_max','wind_direction_10m_dominant'];
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-export async function geocode(name, count = 6) {
+function placeTypeLabel(category = '', type = '', address = {}) {
+  const key = `${category}:${type}`.toLowerCase();
+  const labels = [
+    [/natural:peak|peak/, 'Sommet'], [/natural:saddle|saddle|mountain_pass/, 'Col'], [/natural:volcano|volcano/, 'Volcan'],
+    [/place:hamlet|hamlet/, 'Hameau'], [/place:isolated_dwelling|isolated_dwelling/, 'Lieu-dit'], [/place:locality|locality/, 'Lieu-dit'],
+    [/place:village|village/, 'Village'], [/place:town|town/, 'Ville'], [/place:city|city/, 'Ville'], [/place:suburb|suburb/, 'Quartier'],
+    [/tourism:alpine_hut|alpine_hut/, 'Refuge'], [/tourism:chalet|chalet/, 'Chalet'], [/tourism:attraction|attraction/, 'Site'],
+    [/natural:water|water|lake|reservoir/, 'Lac'], [/waterway:/, 'Cours d’eau'], [/leisure:ski_resort|ski_resort/, 'Station'],
+    [/place:neighbourhood|neighbourhood/, 'Quartier']
+  ];
+  for (const [re,label] of labels) if (re.test(key)) return label;
+  if (address.hamlet) return 'Hameau';
+  if (address.village) return 'Village';
+  if (address.town || address.city) return 'Ville';
+  return 'Lieu';
+}
+
+function displayPlaceName(x) {
+  return x.namedetails?.name || x.namedetails?.['name:fr'] || x.name || String(x.display_name || '').split(',')[0] || 'Lieu';
+}
+
+async function terrainElevations(points) {
+  if (!points.length) return [];
+  const q = new URLSearchParams({
+    latitude: points.map(p => Number(p.lat).toFixed(6)).join(','),
+    longitude: points.map(p => Number(p.lon).toFixed(6)).join(',')
+  });
+  try {
+    const r = await fetch(`${ELEVATION}?${q}`);
+    if (!r.ok) return points.map(() => null);
+    const data = await r.json();
+    const values = Array.isArray(data.elevation) ? data.elevation : [data.elevation];
+    return points.map((_,i) => Number.isFinite(Number(values[i])) ? Number(values[i]) : null);
+  } catch { return points.map(() => null); }
+}
+
+async function openMeteoGeocode(name, count) {
   const q = new URLSearchParams({ name, count:String(count), language:'fr', format:'json' });
   const r = await fetch(`${GEOCODE}?${q}`);
   if (!r.ok) throw new Error(`Géocodage indisponible (${r.status})`);
   const data = await r.json();
   return (data.results || []).map(x => ({
-    id: x.id, name:x.name, admin1:x.admin1 || '', country:x.country || '', countryCode:x.country_code || '',
-    lat:x.latitude, lon:x.longitude, elevation:x.elevation ?? null, timezone:x.timezone || 'auto'
+    id:`om-${x.id}`, name:x.name, admin1:x.admin1 || x.admin2 || '', country:x.country || '', countryCode:x.country_code || '',
+    lat:x.latitude, lon:x.longitude, elevation:x.elevation ?? null, timezone:x.timezone || 'auto', type:'Localité', source:'open-meteo'
   }));
 }
 
+export async function geocode(name, count = 8) {
+  const query = String(name || '').trim();
+  if (!query) return [];
+  const cacheKey = `${query.toLocaleLowerCase('fr')}:${count}`;
+  const cached = geocodeCache.get(cacheKey);
+  if (cached && Date.now() - cached.time < 10 * 60_000) return cached.items;
+
+  let osm = [];
+  try {
+    const wait = Math.max(0, 1050 - (Date.now() - lastNominatimRequest));
+    if (wait) await sleep(wait);
+    lastNominatimRequest = Date.now();
+    const q = new URLSearchParams({
+      q:query, format:'jsonv2', addressdetails:'1', namedetails:'1', extratags:'1', limit:String(Math.min(16, Math.max(count * 2, 10))), 'accept-language':'fr'
+    });
+    const r = await fetch(`${NOMINATIM}?${q}`);
+    if (r.ok) {
+      const data = await r.json();
+      const mapped = data.map(x => {
+        const address = x.address || {};
+        const taggedEle = Number.parseFloat(x.extratags?.ele);
+        return {
+          id:`osm-${x.osm_type}-${x.osm_id}`,
+          name:displayPlaceName(x),
+          admin1:address.state || address.region || address.county || address.municipality || address.city || address.town || '',
+          country:address.country || '', countryCode:(address.country_code || '').toUpperCase(),
+          lat:Number(x.lat), lon:Number(x.lon), elevation:Number.isFinite(taggedEle) ? taggedEle : null,
+          timezone:'auto', type:placeTypeLabel(x.category, x.type, address), source:'openstreetmap', importance:Number(x.importance || 0)
+        };
+      }).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon));
+      const missing = mapped.filter(x => x.elevation == null);
+      const elevations = await terrainElevations(missing);
+      missing.forEach((x,i) => { if (elevations[i] != null) x.elevation = elevations[i]; });
+      const seen = new Set();
+      osm = mapped.filter(x => {
+        const key = `${x.name.toLowerCase()}|${x.lat.toFixed(4)}|${x.lon.toFixed(4)}`;
+        if (seen.has(key)) return false; seen.add(key); return true;
+      }).slice(0, count);
+    }
+  } catch (err) { console.warn('Recherche OpenStreetMap indisponible', err); }
+
+  let items = osm;
+  if (items.length < Math.min(3, count)) {
+    try {
+      const fallback = await openMeteoGeocode(query, count);
+      const existing = new Set(items.map(x => `${x.name.toLowerCase()}|${Number(x.lat).toFixed(3)}|${Number(x.lon).toFixed(3)}`));
+      items = [...items, ...fallback.filter(x => !existing.has(`${x.name.toLowerCase()}|${Number(x.lat).toFixed(3)}|${Number(x.lon).toFixed(3)}`))].slice(0,count);
+    } catch (err) { if (!items.length) throw err; }
+  }
+  geocodeCache.set(cacheKey, {time:Date.now(), items});
+  return items;
+}
+
 export async function reverseGeocodeApprox(lat, lon) {
-  // Open-Meteo ne fournit pas de reverse geocoding public; on garde un libellé neutre et précis.
-  return { name:'Ma position', admin1:`${lat.toFixed(3)}, ${lon.toFixed(3)}`, country:'', lat, lon, elevation:null, timezone:'auto' };
+  try {
+    const q = new URLSearchParams({lat:String(lat), lon:String(lon), format:'jsonv2', addressdetails:'1', zoom:'14', 'accept-language':'fr'});
+    const [r, elevations] = await Promise.all([fetch(`${NOMINATIM_REVERSE}?${q}`), terrainElevations([{lat,lon}])]);
+    if (r.ok) {
+      const x = await r.json(); const a=x.address || {};
+      return { name:a.hamlet || a.village || a.town || a.city || a.locality || x.name || 'Ma position', admin1:a.state || a.county || '', country:a.country || '', lat, lon, elevation:elevations[0], timezone:'auto', type:'Position' };
+    }
+  } catch {}
+  const [elevation] = await terrainElevations([{lat,lon}]);
+  return { name:'Ma position', admin1:`${lat.toFixed(3)}, ${lon.toFixed(3)}`, country:'', lat, lon, elevation, timezone:'auto', type:'Position' };
 }
 
 export async function getForecast(location) {
