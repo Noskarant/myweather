@@ -1,0 +1,11 @@
+{
+  "name": "MyWeather — Cockpit météo",
+  "short_name": "MyWeather",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "description": "Prévisions météo scientifiques, cartes et météo sur trajet.",
+  "icons": []
+}

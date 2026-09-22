@@ -1,0 +1,10 @@
+{
+  "name": "myweather",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests.mjs",
+    "check": "node --check js/app.js && node --check js/weather.js && node --check js/route.js && node --check js/utils.js"
+  }
+}

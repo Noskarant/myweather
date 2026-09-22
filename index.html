@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <meta name="description" content="MyWeather — cockpit météo scientifique, prévisions 15 jours, cartes et météo sur trajet." />
+  <title>MyWeather — Cockpit météo</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="preconnect" href="https://api.open-meteo.com" />
+  <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-season="autumn" data-weather="cloudy">
+  <canvas id="weatherFx" aria-hidden="true"></canvas>
+  <div class="ambient ambient-a" aria-hidden="true"></div>
+  <div class="ambient ambient-b" aria-hidden="true"></div>
+
+  <header class="topbar glass">
+    <button class="brand" data-nav="forecast" aria-label="Accueil MyWeather">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64"><path d="M9 46 25 22l8 11 7-9 15 22H9Z"/><path d="m24 35 6-4 5 8 5-4 6 11H18l6-11Z"/></svg>
+      </span>
+      <span><strong>My<span>Weather</span></strong><small>SCIENCE · NATURE · ANTICIPATION</small></span>
+    </button>
+
+    <form id="searchForm" class="search-box" role="search" autocomplete="off">
+      <span class="search-icon">⌕</span>
+      <input id="searchInput" type="search" placeholder="Rechercher une ville, station, village…" aria-label="Rechercher un lieu" />
+      <button type="button" id="geoBtn" class="icon-btn" title="Ma position" aria-label="Utiliser ma position">◎</button>
+      <div id="searchResults" class="search-results glass hidden" role="listbox"></div>
+    </form>
+
+    <div class="top-actions">
+      <button id="favoriteBtn" class="chip-btn" title="Ajouter aux favoris"><span id="favoriteIcon">♡</span><span class="desktop-only">Favori</span></button>
+      <button id="refreshBtn" class="icon-btn" title="Actualiser" aria-label="Actualiser">↻</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="forecastView" class="view active">
+      <div class="hero-grid page-width">
+        <article class="current-card glass glow-card">
+          <div class="current-topline">
+            <div>
+              <div class="eyebrow"><span class="live-dot"></span> CONDITIONS ACTUELLES</div>
+              <h1 id="locationName">Lyon</h1>
+              <p id="locationMeta">Rhône, France</p>
+            </div>
+            <div id="confidenceBadge" class="confidence"><span>Confiance</span><strong>—</strong><small>indicative</small></div>
+          </div>
+
+          <div class="hero-weather">
+            <div>
+              <div id="currentTemp" class="temperature">--°</div>
+              <div id="currentCondition" class="condition">Chargement…</div>
+              <div id="feelsLike" class="muted">Ressenti --°</div>
+            </div>
+            <div id="weatherGlyph" class="weather-glyph" aria-hidden="true">☁</div>
+          </div>
+
+          <div class="quick-metrics" id="quickMetrics"></div>
+          <div id="weatherInsight" class="insight-banner">Analyse des conditions en cours…</div>
+        </article>
+
+        <article class="cockpit glass">
+          <div class="card-heading">
+            <div><div class="eyebrow">COCKPIT MÉTÉO</div><h2>Lecture scientifique</h2></div>
+            <button id="expertToggle" class="toggle-pill" aria-pressed="false"><span></span>Mode expert</button>
+          </div>
+          <div id="cockpitGrid" class="cockpit-grid"></div>
+          <div class="mini-chart-wrap">
+            <div class="chart-labels"><span>Température · prochaines 24 h</span><span id="tempRangeLabel"></span></div>
+            <svg id="tempChart" class="mini-chart" viewBox="0 0 720 150" preserveAspectRatio="none" aria-label="Évolution de la température"></svg>
+          </div>
+        </article>
+      </div>
+
+      <section class="page-width section-block">
+        <div class="section-title-row">
+          <div><div class="eyebrow">PROCHAINES HEURES</div><h2>Prévisions horaires</h2></div>
+          <div class="legend"><span><i class="legend-dot cyan"></i> pluie/neige</span><span><i class="legend-dot violet"></i> rafales</span></div>
+        </div>
+        <div id="hourlyRail" class="hourly-rail" aria-label="Prévisions heure par heure"></div>
+      </section>
+
+      <section class="page-width section-block">
+        <div class="section-title-row">
+          <div><div class="eyebrow">TENDANCE</div><h2>Prévisions sur 15 jours</h2></div>
+          <span class="muted small">Clique sur un jour pour l’explorer</span>
+        </div>
+        <div id="dailyGrid" class="daily-grid"></div>
+      </section>
+
+      <section class="page-width section-block mountain-panel glass">
+        <div class="section-title-row">
+          <div><div class="eyebrow">MONTAGNE & HIVER</div><h2>Profil neige et altitude</h2></div>
+          <span id="mountainStatus" class="status-pill">Analyse locale</span>
+        </div>
+        <div class="mountain-content">
+          <div id="mountainVisual" class="mountain-visual">
+            <div class="mountain-sky"></div>
+            <div class="mountain-shape back"></div>
+            <div class="mountain-shape front"></div>
+            <div id="zeroLine" class="alt-line zero"><span>ISO 0 °C</span></div>
+            <div id="snowLine" class="alt-line snow"><span>LPN estimée</span></div>
+            <div id="placeLine" class="alt-line place"><span>Lieu</span></div>
+          </div>
+          <div id="mountainStats" class="mountain-stats"></div>
+        </div>
+      </section>
+
+      <section id="mapsSection" class="page-width section-block">
+        <div class="section-title-row">
+          <div><div class="eyebrow">CARTES TEMPS RÉEL & MODÈLES</div><h2>Observer l’atmosphère</h2></div>
+          <span class="muted small">Centrées automatiquement sur le lieu sélectionné</span>
+        </div>
+        <article class="map-card glass">
+          <div id="mapTabs" class="map-tabs">
+            <button class="active" data-overlay="radar">Radar</button>
+            <button data-overlay="rain">Précipitations</button>
+            <button data-overlay="wind">Vent</button>
+            <button data-overlay="satellite">Satellite</button>
+            <button data-overlay="thunder">Foudre / orages</button>
+          </div>
+          <div class="map-frame-wrap">
+            <iframe id="weatherMapFrame" title="Carte météo interactive" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+            <div class="map-overlay-label"><span class="live-dot"></span><span id="mapOverlayName">Radar</span><small>Données cartographiques Windy</small></div>
+          </div>
+          <div class="map-note">Les couches radar/satellite/foudre sont des observations ou produits dédiés ; les couches pluie/vent sont des champs de prévision. Les conditions peuvent différer localement du modèle.</div>
+        </article>
+      </section>
+
+      <section class="page-width source-strip glass">
+        <div><strong>Sources principales</strong><span>Open‑Meteo · modèles météo combinés · Windy · OpenStreetMap · OSRM</span></div>
+        <div><strong>Philosophie</strong><span>Données réelles, incertitude visible, aucune fausse précision.</span></div>
+      </section>
+    </section>
+
+    <section id="routeView" class="view page-width">
+      <div class="route-hero">
+        <div><div class="eyebrow">V1 · MÉTÉO SUR MON TRAJET</div><h1>La météo à l’endroit où tu seras,<br><span>au moment où tu y seras.</span></h1><p>Analyse météo spatiale et temporelle du trajet : pluie, neige, LPN, gel, visibilité, vent et rafales.</p></div>
+        <div class="route-orb" aria-hidden="true"><span></span><i></i></div>
+      </div>
+
+      <article class="route-planner glass glow-card">
+        <form id="routeForm" class="route-form">
+          <label>Départ<input id="routeFrom" required placeholder="Ex. Oullins" /></label>
+          <button type="button" id="swapRoute" class="swap-btn" title="Inverser">⇄</button>
+          <label>Destination<input id="routeTo" required placeholder="Ex. Valmorel" /></label>
+          <label>Départ le<input id="routeDate" type="date" required /></label>
+          <label>à<input id="routeTime" type="time" required /></label>
+          <button class="primary-btn" type="submit">Analyser le trajet <span>→</span></button>
+        </form>
+      </article>
+
+      <div id="routeLoading" class="loading-panel glass hidden"><div class="loader-orbit"><i></i><i></i><i></i></div><div><strong>Analyse du trajet</strong><span>Route, altitudes et météo aux heures de passage…</span></div></div>
+      <div id="routeEmpty" class="empty-state glass"><div class="empty-icon">⌁</div><h2>Prépare un trajet</h2><p>MyWeather découpera automatiquement l’itinéraire en points météo et analysera chaque portion à son heure de passage.</p></div>
+
+      <div id="routeResults" class="hidden">
+        <div class="route-summary-grid">
+          <article class="route-summary glass" id="routeSummary"></article>
+          <article class="route-risk glass" id="routeRisk"></article>
+        </div>
+        <article class="route-map-card glass">
+          <div class="card-heading"><div><div class="eyebrow">PROFIL DE ROUTE</div><h2>Conditions le long du trajet</h2></div><span class="small muted">Couleur = niveau de vigilance météo</span></div>
+          <div id="routeSketch" class="route-sketch"></div>
+        </article>
+        <section class="section-block">
+          <div class="section-title-row"><div><div class="eyebrow">CHRONOLOGIE</div><h2>Point par point</h2></div></div>
+          <div id="routeTimeline" class="route-timeline"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="favoritesView" class="view page-width">
+      <div class="simple-hero"><div class="eyebrow">TES LIEUX</div><h1>Favoris</h1><p>Retrouve instantanément tes villes, stations et spots météo.</p></div>
+      <div id="favoritesGrid" class="favorites-grid"></div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav glass" aria-label="Navigation principale">
+    <button class="active" data-nav="forecast"><span>⌂</span><small>Prévisions</small></button>
+    <button data-nav="maps"><span>▧</span><small>Cartes</small></button>
+    <button data-nav="route"><span>⌁</span><small>Trajet</small></button>
+    <button data-nav="favorites"><span>♡</span><small>Favoris</small></button>
+  </nav>
+
+  <div id="hourModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="hourModalTitle">
+    <article class="modal glass">
+      <button id="closeHourModal" class="modal-close" aria-label="Fermer">×</button>
+      <div class="modal-head"><div><div class="eyebrow">DÉTAIL HORAIRE</div><h2 id="hourModalTitle">—</h2><p id="hourModalSub" class="muted">—</p></div><div id="hourModalGlyph" class="modal-glyph">☁</div></div>
+      <div id="hourModalMain" class="hour-modal-main"></div>
+      <div id="hourDetailGrid" class="hour-detail-grid"></div>
+      <div class="science-note"><strong>À savoir</strong><span id="scienceNote">La LPN est une estimation issue du niveau 0 °C, de la température humide et de l’intensité des précipitations.</span></div>
+    </article>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
