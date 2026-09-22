@@ -267,3 +267,67 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 @media(max-width:470px){
   .current-place{max-width:76%}.confidence{display:none}.current-place h1{font-size:18px}.location-elevation{font-size:9px;height:23px;padding-inline:6px}.hero-weather{min-height:178px}.temperature{font-size:94px}.hour-card{flex-basis:102px}.forecast-row{grid-template-columns:80px 62px 92px 1fr 10px;min-height:114px}.forecast-date strong{font-size:14px}.forecast-icons .wx-icon{width:36px;height:36px}.forecast-temps strong,.forecast-temps em{min-width:68px;font-size:16px}.forecast-metrics>span{font-size:10px}
 }
+
+/* V1.2.2 — mobile compact comme V1.1, typographie légèrement renforcée */
+@media(max-width:760px){
+  .page-width{width:calc(100% - 20px)}
+  .topbar{min-height:64px;padding:8px 10px}
+  .search-box{height:44px;border-radius:13px}
+  .search-box input{font-size:15px}
+  .top-actions .icon-btn{height:40px;min-width:40px;font-size:18px;border-radius:12px}
+  .favorite-quickbar{top:64px;padding:6px 10px;gap:8px}
+  .quick-favorite{padding:8px 12px;font-size:12px;border-radius:10px}
+  .search-results{top:66px;left:10px;right:10px}
+  .search-results button{padding:11px 10px}
+  .search-results strong{font-size:13px}
+  .search-results small{font-size:10px}
+
+  .home-current{padding-top:8px;padding-bottom:2px}
+  .current-card{padding:18px 8px 8px}
+  .current-place h1{font-size:18px}
+  .location-elevation{height:23px;font-size:10px;padding-inline:7px}
+  .current-place p{font-size:11px}
+  .hero-weather{min-height:164px;gap:9px}
+  .temperature{font-size:86px;letter-spacing:-5px}
+  .condition{font-size:18px;margin-top:10px}
+  .current-secondary{font-size:11px}
+  .weather-glyph{width:54px;height:54px}
+  .weather-glyph .wx-icon{width:54px;height:54px}
+
+  .section-block{margin-top:22px}
+  .compact-heading{padding-bottom:10px}
+  .compact-heading .eyebrow{font-size:10px}
+  .compact-heading h2{font-size:20px}
+  .hourly-block,.daily-section{width:calc(100% - 12px)}
+  .hourly-rail{border-radius:15px}
+  .hour-card{flex-basis:90px;min-height:150px;padding:13px 7px;gap:8px}
+  .hour-time{font-size:12px}
+  .hour-glyph{height:44px}
+  .hour-glyph .wx-icon{width:43px;height:43px}
+  .hour-card>strong{font-size:23px}
+  .hour-card small{font-size:9px}
+
+  .daily-grid{border-radius:15px}
+  .forecast-row{min-height:102px;grid-template-columns:72px 54px 80px 1fr 10px;gap:7px;padding:13px 9px}
+  .forecast-date strong{font-size:14px}
+  .forecast-date small{font-size:10px;margin-top:4px}
+  .forecast-icons .wx-icon{width:35px;height:35px}
+  .forecast-temps strong,.forecast-temps em{min-width:62px;padding:6px 7px;font-size:15px;border-radius:7px}
+  .forecast-metrics{gap:5px}
+  .forecast-metrics>span{font-size:10px}
+  .forecast-metrics small{font-size:8px}
+  .forecast-chevron{font-size:20px}
+}
+
+@media(max-width:470px){
+  .current-place{max-width:74%}
+  .hero-weather{min-height:158px}
+  .temperature{font-size:84px}
+  .weather-glyph{width:50px;height:50px}
+  .weather-glyph .wx-icon{width:50px;height:50px}
+  .hour-card{flex-basis:88px;min-height:148px}
+  .forecast-row{grid-template-columns:68px 50px 76px 1fr 8px;gap:6px;padding:12px 8px;min-height:100px}
+  .forecast-icons .wx-icon{width:33px;height:33px}
+  .forecast-temps strong,.forecast-temps em{min-width:59px;font-size:15px}
+  .forecast-metrics>span{font-size:10px}
+}
