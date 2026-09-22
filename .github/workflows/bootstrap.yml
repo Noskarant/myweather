@@ -1,0 +1,34 @@
+name: Bootstrap MyWeather
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - bootstrap.ready
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore project snapshot
+        shell: bash
+        run: |
+          cat bootstrap/payload.* | base64 -d > /tmp/myweather.tar.gz
+          tar -xzf /tmp/myweather.tar.gz -C .
+      - name: Validate
+        run: |
+          npm test
+          npm run check
+      - name: Commit application
+        shell: bash
+        run: |
+          rm -rf bootstrap bootstrap.ready .github/workflows/bootstrap.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Build MyWeather V1"
+          git push
