@@ -6,10 +6,42 @@ const ELEVATION = 'https://api.open-meteo.com/v1/elevation';
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
 
+
+export const HOURLY_VARS = [
+  'temperature_2m','relative_humidity_2m','dew_point_2m','apparent_temperature','precipitation_probability',
+  'precipitation','rain','showers','snowfall','snow_depth','weather_code','cloud_cover','cloud_cover_low','cloud_cover_mid',
+  'cloud_cover_high','visibility','wind_speed_10m','wind_direction_10m','wind_gusts_10m','surface_pressure','pressure_msl',
+  'uv_index','cape','wet_bulb_temperature_2m','freezing_level_height'
+];
+export const CURRENT_VARS = [
+  'temperature_2m','relative_humidity_2m','apparent_temperature','is_day','precipitation','rain','showers','snowfall',
+  'weather_code','cloud_cover','pressure_msl','surface_pressure','wind_speed_10m','wind_direction_10m','wind_gusts_10m'
+];
+export const DAILY_VARS = [
+  'weather_code','temperature_2m_max','temperature_2m_min','apparent_temperature_max','apparent_temperature_min',
+  'sunrise','sunset','uv_index_max','precipitation_sum','rain_sum','showers_sum','snowfall_sum',
+  'precipitation_probability_max','wind_speed_10m_max','wind_gusts_10m_max','wind_direction_10m_dominant'
+];
+
+
 const geocodeCache = new Map();
 let lastNominatimRequest = 0;
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+async function fetchWithRetry(url, options = {}, attempts = 2) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || (response.status < 500 && response.status !== 429)) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (err) { lastError = err; }
+    if (attempt < attempts - 1) await sleep(450 * (attempt + 1));
+  }
+  throw lastError || new Error('Service réseau indisponible');
+}
+
 
 function placeTypeLabel(category = '', type = '', address = {}) {
   const key = `${category}:${type}`.toLowerCase();
@@ -130,7 +162,7 @@ export async function getForecast(location) {
     current:CURRENT_VARS.join(','), hourly:HOURLY_VARS.join(','), daily:DAILY_VARS.join(','),
     wind_speed_unit:'kmh', temperature_unit:'celsius', precipitation_unit:'mm'
   });
-  const r = await fetch(`${FORECAST}?${params}`);
+  const r = await fetchWithRetry(`${FORECAST}?${params}`, {}, 2);
   if (!r.ok) throw new Error(`Prévisions indisponibles (${r.status})`);
   const data = await r.json();
   data.location = { ...location, elevation: data.elevation ?? location.elevation, timezone:data.timezone, timezoneAbbreviation:data.timezone_abbreviation };

@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
-import { createDemoForecast } from './js/weather.js';
+import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS } from './js/weather.js';
+
+assert.ok(HOURLY_VARS.length >= 20);
+assert.ok(CURRENT_VARS.includes('temperature_2m'));
+assert.ok(DAILY_VARS.includes('temperature_2m_max'));
+assert.ok(HOURLY_VARS.includes('freezing_level_height'));
 
 const lpn = estimateSnowLevel({freezingLevel:1600, wetBulb:0, precipitation:2, elevation:900});
 assert.ok(lpn >= 1100 && lpn <= 1400, `LPN plausible attendue, reçu ${lpn}`);

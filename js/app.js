@@ -67,17 +67,35 @@ async function loadLocation(location, {silent=false}={}) {
     saveLastLocation();
   } catch (err) {
     console.warn(err);
-    const demoLocation = location?.name ? location : state.location;
-    state.location = demoLocation;
-    state.forecast = createDemoForecast(demoLocation);
-    state.demo = true;
-    state.selectedDate = state.forecast.daily[0]?.time || null;
-    saveLastLocation();
-    if (!silent) showToast('Réseau météo indisponible : aperçu de démonstration affiché.', 'warn');
+    const requestedLocation = location?.name ? location : state.location;
+    if (OFFLINE_TEST) {
+      state.location = requestedLocation;
+      state.forecast = createDemoForecast(requestedLocation);
+      state.demo = true;
+      state.selectedDate = state.forecast.daily[0]?.time || null;
+      saveLastLocation();
+    } else {
+      state.location = requestedLocation;
+      state.demo = false;
+      if (!state.forecast) {
+        refs.locationName.textContent = requestedLocation.name || 'Lieu sélectionné';
+        const elevation = Number(requestedLocation.elevation);
+        refs.locationElevation.textContent = Number.isFinite(elevation) ? `${Math.round(elevation)} m` : 'alt. —';
+        refs.locationMeta.textContent = [requestedLocation.type && requestedLocation.type !== 'Localité' ? requestedLocation.type : '', requestedLocation.admin1, requestedLocation.country].filter(Boolean).join(' · ');
+        refs.currentTemp.textContent = '—°';
+        refs.currentCondition.textContent = 'Données météo momentanément indisponibles';
+        refs.feelsLike.textContent = 'Ressenti —';
+        refs.lastUpdated.textContent = 'Réessaie dans quelques instants';
+        refs.weatherGlyph.innerHTML = weatherIcon(3, 1);
+        refs.hourlyRail.innerHTML = '';
+        refs.dailyGrid.innerHTML = '';
+      }
+      if (!silent) showToast('Données météo indisponibles : aucune donnée fictive n’est affichée.', 'warn');
+    }
   } finally {
     state.loading = false;
     refs.refreshBtn.classList.remove('spinning');
-    renderAll();
+    if (state.forecast) renderAll();
   }
 }
 
