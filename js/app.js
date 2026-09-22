@@ -11,7 +11,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 const OFFLINE_TEST = new URLSearchParams(location.search).has('offline');
 
 const state = {
-  location: { name:'Chamonix', admin1:'Haute-Savoie', country:'France', lat:45.9237, lon:6.8694, elevation:1035, timezone:'Europe/Paris' },
+  location: loadLastLocation() || { name:'Oullins', admin1:'Auvergne-Rhône-Alpes', country:'France', lat:45.714, lon:4.807, elevation:180, timezone:'Europe/Paris' },
   forecast:null,
   selectedDate:null,
   expert:false,
@@ -22,8 +22,8 @@ const state = {
 };
 
 const refs = {
-  searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'),
-  locationName:$('#locationName'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), weatherGlyph:$('#weatherGlyph'), quickMetrics:$('#quickMetrics'), insight:$('#weatherInsight'),
+  searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
+  locationName:$('#locationName'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), quickMetrics:$('#quickMetrics'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
   forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
@@ -34,6 +34,12 @@ const refs = {
 
 function loadFavorites() {
   try { return JSON.parse(localStorage.getItem('myweather:favorites') || '[]'); } catch { return []; }
+}
+function loadLastLocation() {
+  try { return JSON.parse(localStorage.getItem('myweather:last-location') || 'null'); } catch { return null; }
+}
+function saveLastLocation() {
+  try { localStorage.setItem('myweather:last-location', JSON.stringify(state.location)); } catch {}
 }
 function saveFavorites() { localStorage.setItem('myweather:favorites', JSON.stringify(state.favorites)); }
 function favoriteKey(loc) { return `${Number(loc.lat).toFixed(3)},${Number(loc.lon).toFixed(3)}`; }
@@ -58,6 +64,7 @@ async function loadLocation(location, {silent=false}={}) {
     state.forecast = data;
     state.demo = false;
     state.selectedDate = data.daily[0]?.time || null;
+    saveLastLocation();
   } catch (err) {
     console.warn(err);
     const demoLocation = location?.name ? location : state.location;
@@ -65,6 +72,7 @@ async function loadLocation(location, {silent=false}={}) {
     state.forecast = createDemoForecast(demoLocation);
     state.demo = true;
     state.selectedDate = state.forecast.daily[0]?.time || null;
+    saveLastLocation();
     if (!silent) showToast('Réseau météo indisponible : aperçu de démonstration affiché.', 'warn');
   } finally {
     state.loading = false;
@@ -88,10 +96,13 @@ function renderAll() {
 
   refs.locationName.textContent = loc.name || 'Lieu sélectionné';
   refs.locationMeta.textContent = [loc.admin1, loc.country, Number.isFinite(Number(loc.elevation)) ? `${Math.round(loc.elevation)} m` : ''].filter(Boolean).join(' · ');
+  if (document.activeElement !== refs.searchInput) refs.searchInput.value = loc.name || '';
   refs.currentTemp.textContent = `${Math.round(c.temperature_2m ?? hNow.temperature_2m ?? 0)}°`;
-  refs.currentCondition.textContent = info.label;
+  const uvNow = Number(hNow.uv_index);
+  refs.currentCondition.textContent = Number.isFinite(uvNow) ? `${info.label} · UV ${round(uvNow,1)}` : info.label;
   refs.feelsLike.textContent = `Ressenti ${Math.round(c.apparent_temperature ?? hNow.apparent_temperature ?? 0)}°C`;
-  refs.weatherGlyph.textContent = info.glyph;
+  refs.lastUpdated.textContent = formatUpdateAge(c.time || hNow.time);
+  refs.weatherGlyph.innerHTML = weatherIcon(c.weather_code ?? hNow.weather_code, c.is_day);
 
   const conf = confidenceForHorizon(1);
   refs.confidence.querySelector('strong').textContent = `${conf}%`;
@@ -117,6 +128,66 @@ function renderAll() {
   updateMap();
   applyTheme(info.theme, c.is_day);
   renderFavorites();
+  renderFavoriteQuickbar();
+}
+
+function formatUpdateAge(iso) {
+  if (!iso) return 'Mise à jour récente';
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (!Number.isFinite(minutes) || minutes < 2) return 'Mise à jour à l’instant';
+  if (minutes < 60) return `Mise à jour il y a ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `Mise à jour il y a ${hours} h`;
+}
+
+function weatherIcon(code = 0, isDay = 1) {
+  const day = isDay !== 0;
+  const cloud = '<path class="wx-cloud" d="M21 43h27a9 9 0 0 0 .8-18 14 14 0 0 0-26-4A11 11 0 0 0 21 43Z"/>';
+  const sun = '<circle class="wx-sun" cx="24" cy="23" r="8"/><g class="wx-rays"><path d="M24 7v5M24 34v5M8 23h5M35 23h5M13 12l4 4M31 30l4 4M35 12l-4 4M17 30l-4 4"/></g>';
+  const moon = '<path class="wx-moon" d="M31 10a15 15 0 1 0 14 22A13 13 0 0 1 31 10Z"/>';
+  let art = '';
+  if ([0,1].includes(code)) art = day ? sun : moon;
+  else if ([2,3].includes(code)) art = `${day ? sun : moon}${cloud}`;
+  else if ([45,48].includes(code)) art = `${cloud}<g class="wx-precip"><path d="M17 50h32M14 56h28"/></g>`;
+  else if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) art = `${cloud}<g class="wx-rain"><path d="m24 49-3 7M36 49l-3 7M48 49l-3 7"/></g>`;
+  else if ([71,73,75,77,85,86].includes(code)) art = `${cloud}<g class="wx-snow"><path d="M25 49v9M20.5 51.5l9 4M29.5 51.5l-9 4M43 49v9M38.5 51.5l9 4M47.5 51.5l-9 4"/></g>`;
+  else if ([95,96,99].includes(code)) art = `${cloud}<path class="wx-bolt" d="m35 47-7 10h7l-3 8 11-13h-7l4-5Z"/>`;
+  else art = cloud;
+  return `<span class="wx-icon" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false">${art}</svg></span>`;
+}
+
+
+function isDayAt(time) {
+  const date = String(time).slice(0,10);
+  const day = state.forecast?.daily?.find(d => d.time === date);
+  if (day?.sunrise && day?.sunset) {
+    const t = new Date(time).getTime();
+    return Number(t >= new Date(day.sunrise).getTime() && t < new Date(day.sunset).getTime());
+  }
+  const hour = new Date(time).getHours();
+  return Number(hour >= 7 && hour < 19);
+}
+
+function representativeHour(date, targetHour) {
+  const hours = state.forecast?.hourly?.filter(h => h.time.slice(0,10) === date) || [];
+  if (!hours.length) return null;
+  return hours.reduce((best, h) => {
+    const hour = Number(h.time.slice(11,13));
+    const bestHour = Number(best.time.slice(11,13));
+    return Math.abs(hour-targetHour) < Math.abs(bestHour-targetHour) ? h : best;
+  }, hours[0]);
+}
+
+function windRangeForDate(date) {
+  const values = (state.forecast?.hourly || []).filter(h => h.time.slice(0,10) === date).map(h => Number(h.wind_speed_10m)).filter(Number.isFinite);
+  if (!values.length) return null;
+  return [Math.round(Math.min(...values)), Math.round(Math.max(...values))];
+}
+
+function daylightHours(d) {
+  if (!d?.sunrise || !d?.sunset) return null;
+  const hours = (new Date(d.sunset).getTime() - new Date(d.sunrise).getTime()) / 3600000;
+  return Number.isFinite(hours) ? hours : null;
 }
 
 function weatherInsight(c,h,loc) {
@@ -164,14 +235,21 @@ function renderTempChart() {
 
 function renderHourly(dateStr) {
   const f=state.forecast; if (!f) return;
-  const items=f.hourly.filter(x=>x.time.slice(0,10)===dateStr);
+  let items;
+  if (dateStr === f.daily[0]?.time) {
+    const idx = nearestIndex(f.hourly.map(x=>x.time), new Date());
+    items = f.hourly.slice(idx, idx + 24);
+  } else {
+    items = f.hourly.filter(x=>x.time.slice(0,10)===dateStr);
+  }
   const now=Date.now();
-  refs.hourlyRail.innerHTML = items.map((h,i)=>{
-    const info=weatherCodeInfo(h.weather_code, 1);
+  refs.hourlyRail.innerHTML = items.map(h=>{
     const isPast=new Date(h.time).getTime() < now-3600000;
     return `<button class="hour-card ${isPast?'past':''}" data-hour="${escapeHtml(h.time)}">
-      <span class="hour-time">${formatHour(h.time)}</span><span class="hour-glyph">${info.glyph}</span><strong>${Math.round(h.temperature_2m)}°</strong>
-      <small class="precip">◆ ${Math.round(h.precipitation_probability ?? 0)}%</small><small>⚑ ${Math.round(h.wind_gusts_10m ?? 0)}</small>
+      <span class="hour-time">${formatHour(h.time)}</span>
+      <span class="hour-glyph">${weatherIcon(h.weather_code, isDayAt(h.time))}</span>
+      <strong>${Math.round(h.temperature_2m)}°</strong>
+      <span class="hour-meta"><small class="precip">${Math.round(h.precipitation_probability ?? 0)}%</small><small>raf. ${Math.round(h.wind_gusts_10m ?? 0)}</small></span>
     </button>`;
   }).join('');
   refs.hourlyRail.querySelectorAll('[data-hour]').forEach(btn=>btn.addEventListener('click',()=>openHour(btn.dataset.hour)));
@@ -181,17 +259,27 @@ function renderDaily() {
   refs.dailyGrid.innerHTML = state.forecast.daily.slice(0,15).map((d,i)=>{
     const conf=confidenceForHorizon(i*24+12);
     const active=d.time===state.selectedDate;
-    return `<button class="day-card glass ${active?'selected':''}" data-day="${d.time}">
-      <div class="day-head"><span>${i===0?'Aujourd’hui':formatDay(d.time)}</span><span class="day-confidence">${conf}%</span></div>
-      <div class="day-glyph">${d.info.glyph}</div>
-      <div class="day-temps"><strong>${Math.round(d.max)}°</strong><span>${Math.round(d.min)}°</span></div>
-      <div class="day-cond">${d.info.label}</div>
-      <div class="day-data"><span>◆ ${Math.round(d.precipProb ?? 0)}%</span><span>⚑ ${Math.round(d.gustMax ?? 0)}</span>${(d.snowfall??0)>0.1?`<span>❄ ${round(d.snowfall,1)} cm</span>`:''}</div>
+    const daylight=daylightHours(d);
+    const snow = Number(d.snowfall ?? 0);
+    const dayHour = representativeHour(d.time, 14);
+    const nightHour = representativeHour(d.time, 23) || representativeHour(d.time, 2);
+    const windRange = windRangeForDate(d.time);
+    const windText = windRange ? `${windRange[0]}–${windRange[1]}` : `${Math.round(d.windMax ?? 0)}`;
+    return `<button class="forecast-row ${active?'selected':''}" data-day="${d.time}">
+      <span class="forecast-date"><strong>${i===0?'Aujourd’hui':formatDay(d.time).split(' ')[0]}</strong><small>${new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit'}).format(new Date(`${d.time}T12:00:00`))}</small></span>
+      <span class="forecast-weather"><span class="forecast-icons">${weatherIcon(dayHour?.weather_code ?? d.weather_code,1)}${weatherIcon(nightHour?.weather_code ?? d.weather_code,0)}</span><small>${escapeHtml(d.info.label)}</small></span>
+      <span class="forecast-temps"><strong>${Math.round(d.max)}°</strong><em>${Math.round(d.min)}°</em></span>
+      <span class="forecast-metrics">
+        <span><i class="wind-arrow" style="--wind-dir:${Number(d.windDir ?? 0)}deg">↑</i> ${windText} km/h <small>raf. ${Math.round(d.gustMax ?? 0)}</small></span>
+        <span>◌ ${round(d.precipitation ?? 0,1)} mm <small>${Math.round(d.precipProb ?? 0)}%</small></span>
+        <span>${snow>0.1?`❄ ${round(snow,1)} cm`:`☼ ${daylight!=null?`${round(daylight,1)} h`:'—'}`} <small>${conf}% fiab.</small></span>
+      </span>
+      <span class="forecast-chevron">›</span>
     </button>`;
   }).join('');
   refs.dailyGrid.querySelectorAll('[data-day]').forEach(btn=>btn.addEventListener('click',()=>{
     state.selectedDate=btn.dataset.day; renderDaily(); renderHourly(state.selectedDate);
-    document.querySelector('.hourly-rail')?.scrollIntoView({behavior:'smooth',block:'center'});
+    document.querySelector('.hourly-block')?.scrollIntoView({behavior:'smooth',block:'start'});
   }));
 }
 
@@ -219,7 +307,7 @@ function openHour(time) {
   const info=weatherCodeInfo(h.weather_code,1);
   refs.modalTitle.textContent=formatDateTime(h.time);
   refs.modalSub.textContent=`${state.location.name} · ${info.label}`;
-  refs.modalGlyph.textContent=info.glyph;
+  refs.modalGlyph.innerHTML=weatherIcon(h.weather_code, isDayAt(h.time));
   refs.modalMain.innerHTML=`<div><span>Température</span><strong>${round(h.temperature_2m,1)}°C</strong><small>Ressenti ${round(h.apparent_temperature,1)}°C</small></div><div><span>Précipitations</span><strong>${round(h.precipitation,1)} mm/h</strong><small>${Math.round(h.precipitation_probability??0)}% de probabilité</small></div><div><span>Vent / rafales</span><strong>${Math.round(h.wind_speed_10m??0)} / ${Math.round(h.wind_gusts_10m??0)}</strong><small>km/h · ${cardinal(h.wind_direction_10m)}</small></div>`;
   const items=[
     ['Pluie',`${round(h.rain,1)} mm`],['Averses',`${round(h.showers,1)} mm`],['Neige',`${round(h.snowfall,1)} cm`],['LPN estimée',h.snowLevel!=null?`~${Math.round(h.snowLevel)} m`:'—'],
@@ -238,7 +326,15 @@ function toggleFavorite(){
   const key=favoriteKey(state.location);
   if(isFavorite()) {state.favorites=state.favorites.filter(x=>favoriteKey(x)!==key);showToast('Lieu retiré des favoris.');}
   else {state.favorites.push({...state.location});showToast('Lieu ajouté aux favoris.','success');}
-  saveFavorites(); updateFavoriteButton(); renderFavorites();
+  saveFavorites(); updateFavoriteButton(); renderFavorites(); renderFavoriteQuickbar();
+}
+function renderFavoriteQuickbar(){
+  if(!refs.favoriteQuickbar) return;
+  const currentKey = favoriteKey(state.location);
+  const items = state.favorites.filter(x => favoriteKey(x) !== currentKey).slice(0,7);
+  refs.favoriteQuickbar.innerHTML = `<button type="button" class="quick-favorite active current-location" aria-current="true">${escapeHtml(state.location.name || 'Lieu actuel')}</button>${items.map((x,i)=>`<button type="button" data-quick-fav="${i}" class="quick-favorite">${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="quick-favorite quick-add" data-quick-add>${isFavorite()? '★ Favori' : '+ Favori'}</button>`;
+  refs.favoriteQuickbar.querySelectorAll('[data-quick-fav]').forEach(b=>b.addEventListener('click',()=>loadLocation(items[Number(b.dataset.quickFav)])));
+  refs.favoriteQuickbar.querySelector('[data-quick-add]')?.addEventListener('click',toggleFavorite);
 }
 function renderFavorites(){
   if(!state.favorites.length){refs.favoritesGrid.innerHTML='<div class="empty-state glass"><div class="empty-icon">♡</div><h2>Aucun favori</h2><p>Ajoute un lieu depuis les prévisions pour le retrouver ici.</p></div>';return;}
@@ -287,7 +383,7 @@ const doSearch=debounce(async q=>{
     const items=await geocode(q,7);
     refs.searchResults.innerHTML=items.length?items.map((x,i)=>`<button type="button" data-result="${i}"><span>⌖</span><div><strong>${escapeHtml(x.name)}</strong><small>${escapeHtml([x.admin1,x.country].filter(Boolean).join(', '))}${x.elevation!=null?` · ${Math.round(x.elevation)} m`:''}</small></div></button>`).join(''):'<div class="search-empty">Aucun lieu trouvé</div>';
     refs.searchResults.classList.remove('hidden');
-    refs.searchResults.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click',async()=>{refs.searchResults.classList.add('hidden');refs.searchInput.value='';await loadLocation(items[Number(b.dataset.result)]);}));
+    refs.searchResults.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click',async()=>{refs.searchResults.classList.add('hidden');await loadLocation(items[Number(b.dataset.result)]);}));
   }catch{refs.searchResults.innerHTML='<div class="search-empty">Recherche indisponible</div>';refs.searchResults.classList.remove('hidden');}
 },320);
 
@@ -348,7 +444,7 @@ function bindEvents(){
 }
 
 async function init(){
-  bindEvents();setupRouteDefaults();renderFavorites();
+  bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }

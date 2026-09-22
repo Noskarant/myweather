@@ -1,4 +1,4 @@
-const CACHE = 'myweather-v1';
+const CACHE = 'myweather-v1.1';
 const ASSETS = ['./','./index.html','./styles.css','./js/app.js','./js/weather.js','./js/route.js','./js/utils.js','./assets/favicon.svg','./manifest.webmanifest'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))));

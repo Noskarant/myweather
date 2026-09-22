@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#07111f" />
+  <meta name="theme-color" content="#0b3555" />
   <meta name="description" content="MyWeather — cockpit météo scientifique, prévisions 15 jours, cartes et météo sur trajet." />
   <title>MyWeather — Cockpit météo</title>
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
@@ -38,35 +38,55 @@
     </div>
   </header>
 
+  <div id="favoriteQuickbar" class="favorite-quickbar" aria-label="Accès rapide aux favoris"></div>
+
   <main>
     <section id="forecastView" class="view active">
-      <div class="hero-grid page-width">
-        <article class="current-card glass glow-card">
+      <div class="home-current page-width">
+        <article class="current-card">
           <div class="current-topline">
-            <div>
-              <div class="eyebrow"><span class="live-dot"></span> CONDITIONS ACTUELLES</div>
+            <div class="current-place">
               <h1 id="locationName">Lyon</h1>
               <p id="locationMeta">Rhône, France</p>
             </div>
-            <div id="confidenceBadge" class="confidence"><span>Confiance</span><strong>—</strong><small>indicative</small></div>
+            <div id="confidenceBadge" class="confidence" title="Confiance indicative liée à l’échéance"><span>Fiabilité</span><strong>—</strong></div>
           </div>
 
           <div class="hero-weather">
-            <div>
+            <div id="weatherGlyph" class="weather-glyph" aria-hidden="true"></div>
+            <div class="current-reading">
               <div id="currentTemp" class="temperature">--°</div>
               <div id="currentCondition" class="condition">Chargement…</div>
-              <div id="feelsLike" class="muted">Ressenti --°</div>
+              <div class="current-secondary"><span id="feelsLike">Ressenti --°C</span><span class="separator">·</span><span id="lastUpdated">Mise à jour —</span></div>
             </div>
-            <div id="weatherGlyph" class="weather-glyph" aria-hidden="true">☁</div>
           </div>
 
           <div class="quick-metrics" id="quickMetrics"></div>
           <div id="weatherInsight" class="insight-banner">Analyse des conditions en cours…</div>
         </article>
+      </div>
 
+      <section class="page-width section-block hourly-block">
+        <div class="section-title-row compact-heading">
+          <div><div class="eyebrow">HEURE PAR HEURE</div><h2>Prochaines heures</h2></div>
+          <span class="muted small">Appuie sur un créneau pour les détails</span>
+        </div>
+        <div id="hourlyRail" class="hourly-rail" aria-label="Prévisions heure par heure"></div>
+      </section>
+
+      <section class="page-width section-block daily-section">
+        <div class="section-title-row compact-heading">
+          <div><div class="eyebrow">15 JOURS</div><h2>Prévisions quotidiennes</h2></div>
+          <span class="muted small">Vent · précipitations · durée du jour</span>
+        </div>
+        <div class="daily-columns" aria-hidden="true"><span>Jour</span><span>Temps</span><span>Températures</span><span>Conditions</span><span></span></div>
+        <div id="dailyGrid" class="daily-grid"></div>
+      </section>
+
+      <section class="page-width section-block advanced-section">
         <article class="cockpit glass">
           <div class="card-heading">
-            <div><div class="eyebrow">COCKPIT MÉTÉO</div><h2>Lecture scientifique</h2></div>
+            <div><div class="eyebrow">ANALYSE</div><h2>Données détaillées</h2></div>
             <button id="expertToggle" class="toggle-pill" aria-pressed="false"><span></span>Mode expert</button>
           </div>
           <div id="cockpitGrid" class="cockpit-grid"></div>
@@ -75,22 +95,6 @@
             <svg id="tempChart" class="mini-chart" viewBox="0 0 720 150" preserveAspectRatio="none" aria-label="Évolution de la température"></svg>
           </div>
         </article>
-      </div>
-
-      <section class="page-width section-block">
-        <div class="section-title-row">
-          <div><div class="eyebrow">PROCHAINES HEURES</div><h2>Prévisions horaires</h2></div>
-          <div class="legend"><span><i class="legend-dot cyan"></i> pluie/neige</span><span><i class="legend-dot violet"></i> rafales</span></div>
-        </div>
-        <div id="hourlyRail" class="hourly-rail" aria-label="Prévisions heure par heure"></div>
-      </section>
-
-      <section class="page-width section-block">
-        <div class="section-title-row">
-          <div><div class="eyebrow">TENDANCE</div><h2>Prévisions sur 15 jours</h2></div>
-          <span class="muted small">Clique sur un jour pour l’explorer</span>
-        </div>
-        <div id="dailyGrid" class="daily-grid"></div>
       </section>
 
       <section class="page-width section-block mountain-panel glass">
@@ -140,8 +144,7 @@
 
     <section id="routeView" class="view page-width">
       <div class="route-hero">
-        <div><div class="eyebrow">V1 · MÉTÉO SUR MON TRAJET</div><h1>La météo à l’endroit où tu seras,<br><span>au moment où tu y seras.</span></h1><p>Analyse météo spatiale et temporelle du trajet : pluie, neige, LPN, gel, visibilité, vent et rafales.</p></div>
-        <div class="route-orb" aria-hidden="true"><span></span><i></i></div>
+        <div><div class="eyebrow">MÉTÉO SUR LE TRAJET</div><h1>Conditions prévues sur ton itinéraire</h1><p>Route, heure de passage, pluie, neige, LPN, gel, visibilité, vent et rafales — point par point.</p></div>
       </div>
 
       <article class="route-planner glass glow-card">
