@@ -333,7 +333,15 @@ function ensureDayDetailView() {
           </div>
           <div id="dayDetailRows" class="day-detail-rows"></div>
         </section>
-        <section id="dayDetailOverview" class="day-detail-overview"></section>
+
+        <details id="dayDetailSummary" class="day-science-details">
+          <summary>
+            <span><small>RÉSUMÉ DE LA JOURNÉE</small><strong>Résumé scientifique</strong></span>
+            <span class="day-science-summary-meta">max/min · soleil · pression · LPN · ISO 0 °C</span>
+            <span class="day-science-summary-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <section id="dayDetailOverview" class="day-detail-overview"></section>
+        </details>
       </main>
     </div>`;
   document.body.appendChild(view);
@@ -356,6 +364,8 @@ function openDayDetail(date) {
   const view = ensureDayDetailView();
   view.querySelector('#dayDetailPlace').textContent = state.location.name;
   view.querySelector('#dayDetailDate').textContent = formatDetailDate(date);
+  const scienceDetails = view.querySelector('#dayDetailSummary');
+  if (scienceDetails) scienceDetails.open = false;
 
   const hours = dayHours(date);
   const midday = representativeHour(date, 14) || hours[0];
@@ -642,6 +652,6 @@ async function init(){
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   await loadLocation(state.location,{silent:true});
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.3.2').catch(()=>{});
 }
 init();
