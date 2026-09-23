@@ -1,0 +1,91 @@
+name: Reorder daily detail
+
+on:
+  push:
+    branches: [main]
+    paths: [reorder-daily-detail.ready]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put hourly forecast first
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('js/app.js')
+          s = p.read_text()
+          old = """      <main class="day-detail-content">
+        <section id="dayDetailOverview" class="day-detail-overview"></section>
+        <section class="day-detail-panel">
+          <div class="day-detail-panel-head">
+            <div><span class="eyebrow">PRÉVISION HORAIRE</span><h2>Heure par heure</h2></div>
+            <div class="day-step-toggle" aria-label="Pas horaire">
+              <button type="button" data-day-step="1" class="active">1 h</button>
+              <button type="button" data-day-step="3">3 h</button>
+            </div>
+          </div>
+          <div class="day-detail-columns" aria-hidden="true">
+            <span>Heure</span><span>Temps</span><span>Temp.</span><span>Vent</span><span>Détails scientifiques</span><span></span>
+          </div>
+          <div id="dayDetailRows" class="day-detail-rows"></div>
+        </section>
+      </main>"""
+          new = """      <main class="day-detail-content">
+        <section class="day-detail-panel">
+          <div class="day-detail-panel-head">
+            <div><span class="eyebrow">PRÉVISION HORAIRE</span><h2>Heure par heure</h2></div>
+            <div class="day-step-toggle" aria-label="Pas horaire">
+              <button type="button" data-day-step="1" class="active">1 h</button>
+              <button type="button" data-day-step="3">3 h</button>
+            </div>
+          </div>
+          <div class="day-detail-columns" aria-hidden="true">
+            <span>Heure</span><span>Temps</span><span>Temp.</span><span>Vent</span><span>Détails scientifiques</span><span></span>
+          </div>
+          <div id="dayDetailRows" class="day-detail-rows"></div>
+        </section>
+        <section id="dayDetailOverview" class="day-detail-overview"></section>
+      </main>"""
+          if old not in s:
+              raise SystemExit('day detail markup not found')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('styles.css')
+          s = p.read_text()
+          patch = """
+/* V1.3.1 — priorité au détail horaire dans la fiche journée */
+.day-detail-content > .day-detail-panel:first-child{margin-top:0}
+.day-detail-panel + .day-detail-overview{margin-top:20px}
+"""
+          if 'V1.3.1 — priorité au détail horaire' not in s:
+              s += patch
+          p.write_text(s)
+
+          p = Path('package.json')
+          s = p.read_text().replace('"version": "1.3.0"', '"version": "1.3.1"')
+          p.write_text(s)
+
+          p = Path('sw.js')
+          s = p.read_text().replace('myweather-v1.3.0', 'myweather-v1.3.1')
+          p.write_text(s)
+          PY
+      - name: Validate
+        run: |
+          npm test
+          npm run check
+      - name: Commit
+        shell: bash
+        run: |
+          rm -f reorder-daily-detail.ready .github/workflows/reorder-daily-detail.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Show hourly forecast before daily summary"
+          git push
