@@ -346,3 +346,24 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 /* V1.3.1 — priorité au détail horaire dans la fiche journée */
 .day-detail-content > .day-detail-panel:first-child{margin-top:0}
 .day-detail-panel + .day-detail-overview{margin-top:20px}
+
+/* V1.3.2 — heure par heure prioritaire + résumé scientifique repliable */
+.day-science-details{margin-top:20px;border:1px solid rgba(190,220,236,.11);border-radius:18px;background:#0a2f4c;overflow:hidden}
+.day-science-details>summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) auto 24px;align-items:center;gap:14px;min-height:78px;padding:16px 20px;cursor:pointer;background:#0b3554;color:var(--text);user-select:none}
+.day-science-details>summary::-webkit-details-marker{display:none}
+.day-science-details>summary span:first-child small,.day-science-details>summary span:first-child strong{display:block}
+.day-science-details>summary span:first-child small{font-size:8px;letter-spacing:1.35px;color:#71c7ea;font-weight:700}
+.day-science-details>summary span:first-child strong{font-size:18px;margin-top:4px}
+.day-science-summary-meta{font-size:9px;color:#7f9faf;text-align:right}
+.day-science-summary-chevron{font-size:21px;color:#82aabd;transition:transform .18s ease}
+.day-science-details[open] .day-science-summary-chevron{transform:rotate(180deg)}
+.day-science-details .day-detail-overview{margin:0;border:0;border-top:1px solid rgba(190,220,236,.10);border-radius:0;background:#0b3453}
+.day-detail-content > .day-detail-panel:first-child{margin-top:0}
+
+@media(max-width:900px){
+  .day-science-details{border-radius:15px}
+  .day-science-details>summary{grid-template-columns:minmax(0,1fr) 20px;min-height:68px;padding:13px 14px}
+  .day-science-summary-meta{display:none}
+  .day-science-details>summary span:first-child strong{font-size:16px}
+  .day-science-details .day-detail-overview{border-radius:0}
+}
