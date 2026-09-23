@@ -185,9 +185,9 @@ function renderHeroScene(current = {}, hourly = {}) {
   const code = Number(current.weather_code ?? hourly.weather_code ?? 0);
   const isDay = Number(current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()));
   const kind = heroSceneKind(code, isDay);
-  const drops = Array.from({length:18},(_,i)=>'<i style="--i:'+i+'"></i>').join('');
-  const flakes = Array.from({length:20},(_,i)=>'<i style="--i:'+i+'"></i>').join('');
-  const stars = Array.from({length:14},(_,i)=>'<i style="--i:'+i+'"></i>').join('');
+  const drops = Array.from({length:18},(_,i)=>`<i style="--i:${i};left:${4+((i*17)%90)}%;animation-delay:${(-i*.09).toFixed(2)}s;animation-duration:${(.72+(i%5)*.05).toFixed(2)}s"></i>`).join('');
+  const flakes = Array.from({length:20},(_,i)=>`<i style="--i:${i};left:${3+((i*19)%92)}%;animation-delay:${(-i*.27).toFixed(2)}s;animation-duration:${(4.7+(i%6)*.32).toFixed(2)}s"></i>`).join('');
+  const stars = Array.from({length:14},(_,i)=>`<i style="--i:${i};left:${4+((i*23)%88)}%;top:${10+((i*13)%55)}%;animation-delay:${(-i*.18).toFixed(2)}s"></i>`).join('');
   refs.heroScene.className = 'hero-scene '+kind;
   refs.heroScene.innerHTML = ''
     + '<div class="scene-glow"></div>'
