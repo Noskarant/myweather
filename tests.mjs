@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS } from './js/weather.js';
@@ -32,3 +33,9 @@ assert.ok(demo.hourly.some(h => h.snowfall > 0));
 assert.ok(demo.hourly.every(h => 'snowLevel' in h));
 
 console.log('✓ MyWeather unit tests passed');
+
+// selector helper regression: querySelector must never be treated as a collection
+const appSource = fs.readFileSync(new URL('./js/app.js', import.meta.url), 'utf8');
+assert.equal((appSource.match(/\\$\\$\\$\\(/g) || []).length, 0, 'Unexpected $$$ helper in app.js');
+assert.equal([...appSource.matchAll(/(?<!\\$)\\$\\((['\"\`])([^'\"\`]+)\\1\\)\\.forEach/g)].length, 0, 'querySelector(...).forEach startup regression');
+console.log('✓ selector helper regression checks passed');
