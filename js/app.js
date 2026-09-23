@@ -14,6 +14,8 @@ const state = {
   location: loadLastLocation() || { name:'Oullins', admin1:'Auvergne-Rhône-Alpes', country:'France', lat:45.714, lon:4.807, elevation:180, timezone:'Europe/Paris' },
   forecast:null,
   selectedDate:null,
+  dayDetailDate:null,
+  dayDetailStep:1,
   expert:false,
   mapOverlay:'radar',
   favorites:loadFavorites(),
@@ -290,6 +292,163 @@ function renderHourly(dateStr) {
   refs.hourlyRail.querySelectorAll('[data-hour]').forEach(btn=>btn.addEventListener('click',()=>openHour(btn.dataset.hour)));
 }
 
+
+function dayHours(date) {
+  return (state.forecast?.hourly || []).filter(h => h.time.slice(0,10) === date);
+}
+
+function formatClock(iso) {
+  if (!iso) return '—';
+  return new Intl.DateTimeFormat('fr-FR',{hour:'2-digit',minute:'2-digit'}).format(new Date(iso));
+}
+
+function formatDetailDate(date) {
+  return new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(date+'T12:00:00'));
+}
+
+function ensureDayDetailView() {
+  let view = document.querySelector('#dayDetailView');
+  if (view) return view;
+  view = document.createElement('section');
+  view.id = 'dayDetailView';
+  view.className = 'day-detail-view hidden';
+  view.innerHTML = `
+    <div class="day-detail-shell">
+      <header class="day-detail-bar">
+        <button type="button" class="day-detail-back" data-day-close aria-label="Retour">‹ <span>Retour</span></button>
+        <div class="day-detail-place"><strong id="dayDetailPlace">—</strong><small id="dayDetailDate">—</small></div>
+        <button type="button" class="day-detail-close" data-day-close aria-label="Fermer">×</button>
+      </header>
+      <main class="day-detail-content">
+        <section id="dayDetailOverview" class="day-detail-overview"></section>
+        <section class="day-detail-panel">
+          <div class="day-detail-panel-head">
+            <div><span class="eyebrow">PRÉVISION HORAIRE</span><h2>Heure par heure</h2></div>
+            <div class="day-step-toggle" aria-label="Pas horaire">
+              <button type="button" data-day-step="1" class="active">1 h</button>
+              <button type="button" data-day-step="3">3 h</button>
+            </div>
+          </div>
+          <div class="day-detail-columns" aria-hidden="true">
+            <span>Heure</span><span>Temps</span><span>Temp.</span><span>Vent</span><span>Détails scientifiques</span><span></span>
+          </div>
+          <div id="dayDetailRows" class="day-detail-rows"></div>
+        </section>
+      </main>
+    </div>`;
+  document.body.appendChild(view);
+  view.querySelectorAll('[data-day-close]').forEach(b=>b.addEventListener('click',closeDayDetail));
+  view.querySelectorAll('[data-day-step]').forEach(b=>b.addEventListener('click',()=>{
+    state.dayDetailStep = Number(b.dataset.dayStep) || 1;
+    view.querySelectorAll('[data-day-step]').forEach(x=>x.classList.toggle('active', x===b));
+    renderDayDetailRows();
+  }));
+  return view;
+}
+
+function openDayDetail(date) {
+  const d = state.forecast?.daily?.find(x=>x.time===date);
+  if (!d) return;
+  state.dayDetailDate = date;
+  state.selectedDate = date;
+  renderDaily();
+
+  const view = ensureDayDetailView();
+  view.querySelector('#dayDetailPlace').textContent = state.location.name;
+  view.querySelector('#dayDetailDate').textContent = formatDetailDate(date);
+
+  const hours = dayHours(date);
+  const midday = representativeHour(date, 14) || hours[0];
+  const dayIndex = Math.max(0, state.forecast.daily.findIndex(x=>x.time===date));
+  const conf = confidenceForHorizon(dayIndex*24+12);
+  const visibility = hours.map(h=>Number(h.visibility)).filter(Number.isFinite);
+  const pressure = hours.map(h=>Number(h.pressure_msl)).filter(Number.isFinite);
+  const humidity = hours.map(h=>Number(h.relative_humidity_2m)).filter(Number.isFinite);
+  const snowLevels = hours.map(h=>Number(h.snowLevel)).filter(Number.isFinite);
+  const zeroLevels = hours.map(h=>Number(h.freezing_level_height)).filter(Number.isFinite);
+  const cape = hours.map(h=>Number(h.cape)).filter(Number.isFinite);
+  const maxCape = cape.length ? Math.max(...cape) : null;
+  const minVis = visibility.length ? Math.min(...visibility) : null;
+  const meanPressure = pressure.length ? pressure.reduce((a,b)=>a+b,0)/pressure.length : null;
+  const meanHumidity = humidity.length ? humidity.reduce((a,b)=>a+b,0)/humidity.length : null;
+  const minSnow = snowLevels.length ? Math.min(...snowLevels) : null;
+  const minZero = zeroLevels.length ? Math.min(...zeroLevels) : null;
+  const uv = Number(d.uv);
+
+  view.querySelector('#dayDetailOverview').innerHTML = `
+    <div class="day-overview-main">
+      <div class="day-overview-icon">${weatherIcon(midday?.weather_code ?? d.weather_code, 1)}</div>
+      <div class="day-overview-copy">
+        <span class="eyebrow">${escapeHtml(state.location.type || 'PRÉVISION LOCALE')} · ${Math.round(state.location.elevation ?? state.forecast.elevation ?? 0)} m</span>
+        <h1>${escapeHtml(d.info?.label || weatherCodeInfo(d.weather_code,1).label)}</h1>
+        <div class="day-overview-temp"><strong>${Math.round(d.max)}°</strong><span>${Math.round(d.min)}°</span></div>
+        <p>Ressenti ${Math.round(d.apparentMin ?? d.min)}° à ${Math.round(d.apparentMax ?? d.max)}° · fiabilité indicative ${conf}%</p>
+      </div>
+    </div>
+    <div class="day-overview-stats">
+      <div><span>Lever du soleil</span><strong>${formatClock(d.sunrise)}</strong></div>
+      <div><span>Coucher du soleil</span><strong>${formatClock(d.sunset)}</strong></div>
+      <div><span>Précipitations</span><strong>${round(d.precipitation ?? 0,1)} mm</strong><small>${Math.round(d.precipProb ?? 0)}% max</small></div>
+      <div><span>Vent / rafales</span><strong>${Math.round(d.windMax ?? 0)} / ${Math.round(d.gustMax ?? 0)}</strong><small>km/h · ${cardinal(d.windDir)}</small></div>
+      <div><span>Humidité moy.</span><strong>${meanHumidity!=null?Math.round(meanHumidity)+'%':'—'}</strong></div>
+      <div><span>Pression moy.</span><strong>${meanPressure!=null?Math.round(meanPressure)+' hPa':'—'}</strong></div>
+      <div><span>Visibilité mini</span><strong>${minVis!=null?(minVis/1000).toFixed(1)+' km':'—'}</strong></div>
+      <div><span>UV max</span><strong>${Number.isFinite(uv)?round(uv,1):'—'}</strong></div>
+      <div><span>LPN la plus basse</span><strong>${minSnow!=null?'~'+Math.round(minSnow)+' m':'—'}</strong></div>
+      <div><span>ISO 0 °C mini</span><strong>${minZero!=null?Math.round(minZero)+' m':'—'}</strong></div>
+      <div><span>CAPE max</span><strong>${maxCape!=null?Math.round(maxCape)+' J/kg':'—'}</strong></div>
+      <div><span>Neige cumulée</span><strong>${round(d.snowfall ?? 0,1)} cm</strong></div>
+    </div>`;
+
+  renderDayDetailRows();
+  view.classList.remove('hidden');
+  document.body.classList.add('day-detail-open');
+  view.scrollTop = 0;
+}
+
+function renderDayDetailRows() {
+  const view = document.querySelector('#dayDetailView');
+  if (!view || !state.dayDetailDate) return;
+  const rows = view.querySelector('#dayDetailRows');
+  const step = state.dayDetailStep || 1;
+  const hours = dayHours(state.dayDetailDate).filter((_,i)=>i%step===0);
+
+  rows.innerHTML = hours.map(h=>{
+    const day = isDayAt(h.time);
+    const info = weatherCodeInfo(h.weather_code, day);
+    const precip = Number(h.precipitation ?? 0);
+    const snow = Number(h.snowfall ?? 0);
+    const vis = Number(h.visibility);
+    const cloud = Number(h.cloud_cover);
+    const pressure = Number(h.pressure_msl);
+    const humidity = Number(h.relative_humidity_2m);
+    const uv = Number(h.uv_index);
+    const cape = Number(h.cape);
+    return `<button type="button" class="day-hour-row" data-day-hour="${escapeHtml(h.time)}">
+      <span class="day-hour-time"><strong>${formatHour(h.time)}</strong><small>${day?'jour':'nuit'}</small></span>
+      <span class="day-hour-weather">${weatherIcon(h.weather_code, day)}<small>${escapeHtml(info.label)}</small></span>
+      <span class="day-hour-temp"><strong>${Math.round(h.temperature_2m)}°</strong><small>ress. ${Math.round(h.apparent_temperature ?? h.temperature_2m)}°</small></span>
+      <span class="day-hour-wind"><strong><i class="wind-arrow" style="--wind-dir:${Number(h.wind_direction_10m ?? 0)}deg">↑</i> ${Math.round(h.wind_speed_10m ?? 0)} km/h</strong><small>raf. ${Math.round(h.wind_gusts_10m ?? 0)} · ${cardinal(h.wind_direction_10m)}</small></span>
+      <span class="day-hour-science">
+        <span><b>Précip.</b><strong>${precip>0?round(precip,1):'0'} mm · ${Math.round(h.precipitation_probability ?? 0)}%</strong><small>${snow>0?`❄ ${round(snow,1)} cm`:`pluie ${round(h.rain ?? 0,1)} mm`}</small></span>
+        <span><b>Atmosphère</b><strong>${Number.isFinite(humidity)?Math.round(humidity)+'%':'—'} · ${Number.isFinite(pressure)?Math.round(pressure)+' hPa':'—'}</strong><small>vis. ${Number.isFinite(vis)?(vis/1000).toFixed(1)+' km':'—'} · nuages ${Number.isFinite(cloud)?Math.round(cloud)+'%':'—'}</small></span>
+        <span><b>Montagne</b><strong>LPN ${h.snowLevel!=null?'~'+Math.round(h.snowLevel)+' m':'—'}</strong><small>0 °C ${h.freezing_level_height!=null?Math.round(h.freezing_level_height)+' m':'—'} · UV ${Number.isFinite(uv)?round(uv,1):'—'}${Number.isFinite(cape)&&cape>0?` · CAPE ${Math.round(cape)}`:''}</small></span>
+      </span>
+      <span class="day-hour-chevron">›</span>
+    </button>`;
+  }).join('');
+
+  rows.querySelectorAll('[data-day-hour]').forEach(b=>b.addEventListener('click',()=>openHour(b.dataset.dayHour)));
+}
+
+function closeDayDetail() {
+  const view = document.querySelector('#dayDetailView');
+  if (!view) return;
+  view.classList.add('hidden');
+  document.body.classList.remove('day-detail-open');
+}
+
+
 function renderDaily() {
   refs.dailyGrid.innerHTML = state.forecast.daily.slice(0,15).map((d,i)=>{
     const conf=confidenceForHorizon(i*24+12);
@@ -313,8 +472,7 @@ function renderDaily() {
     </button>`;
   }).join('');
   refs.dailyGrid.querySelectorAll('[data-day]').forEach(btn=>btn.addEventListener('click',()=>{
-    state.selectedDate=btn.dataset.day; renderDaily(); renderHourly(state.selectedDate);
-    document.querySelector('.hourly-block')?.scrollIntoView({behavior:'smooth',block:'start'});
+    openDayDetail(btn.dataset.day);
   }));
 }
 
@@ -474,7 +632,7 @@ function bindEvents(){
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
   $$('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
   $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
-  refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHour()});
+  refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!refs.modal.classList.contains('hidden')) closeHour(); else closeDayDetail();}});
   refs.routeForm.addEventListener('submit',handleRoute);refs.swapRoute.addEventListener('click',()=>{const a=refs.routeFrom.value;refs.routeFrom.value=refs.routeTo.value;refs.routeTo.value=a});
 }
 
