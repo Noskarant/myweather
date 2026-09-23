@@ -320,7 +320,6 @@ function ensureDayDetailView() {
         <button type="button" class="day-detail-close" data-day-close aria-label="Fermer">×</button>
       </header>
       <main class="day-detail-content">
-        <section id="dayDetailOverview" class="day-detail-overview"></section>
         <section class="day-detail-panel">
           <div class="day-detail-panel-head">
             <div><span class="eyebrow">PRÉVISION HORAIRE</span><h2>Heure par heure</h2></div>
@@ -334,6 +333,7 @@ function ensureDayDetailView() {
           </div>
           <div id="dayDetailRows" class="day-detail-rows"></div>
         </section>
+        <section id="dayDetailOverview" class="day-detail-overview"></section>
       </main>
     </div>`;
   document.body.appendChild(view);
