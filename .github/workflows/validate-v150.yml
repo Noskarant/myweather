@@ -1,0 +1,14 @@
+name: Validate MyWeather 1.5.0
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - validate-v150.ready
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm test
+      - run: npm run check
