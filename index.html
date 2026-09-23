@@ -10,7 +10,7 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="preconnect" href="https://api.open-meteo.com" />
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
-  <link rel="stylesheet" href="./styles.css?v=1.4.0" />
+  <link rel="stylesheet" href="./styles.css?v=1.5.0" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -49,17 +49,40 @@
               <div class="location-title-line"><h1 id="locationName">Lyon</h1><span id="locationElevation" class="location-elevation">— m</span></div>
               <p id="locationMeta">Rhône, France</p>
             </div>
-            <div id="confidenceBadge" class="confidence" title="Confiance indicative liée à l’échéance"><span>Fiabilité</span><strong>—</strong></div>
+            <div class="current-top-actions">
+              <button id="bulletinBtn" class="bulletin-chip" type="button" aria-haspopup="dialog"><span>≋</span> Bulletin</button>
+              <div id="confidenceBadge" class="confidence" title="Confiance indicative liée à l’échéance"><span>Fiabilité</span><strong>—</strong></div>
+            </div>
           </div>
 
           <div class="hero-weather">
-            <div id="heroScene" class="hero-scene" aria-hidden="true"></div>
-            <div id="weatherGlyph" class="weather-glyph" aria-hidden="true"></div>
-            <div class="current-reading">
-              <div id="currentTemp" class="temperature">--°</div>
-              <div id="currentCondition" class="condition">Chargement…</div>
-              <div class="current-secondary"><span id="feelsLike">Ressenti --°C</span><span class="separator">·</span><span id="lastUpdated">Mise à jour —</span></div>
+            <div class="hero-now">
+              <span class="hero-now-label">Maintenant</span>
+              <div id="heroScene" class="hero-scene current-scene" aria-hidden="true"></div>
+              <div id="weatherGlyph" class="weather-glyph" aria-hidden="true"></div>
+              <div class="current-reading">
+                <div id="currentTemp" class="temperature">--°</div>
+                <div id="currentCondition" class="condition">Chargement…</div>
+                <div class="current-secondary"><span id="feelsLike">Ressenti --°C</span><span class="separator">·</span><span id="lastUpdated">Mise à jour —</span></div>
+              </div>
             </div>
+            <aside id="futureWeatherPanel" class="future-weather-panel" aria-label="Prévision dans quelques heures">
+              <div id="futureScene" class="hero-scene future-scene" aria-hidden="true"></div>
+              <div class="future-weather-head">
+                <span>Dans</span>
+                <div class="future-offsets" role="group" aria-label="Échéance de prévision">
+                  <button type="button" data-future-offset="2">+2h</button>
+                  <button type="button" data-future-offset="3" class="active">+3h</button>
+                  <button type="button" data-future-offset="4">+4h</button>
+                  <button type="button" data-future-offset="6">+6h</button>
+                </div>
+              </div>
+              <div class="future-weather-copy">
+                <strong id="futureTemp">--°</strong>
+                <span id="futureCondition">—</span>
+                <small id="futureMeta">—</small>
+              </div>
+            </aside>
           </div>
 
           <div class="quick-metrics" id="quickMetrics"></div>
@@ -201,8 +224,22 @@
     </article>
   </div>
 
+  <div id="bulletinModal" class="modal-backdrop hidden bulletin-backdrop" role="dialog" aria-modal="true" aria-labelledby="bulletinTitle">
+    <article class="bulletin-modal glass">
+      <button id="closeBulletinModal" class="modal-close" aria-label="Fermer">×</button>
+      <div class="bulletin-head"><div><div class="eyebrow">SYNTHÈSE MÉTÉO</div><h2 id="bulletinTitle">Bulletin du météorologue</h2><p id="bulletinUpdated" class="muted">Calculé à partir des dernières prévisions disponibles.</p></div></div>
+      <div class="bulletin-tabs" role="tablist" aria-label="Période du bulletin">
+        <button type="button" data-bulletin-period="today" class="active">Aujourd’hui</button>
+        <button type="button" data-bulletin-period="week">7 jours</button>
+        <button type="button" data-bulletin-period="month">Mois</button>
+      </div>
+      <div id="bulletinContent" class="bulletin-content"></div>
+      <div class="bulletin-footnote">La tendance « mois » s’appuie sur l’horizon réellement disponible dans l’app (jusqu’à 15 jours) et ne prétend pas prévoir précisément au-delà.</div>
+    </article>
+  </div>
+
   <div id="toast" class="toast hidden" role="status"></div>
 
-  <script type="module" src="./js/app.js?v=1.4.0"></script>
+  <script type="module" src="./js/app.js?v=1.5.0"></script>
 </body>
 </html>
