@@ -224,7 +224,7 @@ function futureHourly(offset=state.futureOffset){
 function renderFutureWeather(){
   const h=futureHourly(); if(!h||!refs.futureScene)return; const day=isDayAt(h.time), info=weatherCodeInfo(h.weather_code,day); renderWeatherScene(refs.futureScene,{...h,is_day:day});
   refs.futureTemp.textContent=Math.round(h.temperature_2m ?? 0)+'°'; refs.futureCondition.textContent=info.label; const precip=Number(h.precipitation ?? 0), prob=Math.round(h.precipitation_probability ?? 0), gust=Math.round(h.wind_gusts_10m ?? 0);
-  refs.futureMeta.textContent=formatHour(h.time)+' · '+(precip>0?round(precip,1)+' mm':prob+'% pluie')+' · raf. '+gust+' km/h'; $('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
+  refs.futureMeta.textContent=formatHour(h.time)+' · '+(precip>0?round(precip,1)+' mm':prob+'% pluie')+' · raf. '+gust+' km/h'; $$('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
 }
 
 function weatherIcon(code = 0, isDay = 1) {
@@ -656,14 +656,14 @@ function bulletinMonth(){
   return '<p>Pour la <strong>tendance du mois</strong>, MyWeather reste volontairement prudent : l’app dispose ici d’environ 15 jours de prévision, pas d’une prévision quotidienne fiable à 30 jours. Sur cet horizon, on observe <strong>'+trend+'</strong> à '+escapeHtml(state.location.name)+'.</p><p>'+wet.length+' journée'+(wet.length>1?'s':'')+' sur '+days.length+' montrent actuellement un signal de précipitations notable.</p><p class="bulletin-caution">Au-delà de cet horizon, il faut parler de tendance saisonnière ou climatologique, avec une incertitude nettement plus forte.</p>';
 }
 function buildWeatherBulletin(period=state.bulletinPeriod){ if(period==='week')return bulletinWeek(); if(period==='month')return bulletinMonth(); return bulletinToday(); }
-function renderWeatherBulletin(){ if(!refs.bulletinContent||!state.forecast)return; refs.bulletinContent.innerHTML=buildWeatherBulletin(); const time=state.forecast?.current?.time||currentHourly()?.time; refs.bulletinUpdated.textContent=time?'Données de '+formatHour(time)+' · recalcul automatique toutes les 15 min':'Recalcul à chaque actualisation.'; $('[data-bulletin-period]').forEach(b=>b.classList.toggle('active',b.dataset.bulletinPeriod===state.bulletinPeriod)); }
+function renderWeatherBulletin(){ if(!refs.bulletinContent||!state.forecast)return; refs.bulletinContent.innerHTML=buildWeatherBulletin(); const time=state.forecast?.current?.time||currentHourly()?.time; refs.bulletinUpdated.textContent=time?'Données de '+formatHour(time)+' · recalcul automatique toutes les 15 min':'Recalcul à chaque actualisation.'; $$('[data-bulletin-period]').forEach(b=>b.classList.toggle('active',b.dataset.bulletinPeriod===state.bulletinPeriod)); }
 function openBulletin(){ state.bulletinPeriod='today'; renderWeatherBulletin(); refs.bulletinModal?.classList.remove('hidden'); document.body.classList.add('modal-open'); }
 function closeBulletin(){ refs.bulletinModal?.classList.add('hidden'); document.body.classList.remove('modal-open'); }
 
 function showView(name){
   refs.forecastView.classList.toggle('active',name==='forecast'); refs.routeView.classList.toggle('active',name==='route'); refs.favoritesView.classList.toggle('active',name==='favorites');
-  $('.bottom-nav [data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===(name==='forecast'?'forecast':name)));
-  if(name==='maps'){refs.forecastView.classList.add('active');refs.routeView.classList.remove('active');refs.favoritesView.classList.remove('active');setTimeout(()=>$('#mapsSection').scrollIntoView({behavior:'smooth'}),50);$('.bottom-nav [data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav==='maps'));}
+  $$('.bottom-nav [data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===(name==='forecast'?'forecast':name)));
+  if(name==='maps'){refs.forecastView.classList.add('active');refs.routeView.classList.remove('active');refs.favoritesView.classList.remove('active');setTimeout(()=>$('#mapsSection').scrollIntoView({behavior:'smooth'}),50);$$('.bottom-nav [data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav==='maps'));}
   if(name!=='maps')scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -730,8 +730,8 @@ function bindEvents(){
   refs.bulletinBtn?.addEventListener('click',openBulletin); refs.closeBulletin?.addEventListener('click',closeBulletin); refs.bulletinModal?.addEventListener('click',e=>{if(e.target===refs.bulletinModal)closeBulletin()});
   $$('[data-bulletin-period]').forEach(b=>b.addEventListener('click',()=>{state.bulletinPeriod=b.dataset.bulletinPeriod;renderWeatherBulletin()}));
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
-  $('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
-  $('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
+  $$('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
+  $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
   refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!refs.modal.classList.contains('hidden')) closeHour(); else if(refs.bulletinModal && !refs.bulletinModal.classList.contains('hidden')) closeBulletin(); else closeDayDetail();}});
   refs.routeForm.addEventListener('submit',handleRoute);refs.swapRoute.addEventListener('click',()=>{const a=refs.routeFrom.value;refs.routeFrom.value=refs.routeTo.value;refs.routeTo.value=a});
 }
