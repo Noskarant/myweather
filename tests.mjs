@@ -34,16 +34,16 @@ assert.ok(demo.hourly.every(h => 'snowLevel' in h));
 
 console.log('✓ MyWeather unit tests passed');
 
-// selector helper regression: querySelector must never be treated as a collection
+// selector helper regression: collection selectors must use $$
 const appSource = fs.readFileSync(new URL('./js/app.js', import.meta.url), 'utf8');
 assert.equal(appSource.includes('$$$('), false, 'Unexpected $$$ helper in app.js');
-for (const bad of [
-  "$('[data-future-offset]').forEach",
-  "$('[data-bulletin-period]').forEach",
-  "$('.bottom-nav [data-nav]').forEach",
-  "$('#mapTabs [data-overlay]').forEach",
-  "$('[data-nav]').forEach"
+for (const good of [
+  "$$('[data-future-offset]').forEach",
+  "$$('[data-bulletin-period]').forEach",
+  "$$('.bottom-nav [data-nav]').forEach",
+  "$$('#mapTabs [data-overlay]').forEach",
+  "$$('[data-nav]').forEach"
 ]) {
-  assert.equal(appSource.includes(bad), false, 'Single-element selector used with forEach: ' + bad);
+  assert.equal(appSource.includes(good), true, 'Expected collection selector missing: ' + good);
 }
 console.log('✓ selector helper regression checks passed');
