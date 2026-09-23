@@ -33,7 +33,8 @@ const refs = {
   forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
   modal:$('#hourModal'), closeModal:$('#closeHourModal'), modalTitle:$('#hourModalTitle'), modalSub:$('#hourModalSub'), modalGlyph:$('#hourModalGlyph'), modalMain:$('#hourModalMain'), hourDetailGrid:$('#hourDetailGrid'),
   routeForm:$('#routeForm'), routeFrom:$('#routeFrom'), routeTo:$('#routeTo'), routeDate:$('#routeDate'), routeTime:$('#routeTime'), swapRoute:$('#swapRoute'), routeLoading:$('#routeLoading'), routeEmpty:$('#routeEmpty'), routeResults:$('#routeResults'), routeSummary:$('#routeSummary'), routeRisk:$('#routeRisk'), routeSketch:$('#routeSketch'), routeTimeline:$('#routeTimeline'),
-  bulletinBtn:$('#bulletinBtn'), bulletinModal:$('#bulletinModal'), closeBulletin:$('#closeBulletinModal'), bulletinContent:$('#bulletinContent'), bulletinUpdated:$('#bulletinUpdated'), toast:$('#toast'), canvas:$('#weatherFx')
+  bulletinBtn:$('#bulletinBtn'), bulletinModal:$('#bulletinModal'), closeBulletin:$('#closeBulletinModal'), bulletinContent:$('#bulletinContent'), bulletinUpdated:$('#bulletinUpdated'),
+  toast:$('#toast'), canvas:$('#weatherFx')
 };
 
 function loadFavorites() {
@@ -127,8 +128,8 @@ function renderAll() {
   refs.feelsLike.textContent = `Ressenti ${Math.round(c.apparent_temperature ?? hNow.apparent_temperature ?? 0)}°C`;
   refs.lastUpdated.textContent = formatUpdateAge(c.time || hNow.time);
   refs.weatherGlyph.innerHTML = weatherIcon(c.weather_code ?? hNow.weather_code, c.is_day);
-  renderHeroScene(c,hNow);
-  renderFutureWeather();
+  try { renderHeroScene(c,hNow); } catch (err) { console.warn('Scene météo actuelle',err); }
+  try { renderFutureWeather(); } catch (err) { console.warn('Scène météo future',err); }
 
   const conf = confidenceForHorizon(1);
   refs.confidence.querySelector('strong').textContent = `${conf}%`;
@@ -160,7 +161,7 @@ function renderAll() {
   updateMap();
   applyTheme(info.theme, c.is_day);
   renderFavorites();
-  renderWeatherBulletin();
+  try { renderWeatherBulletin(); } catch (err) { console.warn('Bulletin météo',err); }
   renderFavoriteQuickbar();
 }
 
@@ -174,7 +175,6 @@ function formatUpdateAge(iso) {
 }
 
 
-
 function heroSceneKind(code = 0, isDay = 1) {
   const day = Number(isDay) !== 0;
   if ([95,96,99].includes(code)) return 'storm';
@@ -184,151 +184,47 @@ function heroSceneKind(code = 0, isDay = 1) {
   if ([2,3].includes(code)) return day ? 'partly-cloudy' : 'night-cloudy';
   return day ? 'sunny' : 'clear-night';
 }
-
-function clampScene(value,min,max) {
-  return Math.min(max,Math.max(min,value));
-}
-
-function sceneIntensity(data = {}, kind = 'sunny') {
-  const code = Number(data.weather_code ?? 0);
-  const precip = Math.max(Number(data.precipitation ?? 0),Number(data.rain ?? 0),Number(data.showers ?? 0));
-  const snow = Number(data.snowfall ?? 0);
-  const cape = Number(data.cape ?? 0);
-  const gust = Number(data.wind_gusts_10m ?? 0);
-
-  if (kind === 'storm') {
-    if (code === 99 || cape >= 1400 || gust >= 75 || precip >= 5) return 3;
-    if (code === 96 || cape >= 700 || gust >= 55 || precip >= 2) return 2;
-    return 1;
-  }
-  if (kind === 'snow') {
-    if ([75,86].includes(code) || snow >= 1.5) return 3;
-    if ([73,85].includes(code) || snow >= .5) return 2;
-    return 1;
-  }
-  if (kind === 'rain') {
-    if ([65,67,82].includes(code) || precip >= 4) return 3;
-    if ([63,81,55].includes(code) || precip >= 1.2) return 2;
-    return 1;
-  }
+function sceneClamp(v,min,max){ return Math.min(max,Math.max(min,v)); }
+function sceneIntensity(data,kind){
+  const code=Number(data.weather_code ?? 0), precip=Math.max(Number(data.precipitation ?? 0),Number(data.rain ?? 0),Number(data.showers ?? 0)), snow=Number(data.snowfall ?? 0), cape=Number(data.cape ?? 0), gust=Number(data.wind_gusts_10m ?? 0);
+  if(kind==='storm'){ if(code===99||cape>=1400||gust>=75||precip>=5)return 3; if(code===96||cape>=700||gust>=55||precip>=2)return 2; return 1; }
+  if(kind==='snow'){ if([75,86].includes(code)||snow>=1.5)return 3; if([73,85].includes(code)||snow>=.5)return 2; return 1; }
+  if(kind==='rain'){ if([65,67,82].includes(code)||precip>=4)return 3; if([63,81,55].includes(code)||precip>=1.2)return 2; return 1; }
   return 1;
 }
-
-function sunPositionForTime(time,isDay) {
-  if (!time) return {x:16,y:45,brightness:.78};
-  const date = String(time).slice(0,10);
-  const daily = state.forecast?.daily?.find(d=>d.time===date);
-  const t = new Date(time).getTime();
-
-  if (isDay && daily?.sunrise && daily?.sunset) {
-    const rise = new Date(daily.sunrise).getTime();
-    const set = new Date(daily.sunset).getTime();
-    const f = clampScene((t-rise)/Math.max(1,set-rise),0,1);
-    const altitude = Math.sin(Math.PI*f);
-    return {x:9+72*f,y:74-56*altitude,brightness:.56+.5*altitude};
+function sceneSunPosition(time,isDay){
+  const d=String(time||'').slice(0,10), daily=state.forecast?.daily?.find(x=>x.time===d), t=new Date(time||Date.now()).getTime();
+  if(isDay && daily?.sunrise && daily?.sunset){
+    const rise=new Date(daily.sunrise).getTime(), set=new Date(daily.sunset).getTime(), f=sceneClamp((t-rise)/Math.max(1,set-rise),0,1), altitude=Math.sin(Math.PI*f);
+    return {x:10+76*f,y:76-58*altitude,brightness:.58+.48*altitude};
   }
-
-  const hour = Number(String(time).slice(11,13));
-  const nightProgress = hour >= 18 ? (hour-18)/12 : (hour+6)/12;
-  const f = clampScene(nightProgress,0,1);
-  const altitude = Math.sin(Math.PI*f);
-  return {x:11+68*f,y:71-44*altitude,brightness:.72};
+  const hour=Number(String(time||'00').slice(11,13)), f=sceneClamp(hour>=18?(hour-18)/12:(hour+6)/12,0,1), altitude=Math.sin(Math.PI*f);
+  return {x:12+70*f,y:72-45*altitude,brightness:.72};
 }
-
-function renderWeatherScene(container,data = {}) {
-  if (!container) return;
-  const time = data.time || new Date().toISOString();
-  const isDay = Number(data.is_day ?? isDayAt(time));
-  const code = Number(data.weather_code ?? 0);
-  const kind = heroSceneKind(code,isDay);
-  const intensity = sceneIntensity(data,kind);
-  const clouds = clampScene(Number(data.cloud_cover ?? (['rain','snow','storm','fog'].includes(kind)?88:kind.includes('cloudy')?55:6)),0,100);
-  const wind = Math.max(0,Number(data.wind_speed_10m ?? 0));
-  const uv = Math.max(0,Number(data.uv_index ?? 0));
-  const pos = sunPositionForTime(time,isDay);
-  const sunAlpha = clampScene((.43+uv*.05)*(1-clouds*.0045),.2,.98);
-  let cloudLevel = clouds >= 80 ? 3 : clouds >= 45 ? 2 : clouds >= 18 ? 1 : 0;
-  if (['rain','snow','storm'].includes(kind)) cloudLevel = Math.max(2,cloudLevel);
-  const rainCount = kind==='storm' ? [0,14,25,36][intensity] : [0,9,18,30][intensity];
-  const snowCount = [0,9,18,31][intensity];
-  const flashDuration = intensity===3 ? 2.9 : intensity===2 ? 4.8 : 7.8;
-  const cloudSpeed = clampScene(18-wind*.16,7,18);
-  const rainSpeed = intensity===3 ? .46 : intensity===2 ? .66 : .94;
-  const snowSpeed = intensity===3 ? 3.1 : intensity===2 ? 4.5 : 6.2;
-
-  const drops = Array.from({length:rainCount},function(_,i){
-    return '<i style="left:'+(3+((i*19)%94))+'%;animation-delay:'+(-i*.08).toFixed(2)+'s;animation-duration:'+(rainSpeed+(i%5)*.04).toFixed(2)+'s"></i>';
-  }).join('');
-  const flakes = Array.from({length:snowCount},function(_,i){
-    return '<i style="left:'+(3+((i*23)%92))+'%;animation-delay:'+(-i*.22).toFixed(2)+'s;animation-duration:'+(snowSpeed+(i%6)*.24).toFixed(2)+'s"></i>';
-  }).join('');
-  const stars = Array.from({length:14},function(_,i){
-    return '<i style="left:'+(4+((i*23)%88))+'%;top:'+(10+((i*13)%55))+'%;animation-delay:'+(-i*.18).toFixed(2)+'s"></i>';
-  }).join('');
-
-  const role = container.classList.contains('future-scene') ? 'future-scene' : 'current-scene';
-  container.className = 'hero-scene '+role+' '+kind+' intensity-'+intensity+' cloud-'+cloudLevel;
-  container.style.setProperty('--sun-x',pos.x+'%');
-  container.style.setProperty('--sun-y',pos.y+'%');
-  container.style.setProperty('--sun-brightness',String(pos.brightness));
-  container.style.setProperty('--sun-alpha',String(sunAlpha));
-  container.style.setProperty('--cloud-speed',cloudSpeed+'s');
-  container.style.setProperty('--flash-duration',flashDuration+'s');
-  container.style.setProperty('--scene-cloud-opacity',String(clampScene(.36+clouds/100*.64,.35,1)));
-  container.style.setProperty('--scene-dim',String(clampScene((clouds/100)*.15+(kind==='storm'?intensity*.06:0),0,.34)));
-
-  container.innerHTML = ''
-    + '<div class="scene-glow"></div>'
-    + '<div class="scene-dimmer"></div>'
-    + '<div class="scene-stars">'+stars+'</div>'
-    + '<div class="scene-sun"><span></span></div>'
-    + '<div class="scene-moon"></div>'
-    + '<div class="scene-cloud scene-cloud-a"><b></b><em></em></div>'
-    + '<div class="scene-cloud scene-cloud-b"><b></b><em></em></div>'
-    + '<div class="scene-cloud scene-cloud-c"><b></b><em></em></div>'
-    + '<div class="scene-rain">'+drops+'</div>'
-    + '<div class="scene-snow">'+flakes+'</div>'
-    + '<div class="scene-fog"><i></i><i></i><i></i></div>'
-    + (kind==='storm' ? '<div class="scene-lightning"></div>' : '');
+function renderWeatherScene(container,data={}){
+  if(!container)return;
+  const time=data.time||new Date().toISOString(), isDay=Number(data.is_day ?? isDayAt(time)), kind=heroSceneKind(Number(data.weather_code ?? 0),isDay), intensity=sceneIntensity(data,kind);
+  const clouds=sceneClamp(Number(data.cloud_cover ?? (['rain','snow','storm','fog'].includes(kind)?88:kind.includes('cloudy')?55:6)),0,100), wind=Math.max(0,Number(data.wind_speed_10m ?? 0)), uv=Math.max(0,Number(data.uv_index ?? 0)), pos=sceneSunPosition(time,isDay);
+  const cloudLevel=sceneClamp(Math.ceil(clouds/34),0,3), rainCount=kind==='storm'?[0,12,22,34][intensity]:[0,8,16,28][intensity], snowCount=[0,8,17,29][intensity], rainSpeed=intensity===3?.46:intensity===2?.67:.94, snowSpeed=intensity===3?3.1:intensity===2?4.5:6.2;
+  const drops=Array.from({length:rainCount},(_,i)=>'<i style="left:'+(3+((i*19)%94))+'%;animation-delay:'+(-i*.08).toFixed(2)+'s;animation-duration:'+(rainSpeed+(i%5)*.04).toFixed(2)+'s"></i>').join('');
+  const flakes=Array.from({length:snowCount},(_,i)=>'<i style="left:'+(3+((i*23)%92))+'%;animation-delay:'+(-i*.22).toFixed(2)+'s;animation-duration:'+(snowSpeed+(i%6)*.24).toFixed(2)+'s"></i>').join('');
+  const stars=Array.from({length:13},(_,i)=>'<i style="left:'+(4+((i*23)%88))+'%;top:'+(10+((i*13)%55))+'%;animation-delay:'+(-i*.18).toFixed(2)+'s"></i>').join('');
+  const role=container.classList.contains('future-scene')?'future-scene':'current-scene';
+  container.className='hero-scene '+role+' '+kind+' intensity-'+intensity+' cloud-'+cloudLevel;
+  container.style.setProperty('--sun-x',pos.x+'%'); container.style.setProperty('--sun-y',pos.y+'%'); container.style.setProperty('--sun-brightness',String(pos.brightness));
+  container.style.setProperty('--sun-alpha',String(sceneClamp((.45+uv*.05)*(1-clouds*.004),.18,.98))); container.style.setProperty('--cloud-speed',sceneClamp(18-wind*.16,7,18)+'s'); container.style.setProperty('--flash-duration',(intensity===3?3:intensity===2?5:8)+'s');
+  container.innerHTML='<div class="scene-glow"></div><div class="scene-stars">'+stars+'</div><div class="scene-sun"><span></span></div><div class="scene-moon"></div><div class="scene-cloud scene-cloud-a"><b></b><em></em></div><div class="scene-cloud scene-cloud-b"><b></b><em></em></div><div class="scene-cloud scene-cloud-c"><b></b><em></em></div><div class="scene-rain">'+drops+'</div><div class="scene-snow">'+flakes+'</div><div class="scene-fog"><i></i><i></i><i></i></div>'+(kind==='storm'?'<div class="scene-lightning"></div>':'');
 }
-
-function renderHeroScene(current = {},hourly = {}) {
-  renderWeatherScene(refs.heroScene,{
-    ...hourly,
-    ...current,
-    time:current.time ?? hourly.time,
-    weather_code:current.weather_code ?? hourly.weather_code,
-    is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),
-    uv_index:hourly.uv_index,
-    cape:hourly.cape,
-    cloud_cover:current.cloud_cover ?? hourly.cloud_cover
-  });
+function renderHeroScene(current={},hourly={}){
+  renderWeatherScene(refs.heroScene,{...hourly,...current,time:current.time ?? hourly.time,weather_code:current.weather_code ?? hourly.weather_code,is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),uv_index:hourly.uv_index,cape:hourly.cape,cloud_cover:current.cloud_cover ?? hourly.cloud_cover});
 }
-
-function futureHourly(offset = state.futureOffset) {
-  const hours = state.forecast?.hourly || [];
-  if (!hours.length) return null;
-  const now = currentHourly();
-  let idx = now ? hours.indexOf(now) : -1;
-  if (idx < 0) idx = nearestIndex(hours.map(x=>x.time),new Date());
-  return hours[Math.min(hours.length-1,Math.max(0,idx+Number(offset||0)))] || null;
+function futureHourly(offset=state.futureOffset){
+  const hours=state.forecast?.hourly||[]; if(!hours.length)return null; const now=currentHourly(); let i=now?hours.indexOf(now):-1; if(i<0)i=nearestIndex(hours.map(x=>x.time),new Date()); return hours[Math.min(hours.length-1,Math.max(0,i+Number(offset||0)))]||null;
 }
-
-function renderFutureWeather() {
-  const h = futureHourly();
-  if (!h || !refs.futureScene) return;
-  const isDay = isDayAt(h.time);
-  const info = weatherCodeInfo(h.weather_code,isDay);
-  renderWeatherScene(refs.futureScene,{...h,is_day:isDay});
-  refs.futureTemp.textContent = Math.round(h.temperature_2m ?? 0)+'°';
-  refs.futureCondition.textContent = info.label;
-  const precip = Number(h.precipitation ?? 0);
-  const prob = Math.round(h.precipitation_probability ?? 0);
-  const gust = Math.round(h.wind_gusts_10m ?? 0);
-  refs.futureMeta.textContent = formatHour(h.time)+' · '+(precip>0 ? round(precip,1)+' mm' : prob+'% pluie')+' · raf. '+gust+' km/h';
-  $$('[data-future-offset]').forEach(function(b){
-    b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset);
-  });
+function renderFutureWeather(){
+  const h=futureHourly(); if(!h||!refs.futureScene)return; const day=isDayAt(h.time), info=weatherCodeInfo(h.weather_code,day); renderWeatherScene(refs.futureScene,{...h,is_day:day});
+  refs.futureTemp.textContent=Math.round(h.temperature_2m ?? 0)+'°'; refs.futureCondition.textContent=info.label; const precip=Number(h.precipitation ?? 0), prob=Math.round(h.precipitation_probability ?? 0), gust=Math.round(h.wind_gusts_10m ?? 0);
+  refs.futureMeta.textContent=formatHour(h.time)+' · '+(precip>0?round(precip,1)+' mm':prob+'% pluie')+' · raf. '+gust+' km/h'; $$('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
 }
 
 function weatherIcon(code = 0, isDay = 1) {
@@ -736,118 +632,33 @@ function restartWeatherFx(theme){
   window.onresize=resize;
 }
 
-
-function meanBulletin(values) {
-  const nums = values.map(Number).filter(Number.isFinite);
-  return nums.length ? nums.reduce((a,b)=>a+b,0)/nums.length : null;
+function bulletinMean(values){ const nums=values.map(Number).filter(Number.isFinite); return nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:null; }
+function bulletinDate(iso){ return new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'numeric',month:'long'}).format(new Date(iso+'T12:00:00')); }
+function bulletinToday(){
+  const d=state.forecast?.daily?.[0]; if(!d)return '<p>Données indisponibles.</p>'; const hours=dayHours(d.time), morning=representativeHour(d.time,9), afternoon=representativeHour(d.time,15), evening=representativeHour(d.time,20), parts=[];
+  parts.push('Aujourd’hui à <strong>'+escapeHtml(state.location.name)+'</strong>, '+weatherCodeInfo(d.weather_code,1).label.toLowerCase()+'. Les températures iront approximativement de <strong>'+Math.round(d.min)+' °C</strong> à <strong>'+Math.round(d.max)+' °C</strong>.');
+  const periods=[['matin',morning],['après-midi',afternoon],['soirée',evening]].filter(x=>x[1]); if(periods.length)parts.push('Dans le détail, '+periods.map(x=>x[0]+' : '+weatherCodeInfo(x[1].weather_code,isDayAt(x[1].time)).label.toLowerCase()+', '+Math.round(x[1].temperature_2m)+' °C').join(' ; ')+'.');
+  const pmax=Math.round(d.precipProb ?? Math.max(0,...hours.map(h=>Number(h.precipitation_probability)||0))), psum=Number(d.precipitation ?? hours.reduce((a,h)=>a+(Number(h.precipitation)||0),0));
+  parts.push(pmax>=30||psum>=.2?'Le risque de précipitations atteint <strong>'+pmax+'%</strong>'+(psum>0?', pour environ <strong>'+round(psum,1)+' mm</strong> cumulés':'')+'.':'Le risque de précipitations reste faible, avec un maximum proche de <strong>'+pmax+'%</strong>.');
+  const gust=Math.round(d.gustMax ?? Math.max(0,...hours.map(h=>Number(h.wind_gusts_10m)||0))); parts.push(gust>=35?'Des rafales proches de <strong>'+gust+' km/h</strong> sont possibles.':'Le vent ne présente pas de signal fort, avec des rafales maximales proches de <strong>'+gust+' km/h</strong>.');
+  const lpn=hours.map(h=>Number(h.snowLevel)).filter(Number.isFinite); if(lpn.length&&(Number(d.snowfall)>0||Math.min(...lpn)<1800))parts.push('En relief, la LPN pourrait descendre vers <strong>'+Math.round(Math.min(...lpn))+' m</strong> au plus bas.');
+  return parts.map(x=>'<p>'+x+'</p>').join('');
 }
-
-function bulletinDate(iso) {
-  return new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'numeric',month:'long'}).format(new Date(iso+'T12:00:00'));
+function bulletinWeek(){
+  const days=(state.forecast?.daily||[]).slice(0,7); if(!days.length)return '<p>Données indisponibles.</p>'; const maxs=days.map(d=>Number(d.max)).filter(Number.isFinite), mins=days.map(d=>Number(d.min)).filter(Number.isFinite);
+  const warm=days.reduce((a,b)=>Number(b.max)>Number(a.max)?b:a,days[0]), cold=days.reduce((a,b)=>Number(b.min)<Number(a.min)?b:a,days[0]), first=bulletinMean(days.slice(0,3).map(d=>d.max)), last=bulletinMean(days.slice(-3).map(d=>d.max)), delta=(Number.isFinite(first)&&Number.isFinite(last))?last-first:0, wet=days.filter(d=>Number(d.precipProb)>=40||Number(d.precipitation)>=1);
+  const trend=delta>=2?'une hausse des maximales en fin de période':delta<=-2?'un rafraîchissement en fin de période':'des températures assez stables';
+  return '<p>Sur les <strong>7 prochains jours</strong> à '+escapeHtml(state.location.name)+', la tendance indique <strong>'+trend+'</strong>. Les maximales se situent entre <strong>'+Math.round(Math.min(...maxs))+' et '+Math.round(Math.max(...maxs))+' °C</strong>, les minimales entre <strong>'+Math.round(Math.min(...mins))+' et '+Math.round(Math.max(...mins))+' °C</strong>.</p><p>Le pic de douceur ressort <strong>'+bulletinDate(warm.time)+'</strong> autour de '+Math.round(warm.max)+' °C ; le point le plus frais autour de <strong>'+bulletinDate(cold.time)+'</strong>, vers '+Math.round(cold.min)+' °C.</p><p>'+(wet.length?'<strong>'+wet.length+' jour'+(wet.length>1?'s':'')+'</strong> présentent actuellement un signal de précipitations notable.':'La période ressort actuellement plutôt sèche dans le modèle.')+'</p>';
 }
-
-function bulletinToday() {
-  const d = state.forecast?.daily?.[0];
-  if (!d) return '<p>Données indisponibles.</p>';
-  const hours = dayHours(d.time);
-  const morning = representativeHour(d.time,9);
-  const afternoon = representativeHour(d.time,15);
-  const evening = representativeHour(d.time,20);
-  const label = weatherCodeInfo(d.weather_code,1).label.toLowerCase();
-  const parts = [];
-  parts.push('Aujourd’hui à <strong>'+escapeHtml(state.location.name)+'</strong>, '+label+'. Les températures évolueront d’environ <strong>'+Math.round(d.min)+' °C</strong> au plus frais à <strong>'+Math.round(d.max)+' °C</strong> au meilleur de la journée.');
-
-  const periods = [['matin',morning],['après-midi',afternoon],['soirée',evening]].filter(function(x){return x[1]});
-  if (periods.length) {
-    const evolution = periods.map(function(x){
-      const h=x[1], info=weatherCodeInfo(h.weather_code,isDayAt(h.time));
-      return x[0]+' : '+info.label.toLowerCase()+', '+Math.round(h.temperature_2m)+' °C';
-    });
-    parts.push('Dans le détail, '+evolution.join(' ; ')+'.');
-  }
-
-  const pmax = Math.round(d.precipProb ?? Math.max(0,...hours.map(h=>Number(h.precipitation_probability)||0)));
-  const psum = Number(d.precipitation ?? hours.reduce((a,h)=>a+(Number(h.precipitation)||0),0));
-  if (pmax >= 30 || psum >= .2) parts.push('Le risque de précipitations atteint <strong>'+pmax+'%</strong>'+(psum>0?', pour environ <strong>'+round(psum,1)+' mm</strong> cumulés':'')+'.');
-  else parts.push('Le risque de précipitations reste faible, avec un maximum proche de <strong>'+pmax+'%</strong>.');
-
-  const windMax = Math.round(d.windMax ?? Math.max(0,...hours.map(h=>Number(h.wind_speed_10m)||0)));
-  const gustMax = Math.round(d.gustMax ?? Math.max(0,...hours.map(h=>Number(h.wind_gusts_10m)||0)));
-  if (gustMax >= 35) parts.push('Le vent sera à surveiller : jusqu’à <strong>'+windMax+' km/h</strong> en vent moyen et des rafales proches de <strong>'+gustMax+' km/h</strong>.');
-  else parts.push('Le vent restera globalement modéré, avec des rafales maximales proches de <strong>'+gustMax+' km/h</strong>.');
-
-  const lpn = hours.map(h=>Number(h.snowLevel)).filter(Number.isFinite);
-  if (lpn.length && (Number(d.snowfall)>0 || Math.min(...lpn)<1800)) parts.push('En relief, la limite pluie-neige pourrait descendre vers <strong>'+Math.round(Math.min(...lpn))+' m</strong> au plus bas.');
-
-  return parts.map(function(x){return '<p>'+x+'</p>'}).join('');
+function bulletinMonth(){
+  const days=(state.forecast?.daily||[]).slice(0,15); if(!days.length)return '<p>Données indisponibles.</p>'; const first=bulletinMean(days.slice(0,5).map(d=>d.max)), last=bulletinMean(days.slice(-5).map(d=>d.max)), delta=(Number.isFinite(first)&&Number.isFinite(last))?last-first:0, wet=days.filter(d=>Number(d.precipProb)>=40||Number(d.precipitation)>=1);
+  const trend=delta>=2?'un signal de douceur croissante':delta<=-2?'un signal de rafraîchissement progressif':'pas de tendance thermique nette';
+  return '<p>Pour la <strong>tendance du mois</strong>, MyWeather reste volontairement prudent : l’app dispose ici d’environ 15 jours de prévision, pas d’une prévision quotidienne fiable à 30 jours. Sur cet horizon, on observe <strong>'+trend+'</strong> à '+escapeHtml(state.location.name)+'.</p><p>'+wet.length+' journée'+(wet.length>1?'s':'')+' sur '+days.length+' montrent actuellement un signal de précipitations notable.</p><p class="bulletin-caution">Au-delà de cet horizon, il faut parler de tendance saisonnière ou climatologique, avec une incertitude nettement plus forte.</p>';
 }
-
-function bulletinWeek() {
-  const days = (state.forecast?.daily || []).slice(0,7);
-  if (!days.length) return '<p>Données indisponibles.</p>';
-  const maxs=days.map(d=>Number(d.max)).filter(Number.isFinite);
-  const mins=days.map(d=>Number(d.min)).filter(Number.isFinite);
-  const warm=days.reduce((a,b)=>Number(b.max)>Number(a.max)?b:a,days[0]);
-  const cold=days.reduce((a,b)=>Number(b.min)<Number(a.min)?b:a,days[0]);
-  const wet=days.filter(d=>Number(d.precipProb)>=40 || Number(d.precipitation)>=1);
-  const first=meanBulletin(days.slice(0,3).map(d=>d.max));
-  const last=meanBulletin(days.slice(-3).map(d=>d.max));
-  const delta=(Number.isFinite(first)&&Number.isFinite(last))?last-first:0;
-  const gust=Math.max(...days.map(d=>Number(d.gustMax)||0));
-  const snowDays=days.filter(d=>Number(d.snowfall)>0);
-  const trend = delta >= 2 ? 'une <strong>hausse</strong> des maximales en fin de période' : delta <= -2 ? 'une <strong>baisse</strong> des maximales en fin de période' : 'des températures <strong>assez stables</strong> à l’échelle de la semaine';
-
-  return '<p>Sur les <strong>7 prochains jours</strong> à '+escapeHtml(state.location.name)+', la tendance montre '+trend+'. Les maximales devraient évoluer globalement entre <strong>'+Math.round(Math.min(...maxs))+' et '+Math.round(Math.max(...maxs))+' °C</strong>, et les minimales entre <strong>'+Math.round(Math.min(...mins))+' et '+Math.round(Math.max(...mins))+' °C</strong>.</p>'
-    + '<p>La journée la plus douce ressort pour l’instant <strong>'+bulletinDate(warm.time)+'</strong> autour de '+Math.round(warm.max)+' °C. La période la plus fraîche apparaît autour de <strong>'+bulletinDate(cold.time)+'</strong>, vers '+Math.round(cold.min)+' °C.</p>'
-    + (wet.length ? '<p><strong>'+wet.length+' jour'+(wet.length>1?'s':'')+'</strong> présentent actuellement un signal de précipitations notable. '+(gust>=45?'Des rafales pouvant approcher <strong>'+Math.round(gust)+' km/h</strong> apparaissent aussi dans la période.':'Le vent ne présente pas de signal généralisé particulièrement fort pour le moment.')+'</p>' : '<p>La semaine ressort actuellement plutôt sèche dans le modèle, sans journée nettement pluvieuse sur l’horizon considéré.</p>')
-    + (snowDays.length ? '<p>Un signal neigeux apparaît sur <strong>'+snowDays.length+' jour'+(snowDays.length>1?'s':'')+'</strong>, à interpréter en fonction de l’altitude et de la LPN.</p>' : '');
-}
-
-function bulletinMonth() {
-  const days = (state.forecast?.daily || []).slice(0,15);
-  if (!days.length) return '<p>Données indisponibles.</p>';
-  const first=meanBulletin(days.slice(0,5).map(d=>d.max));
-  const last=meanBulletin(days.slice(-5).map(d=>d.max));
-  const delta=(Number.isFinite(first)&&Number.isFinite(last))?last-first:0;
-  const wet=days.filter(d=>Number(d.precipProb)>=40 || Number(d.precipitation)>=1);
-  const warm=days.reduce((a,b)=>Number(b.max)>Number(a.max)?b:a,days[0]);
-  const cold=days.reduce((a,b)=>Number(b.min)<Number(a.min)?b:a,days[0]);
-  const snow=days.reduce((a,d)=>a+(Number(d.snowfall)||0),0);
-  let tempTrend='pas de tendance thermique nette';
-  if(delta>=2) tempTrend='un signal de douceur croissante';
-  if(delta<=-2) tempTrend='un signal de rafraîchissement progressif';
-
-  return '<p>Pour la <strong>tendance du mois</strong>, MyWeather ne transforme pas une prévision à 15 jours en certitude mensuelle. Sur l’horizon actuellement disponible, on observe <strong>'+tempTrend+'</strong> à '+escapeHtml(state.location.name)+'.</p>'
-    + '<p>Le pic de douceur du scénario actuel se situe vers <strong>'+bulletinDate(warm.time)+'</strong> avec environ '+Math.round(warm.max)+' °C, tandis que le point le plus frais apparaît vers <strong>'+bulletinDate(cold.time)+'</strong> avec environ '+Math.round(cold.min)+' °C.</p>'
-    + '<p>'+(wet.length ? wet.length+' journée'+(wet.length>1?'s':'')+' sur '+days.length+' montrent un signal de précipitations notable.' : 'Aucune séquence humide durable ne ressort actuellement sur les '+days.length+' jours disponibles.')+(snow>0?' Le modèle cumule aussi environ <strong>'+round(snow,1)+' cm</strong> de neige sur la période pour le point sélectionné.':'')+'</p>'
-    + '<p class="bulletin-caution">Au-delà de cet horizon, il faut parler de tendance climatologique ou saisonnière, pas de prévision quotidienne précise.</p>';
-}
-
-function buildWeatherBulletin(period = state.bulletinPeriod) {
-  if (period === 'week') return bulletinWeek();
-  if (period === 'month') return bulletinMonth();
-  return bulletinToday();
-}
-
-function renderWeatherBulletin() {
-  if (!refs.bulletinContent || !state.forecast) return;
-  refs.bulletinContent.innerHTML = buildWeatherBulletin();
-  const time = state.forecast?.current?.time || currentHourly()?.time;
-  refs.bulletinUpdated.textContent = time ? 'Actualisé avec les données météo de '+formatHour(time)+' · recalcul automatique toutes les 15 min' : 'Recalcul automatique à chaque actualisation météo.';
-  $('[data-bulletin-period]').forEach(function(b){b.classList.toggle('active',b.dataset.bulletinPeriod===state.bulletinPeriod)});
-}
-
-function openBulletin() {
-  state.bulletinPeriod = 'today';
-  renderWeatherBulletin();
-  refs.bulletinModal?.classList.remove('hidden');
-  document.body.classList.add('modal-open');
-}
-
-function closeBulletin() {
-  refs.bulletinModal?.classList.add('hidden');
-  document.body.classList.remove('modal-open');
-}
+function buildWeatherBulletin(period=state.bulletinPeriod){ if(period==='week')return bulletinWeek(); if(period==='month')return bulletinMonth(); return bulletinToday(); }
+function renderWeatherBulletin(){ if(!refs.bulletinContent||!state.forecast)return; refs.bulletinContent.innerHTML=buildWeatherBulletin(); const time=state.forecast?.current?.time||currentHourly()?.time; refs.bulletinUpdated.textContent=time?'Données de '+formatHour(time)+' · recalcul automatique toutes les 15 min':'Recalcul à chaque actualisation.'; $$('[data-bulletin-period]').forEach(b=>b.classList.toggle('active',b.dataset.bulletinPeriod===state.bulletinPeriod)); }
+function openBulletin(){ state.bulletinPeriod='today'; renderWeatherBulletin(); refs.bulletinModal?.classList.remove('hidden'); document.body.classList.add('modal-open'); }
+function closeBulletin(){ refs.bulletinModal?.classList.add('hidden'); document.body.classList.remove('modal-open'); }
 
 function showView(name){
   refs.forecastView.classList.toggle('active',name==='forecast'); refs.routeView.classList.toggle('active',name==='route'); refs.favoritesView.classList.toggle('active',name==='favorites');
@@ -916,9 +727,7 @@ function bindEvents(){
   document.addEventListener('click',e=>{if(!refs.searchForm.contains(e.target))refs.searchResults.classList.add('hidden')});
   refs.geoBtn.addEventListener('click',useGeolocation);refs.favoriteBtn.addEventListener('click',toggleFavorite);refs.refreshBtn.addEventListener('click',()=>loadLocation(state.location));
   $('[data-future-offset]').forEach(b=>b.addEventListener('click',()=>{state.futureOffset=Number(b.dataset.futureOffset)||3;renderFutureWeather()}));
-  refs.bulletinBtn?.addEventListener('click',openBulletin);
-  refs.closeBulletin?.addEventListener('click',closeBulletin);
-  refs.bulletinModal?.addEventListener('click',e=>{if(e.target===refs.bulletinModal)closeBulletin()});
+  refs.bulletinBtn?.addEventListener('click',openBulletin); refs.closeBulletin?.addEventListener('click',closeBulletin); refs.bulletinModal?.addEventListener('click',e=>{if(e.target===refs.bulletinModal)closeBulletin()});
   $('[data-bulletin-period]').forEach(b=>b.addEventListener('click',()=>{state.bulletinPeriod=b.dataset.bulletinPeriod;renderWeatherBulletin()}));
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
   $$('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
@@ -933,7 +742,7 @@ async function init(){
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   await loadLocation(state.location,{silent:true});
-  if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible' && !state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.0').catch(()=>{});
+  if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.1').catch(()=>{});
 }
 init();
