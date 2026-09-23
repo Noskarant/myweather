@@ -25,7 +25,7 @@ const state = {
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
-  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), quickMetrics:$('#quickMetrics'), insight:$('#weatherInsight'),
+  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), quickMetrics:$('#quickMetrics'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
   forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
@@ -125,6 +125,7 @@ function renderAll() {
   refs.feelsLike.textContent = `Ressenti ${Math.round(c.apparent_temperature ?? hNow.apparent_temperature ?? 0)}°C`;
   refs.lastUpdated.textContent = formatUpdateAge(c.time || hNow.time);
   refs.weatherGlyph.innerHTML = weatherIcon(c.weather_code ?? hNow.weather_code, c.is_day);
+  renderHeroScene(c,hNow);
 
   const conf = confidenceForHorizon(1);
   refs.confidence.querySelector('strong').textContent = `${conf}%`;
@@ -166,6 +167,40 @@ function formatUpdateAge(iso) {
   if (minutes < 60) return `Mise à jour il y a ${minutes} min`;
   const hours = Math.floor(minutes / 60);
   return `Mise à jour il y a ${hours} h`;
+}
+
+
+function heroSceneKind(code = 0, isDay = 1) {
+  const day = Number(isDay) !== 0;
+  if ([95,96,99].includes(code)) return 'storm';
+  if ([71,73,75,77,85,86].includes(code)) return 'snow';
+  if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) return 'rain';
+  if ([45,48].includes(code)) return 'fog';
+  if ([2,3].includes(code)) return day ? 'partly-cloudy' : 'night-cloudy';
+  return day ? 'sunny' : 'clear-night';
+}
+
+function renderHeroScene(current = {}, hourly = {}) {
+  if (!refs.heroScene) return;
+  const code = Number(current.weather_code ?? hourly.weather_code ?? 0);
+  const isDay = Number(current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()));
+  const kind = heroSceneKind(code, isDay);
+  const drops = Array.from({length:18},(_,i)=>'<i style="--i:'+i+'"></i>').join('');
+  const flakes = Array.from({length:20},(_,i)=>'<i style="--i:'+i+'"></i>').join('');
+  const stars = Array.from({length:14},(_,i)=>'<i style="--i:'+i+'"></i>').join('');
+  refs.heroScene.className = 'hero-scene '+kind;
+  refs.heroScene.innerHTML = ''
+    + '<div class="scene-glow"></div>'
+    + '<div class="scene-stars">'+stars+'</div>'
+    + '<div class="scene-sun"><span></span></div>'
+    + '<div class="scene-moon"></div>'
+    + '<div class="scene-cloud scene-cloud-a"><b></b><em></em></div>'
+    + '<div class="scene-cloud scene-cloud-b"><b></b><em></em></div>'
+    + '<div class="scene-cloud scene-cloud-c"><b></b><em></em></div>'
+    + '<div class="scene-rain">'+drops+'</div>'
+    + '<div class="scene-snow">'+flakes+'</div>'
+    + '<div class="scene-fog"><i></i><i></i><i></i></div>'
+    + '<div class="scene-lightning"></div>';
 }
 
 function weatherIcon(code = 0, isDay = 1) {
@@ -652,6 +687,6 @@ async function init(){
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   await loadLocation(state.location,{silent:true});
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.3.2').catch(()=>{});
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.4.0').catch(()=>{});
 }
 init();
