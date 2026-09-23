@@ -1,0 +1,33 @@
+name: Apply daily detail view
+
+on:
+  push:
+    branches: [main]
+    paths: [daily-detail-update/ready]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        shell: bash
+        run: |
+          cat daily-detail-update/payload.* | base64 -d > /tmp/day_detail_patch.py
+          python /tmp/day_detail_patch.py
+      - name: Validate
+        run: |
+          npm test
+          npm run check
+      - name: Commit
+        shell: bash
+        run: |
+          rm -rf daily-detail-update .github/workflows/apply-daily-detail.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add detailed daily hourly forecast view"
+          git push
