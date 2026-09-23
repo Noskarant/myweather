@@ -10,7 +10,7 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="preconnect" href="https://api.open-meteo.com" />
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
-  <link rel="stylesheet" href="./styles.css?v=1.3.2" />
+  <link rel="stylesheet" href="./styles.css?v=1.4.0" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -53,6 +53,7 @@
           </div>
 
           <div class="hero-weather">
+            <div id="heroScene" class="hero-scene" aria-hidden="true"></div>
             <div id="weatherGlyph" class="weather-glyph" aria-hidden="true"></div>
             <div class="current-reading">
               <div id="currentTemp" class="temperature">--°</div>
@@ -202,6 +203,6 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
 
-  <script type="module" src="./js/app.js?v=1.3.2"></script>
+  <script type="module" src="./js/app.js?v=1.4.0"></script>
 </body>
 </html>
