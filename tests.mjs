@@ -36,6 +36,14 @@ console.log('✓ MyWeather unit tests passed');
 
 // selector helper regression: querySelector must never be treated as a collection
 const appSource = fs.readFileSync(new URL('./js/app.js', import.meta.url), 'utf8');
-assert.equal((appSource.match(/\\$\\$\\$\\(/g) || []).length, 0, 'Unexpected $$$ helper in app.js');
-assert.equal([...appSource.matchAll(/(?<!\\$)\\$\\((['\"\`])([^'\"\`]+)\\1\\)\\.forEach/g)].length, 0, 'querySelector(...).forEach startup regression');
+assert.equal(appSource.includes('$$$('), false, 'Unexpected $$$ helper in app.js');
+for (const bad of [
+  "$('[data-future-offset]').forEach",
+  "$('[data-bulletin-period]').forEach",
+  "$('.bottom-nav [data-nav]').forEach",
+  "$('#mapTabs [data-overlay]').forEach",
+  "$('[data-nav]').forEach"
+]) {
+  assert.equal(appSource.includes(bad), false, 'Single-element selector used with forEach: ' + bad);
+}
 console.log('✓ selector helper regression checks passed');
