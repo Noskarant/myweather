@@ -7,5 +7,12 @@
   "background_color": "#07111f",
   "theme_color": "#07111f",
   "description": "Prévisions météo scientifiques, cartes et météo sur trajet.",
-  "icons": []
+  "icons": [
+    {
+      "src": "./assets/favicon.svg?v=2",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
