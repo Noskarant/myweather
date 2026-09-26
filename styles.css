@@ -681,3 +681,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .forecast-metrics{grid-area:metrics;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;border-top:1px solid rgba(255,255,255,.07);padding-top:7px}
   .forecast-metrics>span{font-size:9px}
 }
+
+/* MyWeather icon in the header */
+.brand-mark{border:0;border-radius:12px;box-shadow:none}
+.brand-mark img{display:block;width:100%;height:100%;border-radius:12px}
