@@ -860,3 +860,10 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 .hour-card .hour-amount{font-size:10px;line-height:1.2}
 .day-hour-wind .day-hour-amount{font-size:11px;margin-top:5px}
 @media(max-width:900px){.day-hour-wind .day-hour-amount{font-size:10px}}
+
+/* Repères temporels alignés sur les points de la courbe des 24 heures. */
+.mini-chart-hours{position:relative;height:21px;margin-top:2px;color:#94b4c5;font-size:11px;font-variant-numeric:tabular-nums}
+.mini-chart-hours span{position:absolute;top:1px;transform:translateX(-50%);white-space:nowrap}
+.mini-chart-hours span.first{transform:none}
+.mini-chart-hours span.last{transform:translateX(-100%)}
+@media(max-width:760px){.mini-chart-hours{height:18px;font-size:9px}}
