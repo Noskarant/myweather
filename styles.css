@@ -905,3 +905,21 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 .search-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 11px 4px;color:#a9c8d9;font-size:12px}
 .search-results .search-history-head button{width:auto;flex:0 0 auto;padding:5px 8px;color:#b8d8e8;font-size:12px}
 .search-results .search-history-item .search-kind-icon{color:#7dc7e8}
+
+/* Valeur maximale de l'indice UV prévue pour chaque journée. */
+.forecast-metrics>.forecast-uv{color:#f1d695;font-weight:650}
+@media(min-width:901px){
+  .forecast-metrics>.forecast-uv{grid-column:3;grid-row:2;align-self:start;margin-top:-5px}
+}
+@media(min-width:761px) and (max-width:900px){
+  .forecast-metrics>.forecast-uv{grid-column:2}
+}
+@media(max-width:760px){
+  .forecast-metrics>.forecast-uv{font-size:11px;line-height:1.2}
+}
+@media(max-width:390px){
+  .forecast-metrics>.forecast-uv{font-size:10px}
+}
+@media(max-width:350px){
+  .forecast-metrics>.forecast-uv{grid-column:1/-1}
+}
