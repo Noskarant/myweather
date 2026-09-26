@@ -772,3 +772,69 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .forecast-metrics>span{font-size:11px}
   .forecast-metrics small{font-size:8px}
 }
+
+/* Desktop dashboard: give the fixed navigation its own gutter and let the weather cards use the full column. */
+@media(min-width:1101px){
+  #forecastView.active{
+    width:min(1760px,calc(100% - 140px));
+    margin-left:max(110px,calc((100vw - 1760px)/2));
+    margin-right:30px;
+    grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);
+    gap:26px;
+  }
+  #routeView.active,#favoritesView.active{
+    width:min(1440px,calc(100% - 140px));
+    margin-left:max(110px,calc((100vw - 1440px)/2));
+    margin-right:30px;
+  }
+  .home-current .current-card{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    min-height:0!important;
+    height:100%;
+  }
+  .home-current .hero-weather{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(220px,38%)!important;
+    width:100%;
+    min-height:235px!important;
+    padding:0!important;
+  }
+  .home-current .hero-now,.home-current .future-weather-panel{min-height:235px}
+  .home-current .quick-metrics{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    width:100%;
+    gap:9px;
+  }
+  .home-current .quick-metrics>div{min-width:0;min-height:70px;padding:12px}
+  .home-current .insight-banner{width:100%;margin-top:0}
+  .advanced-section{display:block}
+  .advanced-section::after{display:none}
+  .advanced-section .cockpit{height:100%}
+  .daily-columns,.forecast-row{
+    grid-template-columns:100px 82px 94px minmax(0,1fr) 14px;
+    gap:10px;
+    padding-left:16px;
+    padding-right:16px;
+  }
+  .forecast-row{min-height:112px}
+  .forecast-date strong{font-size:15px}
+  .forecast-weather small{display:none}
+  .forecast-icons{min-width:0;gap:2px}
+  .forecast-icons .wx-icon{width:39px;height:39px;flex:0 0 39px}
+  .forecast-temps{display:grid;grid-template-columns:1fr;gap:4px}
+  .forecast-temps strong,.forecast-temps em{min-width:0;width:100%;padding:5px;font-size:17px}
+  .forecast-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;min-width:0}
+  .forecast-metrics>span{min-width:0;font-size:11px;white-space:nowrap}
+  .forecast-metrics small{display:block;margin:3px 0 0 12px;font-size:9px}
+}
+@media(min-width:1101px) and (max-width:1279px){
+  #forecastView.active{
+    grid-template-columns:minmax(0,1fr);
+    grid-template-areas:"current" "science" "hourly" "daily" "mountain" "maps" "source";
+  }
+  .advanced-section .cockpit{min-height:0}
+  .mountain-panel{position:static}
+}
