@@ -854,3 +854,9 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .sun-time time{margin-left:3px}
 }
 @media(min-width:1101px){.home-current .sun-times{width:100%;margin-top:0}}
+
+/* Cumul horaire : présent uniquement quand pluie ou neige est prévue. */
+.hour-card .hour-amount,.day-hour-wind .day-hour-amount{color:#b5ecff;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hour-card .hour-amount{font-size:10px;line-height:1.2}
+.day-hour-wind .day-hour-amount{font-size:11px;margin-top:5px}
+@media(max-width:900px){.day-hour-wind .day-hour-amount{font-size:10px}}
