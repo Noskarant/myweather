@@ -114,16 +114,15 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
   }
 }
 
-function forecastNowLocal() {
+function forecastNowLocal(date=new Date()) {
   const tz=state.location?.timezone;
   if(tz && tz!=='auto'){
     try{
-      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).map(p=>[p.type,p.value]));
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date).map(p=>[p.type,p.value]));
       return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
     }catch{}
   }
-  const now=new Date();
-  return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);
 }
 function currentHourly() {
   if (!state.forecast?.hourly?.length) return null;
@@ -243,10 +242,13 @@ function renderHeroScene(current={},hourly={}){
 function futureHourly(offset=state.futureOffset){
   const hours=state.forecast?.hourly||[]; if(!hours.length)return null; const now=currentHourly(); let i=now?hours.indexOf(now):-1; if(i<0)i=nearestIndex(hours.map(x=>x.time),forecastNowLocal()); return hours[Math.min(hours.length-1,Math.max(0,i+Number(offset||0)))]||null;
 }
-function updateNowClock(){ if(refs.nowClock) refs.nowClock.textContent=forecastNowLocal().slice(11,16).replace(':','h'); }
+function updateNowClock(){
+  if(refs.nowClock) refs.nowClock.textContent=forecastNowLocal().slice(11,16).replace(':','h');
+  if(refs.futureClock) refs.futureClock.textContent=forecastNowLocal(new Date(Date.now()+state.futureOffset*3600000)).slice(11,16).replace(':','h');
+}
 function renderFutureWeather(){
   const h=futureHourly(); if(!h||!refs.futureScene)return; const day=isDayAt(h.time), info=weatherCodeInfo(h.weather_code,day); renderWeatherScene(refs.futureScene,{...h,is_day:day});
-  if(refs.futureClock) refs.futureClock.textContent=h.time.slice(11,16).replace(':','h');
+  updateNowClock();
   refs.futureTemp.textContent=Math.round(h.temperature_2m ?? 0)+'°'; refs.futureCondition.textContent=info.label; const precip=Number(h.precipitation ?? 0), prob=Math.round(h.precipitation_probability ?? 0), gust=Math.round(h.wind_gusts_10m ?? 0);
   refs.futureMeta.textContent=formatHour(h.time)+' · '+(precip>0?round(precip,1)+' mm':prob+'% pluie')+' · raf. '+gust+' km/h'; $$('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
 }
