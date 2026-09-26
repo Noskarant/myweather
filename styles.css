@@ -779,7 +779,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
     width:min(1760px,calc(100% - 140px));
     margin-left:max(110px,calc((100vw - 1760px)/2));
     margin-right:30px;
-    grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);
+    grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr);
     gap:26px;
   }
   #routeView.active,#favoritesView.active{
@@ -827,8 +827,10 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .forecast-temps{display:grid;grid-template-columns:1fr;gap:4px}
   .forecast-temps strong,.forecast-temps em{min-width:0;width:100%;padding:5px;font-size:17px}
   .forecast-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;min-width:0}
-  .forecast-metrics>span{min-width:0;font-size:11px;white-space:nowrap}
-  .forecast-metrics small{display:block;margin:3px 0 0 12px;font-size:9px}
+  .forecast-metrics>span{min-width:0;font-size:12px;white-space:nowrap}
+  .forecast-metrics small{display:block;margin:3px 0 0 12px;font-size:10px}
+  .mountain-visual .alt-line.zero span{top:-28px}
+  .mountain-visual .alt-line.snow span{top:1px}
 }
 @media(min-width:1101px) and (max-width:1279px){
   #forecastView.active{
