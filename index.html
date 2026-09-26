@@ -12,7 +12,8 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="preconnect" href="https://api.open-meteo.com" />
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
-  <link rel="stylesheet" href="./styles.css?v=1.5.8" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="./styles.css?v=1.6.0" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -59,7 +60,7 @@
 
           <div class="hero-weather">
             <div class="hero-now">
-              <span class="hero-now-label">Maintenant</span>
+              <span class="hero-now-label">Maintenant <time id="nowClock">--h--</time></span>
               <div id="heroScene" class="hero-scene current-scene" aria-hidden="true"></div>
               <div id="weatherGlyph" class="weather-glyph" aria-hidden="true"></div>
               <div class="current-reading">
@@ -71,7 +72,7 @@
             <aside id="futureWeatherPanel" class="future-weather-panel" aria-label="Prévision dans quelques heures">
               <div id="futureScene" class="hero-scene future-scene" aria-hidden="true"></div>
               <div class="future-weather-head">
-                <span>Dans</span>
+                <span>Dans <time id="futureClock">--h</time></span>
                 <div class="future-offsets" role="group" aria-label="Échéance">
                   <button type="button" data-future-offset="2">+2h</button>
                   <button type="button" data-future-offset="3" class="active">+3h</button>
@@ -193,7 +194,7 @@
           <article class="route-risk glass" id="routeRisk"></article>
         </div>
         <article class="route-map-card glass">
-          <div class="card-heading"><div><div class="eyebrow">PROFIL DE ROUTE</div><h2>Conditions le long du trajet</h2></div><span class="small muted">Couleur = niveau de vigilance météo</span></div>
+          <div class="card-heading"><div><div class="eyebrow">CARTE DU TRAJET</div><h2>Route, villes et météo</h2></div><span class="small muted">Repères météo · zoom + / − ou pincement</span></div>
           <div id="routeSketch" class="route-sketch"></div>
         </article>
         <section class="section-block">
@@ -246,6 +247,7 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
 
-  <script type="module" src="./js/app.js?v=1.5.9"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script type="module" src="./js/app.js?v=1.6.0"></script>
 </body>
 </html>
