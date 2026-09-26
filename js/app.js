@@ -250,7 +250,7 @@ function renderFutureWeather(){
   const h=futureHourly(); if(!h||!refs.futureScene)return; const day=isDayAt(h.time), info=weatherCodeInfo(h.weather_code,day); renderWeatherScene(refs.futureScene,{...h,is_day:day});
   updateNowClock();
   refs.futureTemp.textContent=Math.round(h.temperature_2m ?? 0)+'°'; refs.futureCondition.textContent=info.label; const precip=Number(h.precipitation ?? 0), prob=Math.round(h.precipitation_probability ?? 0), gust=Math.round(h.wind_gusts_10m ?? 0);
-  refs.futureMeta.textContent=formatHour(h.time)+' · '+(precip>0?round(precip,1)+' mm':prob+'% pluie')+' · raf. '+gust+' km/h'; $$('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
+  refs.futureMeta.textContent='Prévision '+formatHour(h.time)+' · '+(precip>0?round(precip,1)+' mm':prob+'% pluie')+' · raf. '+gust+' km/h'; $$('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
 }
 
 function weatherIcon(code = 0, isDay = 1) {
