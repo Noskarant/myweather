@@ -100,6 +100,25 @@ export function weatherCodeInfo(code = 0, isDay = 1) {
   return { label, glyph, theme };
 }
 
+// Open-Meteo reports liquid precipitation in mm and snowfall depth in cm.
+// A sub-zero temperature alone does not imply snow (freezing rain remains liquid).
+export function isSnowForecast(data = {}) {
+  const snow = Number(data.snowfall);
+  return (Number.isFinite(snow) && snow > 0) || [71,73,75,77,85,86].includes(Number(data.weather_code ?? data.code));
+}
+
+export function precipitationLabel(data = {}) {
+  return isSnowForecast(data) ? 'Neige' : 'Précipitations';
+}
+
+export function formatPrecipitation(data = {}, { rate = false, icon = false } = {}) {
+  const snow = isSnowForecast(data);
+  const raw = snow ? data.snowfall : data.precipitation;
+  const amount = raw == null ? NaN : Number(raw);
+  const value = Number.isFinite(amount) && amount >= 0 ? (amount > 0 && amount < 0.05 ? '<0,1' : String(round(amount, 1))) : '—';
+  return `${icon ? (snow ? '❄ ' : '◌ ') : ''}${value} ${snow ? 'cm' : 'mm'}${rate ? '/h' : ''}`;
+}
+
 export function riskForPoint(p) {
   let score = 0;
   const reasons = [];
