@@ -1,4 +1,4 @@
-import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.6.10';
+import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.6.11';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -185,7 +185,7 @@ export async function getBatchForecast(points, forecastDays = 2) {
 export function normalizeForecast(data) {
   const h = data.hourly || {};
   const hourly = (h.time || []).map((time,i) => {
-    const obj = { time };
+    const obj = { time, elevation:data.elevation ?? data.location?.elevation ?? 0 };
     HOURLY_VARS.forEach(k => obj[k] = h[k]?.[i] ?? null);
     obj.snowLevel = estimateSnowLevel({
       freezingLevel:obj.freezing_level_height, wetBulb:obj.wet_bulb_temperature_2m,
