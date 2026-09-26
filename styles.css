@@ -637,6 +637,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .bottom-nav button{flex:1;min-width:0}
   .hourly-block{margin-top:12px}
   .hourly-rail{margin-top:7px}
+  .hourly-rail{-webkit-overflow-scrolling:touch;scroll-snap-type:none;overscroll-behavior-x:contain}
   .daily-section{margin-top:12px}
 
   .hero-now .current-reading{width:100%;min-width:0;padding-top:18px}
