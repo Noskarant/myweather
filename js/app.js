@@ -1,5 +1,5 @@
 import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js';
-import { analyzeRoute } from './route.js';
+import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
   formatHour, nearestIndex, round, seasonFor, svgPath, weatherCodeInfo
