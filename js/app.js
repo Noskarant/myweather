@@ -220,31 +220,50 @@ function sceneIntensity(data,kind){
   if(kind==='rain'){ if([65,67,82].includes(code)||precip>=4)return 3; if([63,81,55].includes(code)||precip>=1.2)return 2; return 1; }
   return 1;
 }
-function sceneSunPosition(time,isDay){
-  const d=String(time||'').slice(0,10), daily=state.forecast?.daily?.find(x=>x.time===d), t=new Date(time||Date.now()).getTime();
-  if(isDay && daily?.sunrise && daily?.sunset){
-    const rise=new Date(daily.sunrise).getTime(), set=new Date(daily.sunset).getTime(), f=sceneClamp((t-rise)/Math.max(1,set-rise),0,1), altitude=Math.sin(Math.PI*f);
-    return {x:10+76*f,y:76-58*altitude,brightness:.58+.48*altitude};
+function sceneSunPosition(time,fallbackDay){
+  const days=state.forecast?.daily||[], date=String(time||'').slice(0,10);
+  const index=days.findIndex(d=>d.time===date), daily=days[index], t=new Date(time||Date.now()).getTime();
+  const rise=daily?.sunrise?new Date(daily.sunrise).getTime():NaN;
+  const set=daily?.sunset?new Date(daily.sunset).getTime():NaN;
+  let isDay=Boolean(fallbackDay), fraction;
+  if(Number.isFinite(t)&&Number.isFinite(rise)&&Number.isFinite(set)&&set>rise){
+    isDay=t>=rise&&t<set;
+    if(isDay) fraction=(t-rise)/(set-rise);
+    else {
+      const previousSet=index>0&&days[index-1]?.sunset?new Date(days[index-1].sunset).getTime():set-86400000;
+      const nextRise=index<days.length-1&&days[index+1]?.sunrise?new Date(days[index+1].sunrise).getTime():rise+86400000;
+      const start=t<rise?previousSet:set, end=t<rise?rise:nextRise;
+      fraction=(t-start)/Math.max(1,end-start);
+    }
+  } else {
+    const hour=Number(String(time||'').slice(11,13))+Number(String(time||'').slice(14,16)||0)/60;
+    isDay=Number.isFinite(hour)?hour>=7&&hour<19:isDay;
+    fraction=isDay?(hour-7)/12:hour>=19?(hour-19)/12:(hour+5)/12;
   }
-  const hour=Number(String(time||'00').slice(11,13)), f=sceneClamp(hour>=18?(hour-18)/12:(hour+6)/12,0,1), altitude=Math.sin(Math.PI*f);
-  return {x:12+70*f,y:72-45*altitude,brightness:.72};
+  const f=sceneClamp(fraction,0,1), altitude=Math.sin(Math.PI*f);
+  const twilight=sceneClamp(1-Math.min(f,1-f)/.13,0,1);
+  return {isDay,x:20+60*f,y:74-(isDay?53:47)*altitude,brightness:.65+.45*altitude,twilight};
 }
 function renderWeatherScene(container,data={}){
   if(!container)return;
-  const time=data.time||new Date().toISOString(), isDay=Number(data.is_day ?? isDayAt(time)), kind=heroSceneKind(Number(data.weather_code ?? 0),isDay), intensity=sceneIntensity(data,kind);
-  const clouds=sceneClamp(Number(data.cloud_cover ?? (['rain','snow','storm','fog'].includes(kind)?88:kind.includes('cloudy')?55:6)),0,100), wind=Math.max(0,Number(data.wind_speed_10m ?? 0)), uv=Math.max(0,Number(data.uv_index ?? 0)), pos=sceneSunPosition(time,isDay);
+  const time=data.time||forecastNowLocal(), pos=sceneSunPosition(time,Number(data.is_day ?? isDayAt(time)));
+  const kind=heroSceneKind(Number(data.weather_code ?? 0),pos.isDay), intensity=sceneIntensity(data,kind);
+  const clouds=sceneClamp(Number(data.cloud_cover ?? (['rain','snow','storm','fog'].includes(kind)?88:kind.includes('cloudy')?55:6)),0,100), wind=Math.max(0,Number(data.wind_speed_10m ?? 0)), uv=Math.max(0,Number(data.uv_index ?? 0));
   const cloudLevel=sceneClamp(Math.ceil(clouds/34),0,3), rainCount=kind==='storm'?[0,12,22,34][intensity]:[0,8,16,28][intensity], snowCount=[0,8,17,29][intensity], rainSpeed=intensity===3?.46:intensity===2?.67:.94, snowSpeed=intensity===3?3.1:intensity===2?4.5:6.2;
   const drops=Array.from({length:rainCount},(_,i)=>'<i style="left:'+(3+((i*19)%94))+'%;animation-delay:'+(-i*.08).toFixed(2)+'s;animation-duration:'+(rainSpeed+(i%5)*.04).toFixed(2)+'s"></i>').join('');
   const flakes=Array.from({length:snowCount},(_,i)=>'<i style="left:'+(3+((i*23)%92))+'%;animation-delay:'+(-i*.22).toFixed(2)+'s;animation-duration:'+(snowSpeed+(i%6)*.24).toFixed(2)+'s"></i>').join('');
   const stars=Array.from({length:13},(_,i)=>'<i style="left:'+(4+((i*23)%88))+'%;top:'+(10+((i*13)%55))+'%;animation-delay:'+(-i*.18).toFixed(2)+'s"></i>').join('');
   const role=container.classList.contains('future-scene')?'future-scene':'current-scene';
-  container.className='hero-scene '+role+' '+kind+' intensity-'+intensity+' cloud-'+cloudLevel;
+  container.className='hero-scene '+role+' '+kind+' '+(pos.isDay?'phase-day':'phase-night')+' intensity-'+intensity+' cloud-'+cloudLevel;
   container.style.setProperty('--sun-x',pos.x+'%'); container.style.setProperty('--sun-y',pos.y+'%'); container.style.setProperty('--sun-brightness',String(pos.brightness));
-  container.style.setProperty('--sun-alpha',String(sceneClamp((.45+uv*.05)*(1-clouds*.004),.18,.98))); container.style.setProperty('--cloud-speed',sceneClamp(18-wind*.16,7,18)+'s'); container.style.setProperty('--flash-duration',(intensity===3?3:intensity===2?5:8)+'s');
-  container.innerHTML='<div class="scene-glow"></div><div class="scene-stars">'+stars+'</div><div class="scene-sun"><span></span></div><div class="scene-moon"></div><div class="scene-cloud scene-cloud-a"><b></b><em></em></div><div class="scene-cloud scene-cloud-b"><b></b><em></em></div><div class="scene-cloud scene-cloud-c"><b></b><em></em></div><div class="scene-rain">'+drops+'</div><div class="scene-snow">'+flakes+'</div><div class="scene-fog"><i></i><i></i><i></i></div>'+(kind==='storm'?'<div class="scene-lightning"></div>':'');
+  container.style.setProperty('--sun-alpha',String(sceneClamp((.45+uv*.05)*(1-clouds*.004),.18,.98)));
+  container.style.setProperty('--orb-alpha',String(sceneClamp((1-clouds/120)*(.72+uv*.04),.08,.92)));
+  container.style.setProperty('--twilight-alpha',String(pos.twilight*(1-clouds/150)));
+  container.style.setProperty('--cloud-speed',sceneClamp(18-wind*.16,7,18)+'s'); container.style.setProperty('--flash-duration',(intensity===3?3:intensity===2?5:8)+'s');
+  container.innerHTML='<div class="scene-glow"></div><div class="scene-twilight"></div><div class="scene-stars">'+stars+'</div><div class="scene-sun"><span></span></div><div class="scene-moon"></div><div class="scene-horizon"></div><div class="scene-cloud scene-cloud-a"><b></b><em></em></div><div class="scene-cloud scene-cloud-b"><b></b><em></em></div><div class="scene-cloud scene-cloud-c"><b></b><em></em></div><div class="scene-rain">'+drops+'</div><div class="scene-snow">'+flakes+'</div><div class="scene-fog"><i></i><i></i><i></i></div>'+(kind==='storm'?'<div class="scene-lightning"></div>':'');
 }
 function renderHeroScene(current={},hourly={}){
-  renderWeatherScene(refs.heroScene,{...hourly,...current,time:current.time ?? hourly.time,weather_code:current.weather_code ?? hourly.weather_code,is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),uv_index:hourly.uv_index,cape:hourly.cape,cloud_cover:current.cloud_cover ?? hourly.cloud_cover});
+  renderWeatherScene(refs.heroScene,{...hourly,...current,time:forecastNowLocal(),weather_code:current.weather_code ?? hourly.weather_code,is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),uv_index:hourly.uv_index,cape:hourly.cape,cloud_cover:current.cloud_cover ?? hourly.cloud_cover});
 }
 function futureHourly(offset=state.futureOffset){
   const hours=state.forecast?.hourly||[]; if(!hours.length)return null; const now=currentHourly(); let i=now?hours.indexOf(now):-1; if(i<0)i=nearestIndex(hours.map(x=>x.time),forecastNowLocal()); return hours[Math.min(hours.length-1,Math.max(0,i+Number(offset||0)))]||null;
