@@ -28,7 +28,7 @@ const state = {
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
-  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), insight:$('#weatherInsight'),
+  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
   forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
@@ -151,6 +151,12 @@ function renderAll() {
   refs.weatherGlyph.innerHTML = weatherIcon(c.weather_code ?? hNow.weather_code, c.is_day);
   try { renderHeroScene(c,hNow); } catch (err) { console.warn('Scene météo actuelle',err); }
   try { renderFutureWeather(); } catch (err) { console.warn('Scène météo future',err); }
+
+  const today = f.daily?.[0];
+  refs.sunriseTime.textContent = formatClock(today?.sunrise);
+  refs.sunriseTime.dateTime = today?.sunrise || '';
+  refs.sunsetTime.textContent = formatClock(today?.sunset);
+  refs.sunsetTime.dateTime = today?.sunset || '';
 
   const conf = confidenceForHorizon(1);
   refs.confidence.querySelector('strong').textContent = `${conf}%`;
