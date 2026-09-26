@@ -271,6 +271,28 @@ function windRangeForDate(date) {
   return [Math.round(Math.min(...values)), Math.round(Math.max(...values))];
 }
 
+function daylightCondition(d) {
+  const hours = dayHours(d.time).filter(h => isDayAt(h.time) && h.weather_code != null);
+  if (!hours.length) return weatherCodeInfo(d.weather_code, 1).label;
+  const counts = { clear:0, partial:0, cloud:0, rain:0, snow:0, storm:0, fog:0 };
+  for (const h of hours) {
+    const code = Number(h.weather_code);
+    const kind = code <= 1 ? 'clear' : code === 2 ? 'partial' : code === 3 ? 'cloud'
+      : code === 45 || code === 48 ? 'fog' : code >= 95 ? 'storm'
+      : [71,73,75,77,85,86].includes(code) ? 'snow' : 'rain';
+    counts[kind]++;
+  }
+  const n = hours.length, wet = counts.rain + counts.snow + counts.storm;
+  if (wet / n >= .5) return counts.snow > counts.rain ? 'Neige fréquente' : counts.storm > counts.rain ? 'Temps orageux' : 'Pluie fréquente';
+  if (wet >= 2 && wet / n >= .18 && (counts.clear + counts.partial) / n >= .3)
+    return counts.snow > counts.rain ? 'Éclaircies et neige possible' : 'Éclaircies et passages pluvieux';
+  if (counts.clear / n >= .6) return 'Ciel généralement dégagé';
+  if ((counts.clear + counts.partial) / n >= .6) return 'Alternance de soleil et de nuages';
+  if ((counts.cloud + counts.partial) / n >= .6) return 'Ciel souvent nuageux';
+  if (counts.fog / n >= .5) return 'Brouillard persistant';
+  return 'Conditions variables';
+}
+
 function daylightHours(d) {
   if (!d?.sunrise || !d?.sunset) return null;
   const hours = (new Date(d.sunset).getTime() - new Date(d.sunrise).getTime()) / 3600000;
@@ -449,7 +471,7 @@ function openDayDetail(date) {
       <div class="day-overview-icon">${weatherIcon(midday?.weather_code ?? d.weather_code, 1)}</div>
       <div class="day-overview-copy">
         <span class="eyebrow">${escapeHtml(state.location.type || 'PRÉVISION LOCALE')} · ${Math.round(state.location.elevation ?? state.forecast.elevation ?? 0)} m</span>
-        <h1>${escapeHtml(d.info?.label || weatherCodeInfo(d.weather_code,1).label)}</h1>
+        <h1>${escapeHtml(daylightCondition(d))}</h1>
         <div class="day-overview-temp"><strong>${Math.round(d.max)}°</strong><span>${Math.round(d.min)}°</span></div>
         <p>Ressenti ${Math.round(d.apparentMin ?? d.min)}° à ${Math.round(d.apparentMax ?? d.max)}° · fiabilité indicative ${conf}%</p>
       </div>
@@ -530,7 +552,7 @@ function renderDaily() {
     const windText = windRange ? `${windRange[0]}–${windRange[1]}` : `${Math.round(d.windMax ?? 0)}`;
     return `<button class="forecast-row ${active?'selected':''}" data-day="${d.time}">
       <span class="forecast-date"><strong>${i===0?'Aujourd’hui':formatDay(d.time).split(' ')[0]}</strong><small>${new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit'}).format(new Date(`${d.time}T12:00:00`))}</small></span>
-      <span class="forecast-weather"><span class="forecast-icons">${weatherIcon(dayHour?.weather_code ?? d.weather_code,1)}${weatherIcon(nightHour?.weather_code ?? d.weather_code,0)}</span><small>${escapeHtml(d.info.label)}</small></span>
+      <span class="forecast-weather"><span class="forecast-icons">${weatherIcon(dayHour?.weather_code ?? d.weather_code,1)}${weatherIcon(nightHour?.weather_code ?? d.weather_code,0)}</span><small>${escapeHtml(daylightCondition(d))}</small></span>
       <span class="forecast-temps"><strong>${Math.round(d.max)}°</strong><em>${Math.round(d.min)}°</em></span>
       <span class="forecast-metrics">
         <span><i class="wind-arrow" style="--wind-dir:${Number(d.windDir ?? 0)}deg">↑</i> ${windText} km/h <small>raf. ${Math.round(d.gustMax ?? 0)}</small></span>
@@ -636,12 +658,16 @@ function bulletinMean(values){ const nums=values.map(Number).filter(Number.isFin
 function bulletinDate(iso){ return new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'numeric',month:'long'}).format(new Date(iso+'T12:00:00')); }
 function bulletinToday(){
   const d=state.forecast?.daily?.[0]; if(!d)return '<p>Données indisponibles.</p>'; const hours=dayHours(d.time), morning=representativeHour(d.time,9), afternoon=representativeHour(d.time,15), evening=representativeHour(d.time,20), parts=[];
-  parts.push('Aujourd’hui à <strong>'+escapeHtml(state.location.name)+'</strong>, '+weatherCodeInfo(d.weather_code,1).label.toLowerCase()+'. Les températures iront approximativement de <strong>'+Math.round(d.min)+' °C</strong> à <strong>'+Math.round(d.max)+' °C</strong>.');
+  const current = state.forecast.current;
+  const now = current?.time?.slice(0,10) === d.time && current.weather_code != null
+    ? 'En ce moment à <strong>'+escapeHtml(state.location.name)+'</strong> : '+weatherCodeInfo(current.weather_code, current.is_day).label.toLowerCase()+'. '
+    : 'Aujourd’hui à <strong>'+escapeHtml(state.location.name)+'</strong>. ';
+  parts.push(now+'Pour la journée, '+daylightCondition(d).toLowerCase()+'. Les températures iront approximativement de <strong>'+Math.round(d.min)+' °C</strong> à <strong>'+Math.round(d.max)+' °C</strong>.');
   const periods=[['matin',morning],['après-midi',afternoon],['soirée',evening]].filter(x=>x[1]); if(periods.length)parts.push('Dans le détail, '+periods.map(x=>x[0]+' : '+weatherCodeInfo(x[1].weather_code,isDayAt(x[1].time)).label.toLowerCase()+', '+Math.round(x[1].temperature_2m)+' °C').join(' ; ')+'.');
   const pmax=Math.round(d.precipProb ?? Math.max(0,...hours.map(h=>Number(h.precipitation_probability)||0))), psum=Number(d.precipitation ?? hours.reduce((a,h)=>a+(Number(h.precipitation)||0),0));
   parts.push(pmax>=30||psum>=.2?'Le risque de précipitations atteint <strong>'+pmax+'%</strong>'+(psum>0?', pour environ <strong>'+round(psum,1)+' mm</strong> cumulés':'')+'.':'Le risque de précipitations reste faible, avec un maximum proche de <strong>'+pmax+'%</strong>.');
   const gust=Math.round(d.gustMax ?? Math.max(0,...hours.map(h=>Number(h.wind_gusts_10m)||0))); parts.push(gust>=35?'Des rafales proches de <strong>'+gust+' km/h</strong> sont possibles.':'Le vent ne présente pas de signal fort, avec des rafales maximales proches de <strong>'+gust+' km/h</strong>.');
-  const lpn=hours.map(h=>Number(h.snowLevel)).filter(Number.isFinite); if(lpn.length&&(Number(d.snowfall)>0||Math.min(...lpn)<1800))parts.push('En relief, la LPN pourrait descendre vers <strong>'+Math.round(Math.min(...lpn))+' m</strong> au plus bas.');
+  const lpn=hours.map(h=>h.snowLevel).filter(v=>v != null && Number.isFinite(Number(v))).map(Number); if(lpn.length&&(Number(d.snowfall)>0||Math.min(...lpn)<1800))parts.push('En relief, la LPN pourrait descendre vers <strong>'+Math.round(Math.min(...lpn))+' m</strong> au plus bas.');
   return parts.map(x=>'<p>'+x+'</p>').join('');
 }
 function bulletinWeek(){
@@ -656,7 +682,7 @@ function bulletinMonth(){
   return '<p>Pour la <strong>tendance du mois</strong>, MyWeather reste volontairement prudent : l’app dispose ici d’environ 15 jours de prévision, pas d’une prévision quotidienne fiable à 30 jours. Sur cet horizon, on observe <strong>'+trend+'</strong> à '+escapeHtml(state.location.name)+'.</p><p>'+wet.length+' journée'+(wet.length>1?'s':'')+' sur '+days.length+' montrent actuellement un signal de précipitations notable.</p><p class="bulletin-caution">Au-delà de cet horizon, il faut parler de tendance saisonnière ou climatologique, avec une incertitude nettement plus forte.</p>';
 }
 function buildWeatherBulletin(period=state.bulletinPeriod){ if(period==='week')return bulletinWeek(); if(period==='month')return bulletinMonth(); return bulletinToday(); }
-function renderWeatherBulletin(){ if(!refs.bulletinContent||!state.forecast)return; refs.bulletinContent.innerHTML=buildWeatherBulletin(); const time=state.forecast?.current?.time||currentHourly()?.time; refs.bulletinUpdated.textContent=time?'Données de '+formatHour(time)+' · recalcul automatique toutes les 15 min':'Recalcul à chaque actualisation.'; $$('[data-bulletin-period]').forEach(b=>b.classList.toggle('active',b.dataset.bulletinPeriod===state.bulletinPeriod)); }
+function renderWeatherBulletin(){ if(!refs.bulletinContent||!state.forecast)return; refs.bulletinContent.innerHTML=buildWeatherBulletin(); const time=state.forecast?.current?.time||currentHourly()?.time; refs.bulletinUpdated.textContent=state.demo?'Données de démonstration':time?'Données de '+formatHour(time)+' · actualisation toutes les 15 min lorsque l’app est ouverte':'Actualisation à chaque ouverture.'; $$('[data-bulletin-period]').forEach(b=>b.classList.toggle('active',b.dataset.bulletinPeriod===state.bulletinPeriod)); }
 function openBulletin(){ state.bulletinPeriod='today'; renderWeatherBulletin(); refs.bulletinModal?.classList.remove('hidden'); document.body.classList.add('modal-open'); }
 function closeBulletin(){ refs.bulletinModal?.classList.add('hidden'); document.body.classList.remove('modal-open'); }
 
@@ -775,6 +801,6 @@ async function init(){
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.1').catch(()=>{});
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.4').catch(()=>{});
 }
 init();
