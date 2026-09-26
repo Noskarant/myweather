@@ -531,7 +531,7 @@ function openDayDetail(date) {
       <div><span>LPN la plus basse</span><strong>${minSnow!=null?'~'+Math.round(minSnow)+' m':'—'}</strong></div>
       <div><span>ISO 0 °C mini</span><strong>${minZero!=null?Math.round(minZero)+' m':'—'}</strong></div>
       <div><span>CAPE max</span><strong>${maxCape!=null?Math.round(maxCape)+' J/kg':'—'}</strong></div>
-      <div><span>Neige cumulée</span><strong>${round(d.snowfall ?? 0,1)} cm</strong></div>
+      <div><span>Neige cumulée</span><strong>${d.snowfallEstimated?'≈':''}${round(d.snowfall ?? 0,1)} cm</strong></div>
     </div>`;
 
   renderDayDetailRows();
@@ -566,7 +566,7 @@ function renderDayDetailRows() {
       <span class="day-hour-chevron">⌄</span>
     </button>
     <div id="science-${escapeHtml(h.time)}" class="day-hour-extra" hidden><div class="day-hour-science">
-        <span><b>${precipitationLabel(h)}</b><strong>${formatPrecipitation(h)} · ${Math.round(h.precipitation_probability ?? 0)}%</strong><small>${isSnowForecast(h) && Number(h.rain ?? 0)>0?`pluie ${round(h.rain,1)} mm`:isSnowForecast(h)?'cumul de neige prévu':`pluie ${round(h.rain ?? 0,1)} mm`}</small></span>
+        <span><b>${precipitationLabel(h)}</b><strong>${formatPrecipitation(h)} · ${Math.round(h.precipitation_probability ?? 0)}%</strong><small>${isSnowForecast(h) && !h.snowfallEstimated && Number(h.rain ?? 0)>0?`pluie ${round(h.rain,1)} mm`:isSnowForecast(h)?(h.snowfallEstimated?'neige estimée':'cumul de neige prévu'):`pluie ${round(h.rain ?? 0,1)} mm`}</small></span>
         <span><b>Atmosphère</b><strong>${Number.isFinite(humidity)?Math.round(humidity)+'%':'—'} · ${Number.isFinite(pressure)?Math.round(pressure)+' hPa':'—'}</strong><small>vis. ${Number.isFinite(vis)?(vis/1000).toFixed(1)+' km':'—'} · nuages ${Number.isFinite(cloud)?Math.round(cloud)+'%':'—'}</small></span>
         <span><b>Montagne</b><strong>LPN ${h.snowLevel!=null?'~'+Math.round(h.snowLevel)+' m':'—'}</strong><small>0 °C ${h.freezing_level_height!=null?Math.round(h.freezing_level_height)+' m':'—'} · UV ${Number.isFinite(uv)?round(uv,1):'—'}${Number.isFinite(cape)&&cape>0?` · CAPE ${Math.round(cape)}`:''}</small></span>
       </div><button type="button" class="day-hour-more" data-hour-more="${escapeHtml(h.time)}">Voir tous les détails →</button></div></div>`;
@@ -641,7 +641,7 @@ function openHour(time) {
   refs.modalGlyph.innerHTML=weatherIcon(h.weather_code, isDayAt(h.time));
   refs.modalMain.innerHTML=`<div><span>Température</span><strong>${round(h.temperature_2m,1)}°C</strong><small>Ressenti ${round(h.apparent_temperature,1)}°C</small></div><div><span>${precipitationLabel(h)}</span><strong>${formatPrecipitation(h,{rate:true})}</strong><small>${Math.round(h.precipitation_probability??0)}% de probabilité</small></div><div><span>Vent / rafales</span><strong>${Math.round(h.wind_speed_10m??0)} / ${Math.round(h.wind_gusts_10m??0)}</strong><small>km/h · ${cardinal(h.wind_direction_10m)}</small></div>`;
   const items=[
-    ['Pluie',`${round(h.rain,1)} mm`],['Averses',`${round(h.showers,1)} mm`],['Neige',`${round(h.snowfall,1)} cm`],['LPN estimée',h.snowLevel!=null?`~${Math.round(h.snowLevel)} m`:'—'],
+    ['Pluie',h.snowfallEstimated?'— (phase neige estimée)':`${round(h.rain,1)} mm`],['Averses',`${round(h.showers,1)} mm`],['Neige',`${h.snowfallEstimated?'≈':''}${round(h.snowfall,1)} cm`],['LPN estimée',h.snowLevel!=null?`~${Math.round(h.snowLevel)} m`:'—'],
     ['ISO 0 °C',h.freezing_level_height!=null?`${Math.round(h.freezing_level_height)} m`:'—'],['T° humide',h.wet_bulb_temperature_2m!=null?`${round(h.wet_bulb_temperature_2m,1)}°C`:'—'],['Point de rosée',h.dew_point_2m!=null?`${round(h.dew_point_2m,1)}°C`:'—'],
     ['Humidité',`${Math.round(h.relative_humidity_2m??0)}%`],['Pression',`${Math.round(h.pressure_msl??0)} hPa`],['Visibilité',h.visibility!=null?`${(h.visibility/1000).toFixed(1)} km`:'—'],
     ['Nuages',`${Math.round(h.cloud_cover??0)}%`],['Nuages bas',`${Math.round(h.cloud_cover_low??0)}%`],['Nuages moyens',`${Math.round(h.cloud_cover_mid??0)}%`],['Nuages hauts',`${Math.round(h.cloud_cover_high??0)}%`],
