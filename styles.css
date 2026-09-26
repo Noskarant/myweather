@@ -899,3 +899,9 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .hero-scene .scene-moon:after{width:100%;height:100%;left:35%;top:-10%}
   .future-weather-panel .hero-scene .scene-sun span{inset:-12px}
 }
+
+/* Suppression par appui long sans sélection de texte ni menu système iOS. */
+.quick-favorite:not(.quick-add),.favorite-card{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:pan-x pan-y}
+.search-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 11px 4px;color:#a9c8d9;font-size:12px}
+.search-results .search-history-head button{width:auto;flex:0 0 auto;padding:5px 8px;color:#b8d8e8;font-size:12px}
+.search-results .search-history-item .search-kind-icon{color:#7dc7e8}
