@@ -100,11 +100,22 @@ export function weatherCodeInfo(code = 0, isDay = 1) {
   return { label, glyph, theme };
 }
 
-// Open-Meteo reports liquid precipitation in mm and snowfall depth in cm.
-// A sub-zero temperature alone does not imply snow (freezing rain remains liquid).
+// Open-Meteo snowfall is in cm. Its liquid equivalent uses an approximate
+// 0.7 cm/mm conversion; apply it only when a snow weather code and precipitation
+// disagree with a zero or missing snowfall field.
+export function snowfallFor(data = {}) {
+  const reported = data.snowfall == null ? NaN : Number(data.snowfall);
+  if (Number.isFinite(reported) && reported > 0) return {amount:reported, estimated:Boolean(data.snowfallEstimated)};
+  const code = Number(data.weather_code ?? data.code);
+  const precipitation = data.precipitation == null ? NaN : Number(data.precipitation);
+  if ([71,73,75,77,85,86].includes(code) && Number.isFinite(precipitation) && precipitation > 0) {
+    return {amount:precipitation * 0.7, estimated:true};
+  }
+  return {amount:Number.isFinite(reported) ? Math.max(reported, 0) : null, estimated:false};
+}
+
 export function isSnowForecast(data = {}) {
-  const snow = Number(data.snowfall);
-  return (Number.isFinite(snow) && snow > 0) || [71,73,75,77,85,86].includes(Number(data.weather_code ?? data.code));
+  return snowfallFor(data).amount > 0 || [71,73,75,77,85,86].includes(Number(data.weather_code ?? data.code));
 }
 
 export function precipitationLabel(data = {}) {
@@ -113,10 +124,11 @@ export function precipitationLabel(data = {}) {
 
 export function formatPrecipitation(data = {}, { rate = false, icon = false } = {}) {
   const snow = isSnowForecast(data);
-  const raw = snow ? data.snowfall : data.precipitation;
+  const snowfall = snowfallFor(data);
+  const raw = snow ? snowfall.amount : data.precipitation;
   const amount = raw == null ? NaN : Number(raw);
   const value = Number.isFinite(amount) && amount >= 0 ? (amount > 0 && amount < 0.05 ? '<0,1' : String(round(amount, 1))) : '—';
-  return `${icon ? (snow ? '❄ ' : '◌ ') : ''}${value} ${snow ? 'cm' : 'mm'}${rate ? '/h' : ''}`;
+  return `${icon ? (snow ? '❄ ' : '◌ ') : ''}${snow && snowfall.estimated ? '≈' : ''}${value} ${snow ? 'cm' : 'mm'}${rate ? '/h' : ''}`;
 }
 
 export function riskForPoint(p) {
