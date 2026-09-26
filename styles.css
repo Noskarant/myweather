@@ -756,3 +756,19 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .hero-now-label time{font-size:10px;margin-left:5px}
   .future-weather-head>span time{font-size:10px}
 }
+
+/* Daily forecast: readable primary values on narrow screens. */
+@media(max-width:760px){
+  .forecast-row{min-height:122px}
+  .forecast-metrics{gap:4px}
+  .forecast-metrics>span{font-size:11px;font-weight:600;line-height:1.25}
+  .forecast-metrics small{display:block;margin:2px 0 0 13px;font-size:9px;font-weight:400;line-height:1.2}
+}
+@media(max-width:390px){
+  .forecast-metrics>span{font-size:10px}
+  .forecast-metrics small{font-size:8px}
+}
+@media(max-width:350px){
+  .forecast-metrics>span{font-size:11px}
+  .forecast-metrics small{font-size:8px}
+}
