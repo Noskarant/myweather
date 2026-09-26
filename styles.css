@@ -635,9 +635,13 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .bottom-nav button span{font-size:18px;line-height:1.1}
   .bottom-nav button small{font-size:9px;margin-top:2px}
   .bottom-nav button{flex:1;min-width:0}
+  .hourly-block{margin-top:12px}
+  .hourly-rail{margin-top:7px}
+  .daily-section{margin-top:12px}
+
   .hero-now .current-reading{width:100%;min-width:0;padding-top:18px}
   .hero-now .temperature{position:relative;z-index:2;text-shadow:0 2px 18px rgba(3,23,39,.75)}
-  .hero-now .scene-sun,.hero-now .scene-moon{left:12%!important;top:23%!important}
+  .hero-now .scene-sun,.hero-now .scene-moon{left:10%!important;top:40%!important}
   .future-weather-panel .scene-sun,.future-weather-panel .scene-moon{left:82%!important;top:66%!important;width:42px!important;height:42px!important}
   .hero-now .hero-scene .scene-sun,.hero-now .hero-scene .scene-moon,.future-weather-panel .hero-scene .scene-sun,.future-weather-panel .hero-scene .scene-moon{opacity:0!important}
   .hero-now .hero-scene.sunny .scene-sun,.hero-now .hero-scene.partly-cloudy .scene-sun{opacity:.65!important}
