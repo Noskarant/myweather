@@ -384,6 +384,11 @@ function renderTempChart() {
   refs.tempRangeLabel.textContent = `${Math.round(min)}° → ${Math.round(max)}°`;
 }
 
+function hourlyPrecipitation(h) {
+  return Number(h.precipitation ?? 0) > 0 || Number(h.snowfall ?? 0) > 0
+    ? formatPrecipitation(h, {icon:true}) : '';
+}
+
 function renderHourly(dateStr) {
   const f=state.forecast; if (!f) return;
   let items, currentIndex = 0;
@@ -403,7 +408,7 @@ function renderHourly(dateStr) {
       <span class="hour-time">${formatHour(h.time)}</span>
       <span class="hour-glyph">${weatherIcon(h.weather_code, isDayAt(h.time))}</span>
       <strong>${Math.round(h.temperature_2m)}°</strong>
-      <span class="hour-meta"><small class="precip">${Math.round(h.precipitation_probability ?? 0)}%</small><small>raf. ${Math.round(h.wind_gusts_10m ?? 0)}</small></span>
+      <span class="hour-meta"><small class="precip">${Math.round(h.precipitation_probability ?? 0)}%</small>${hourlyPrecipitation(h)?`<small class="hour-amount" title="Cumul prévu pendant cette heure">${hourlyPrecipitation(h)}</small>`:''}<small>raf. ${Math.round(h.wind_gusts_10m ?? 0)}</small></span>
     </button>`;
   }).join('');
   refs.hourlyRail.querySelectorAll('[data-hour]').forEach(btn=>btn.addEventListener('click',()=>openHour(btn.dataset.hour)));
@@ -563,7 +568,7 @@ function renderDayDetailRows() {
       <span class="day-hour-time"><strong>${formatHour(h.time)}</strong><small>${day?'jour':'nuit'}</small></span>
       <span class="day-hour-weather">${weatherIcon(h.weather_code, day)}<small>${escapeHtml(info.label)}</small></span>
       <span class="day-hour-temp"><strong>${Math.round(h.temperature_2m)}°</strong><small>ress. ${Math.round(h.apparent_temperature ?? h.temperature_2m)}°</small></span>
-      <span class="day-hour-wind"><strong><i class="wind-arrow" style="--wind-dir:${Number(h.wind_direction_10m ?? 0)}deg">↑</i> ${Math.round(h.wind_speed_10m ?? 0)} km/h</strong><small>raf. ${Math.round(h.wind_gusts_10m ?? 0)} · ${cardinal(h.wind_direction_10m)}</small></span>
+      <span class="day-hour-wind"><strong><i class="wind-arrow" style="--wind-dir:${Number(h.wind_direction_10m ?? 0)}deg">↑</i> ${Math.round(h.wind_speed_10m ?? 0)} km/h</strong><small>raf. ${Math.round(h.wind_gusts_10m ?? 0)} · ${cardinal(h.wind_direction_10m)}</small>${hourlyPrecipitation(h)?`<small class="day-hour-amount" title="Cumul prévu pendant cette heure">${hourlyPrecipitation(h)}</small>`:''}</span>
       <span class="day-hour-chevron">⌄</span>
     </button>
     <div id="science-${escapeHtml(h.time)}" class="day-hour-extra" hidden><div class="day-hour-science">
