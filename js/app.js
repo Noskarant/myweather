@@ -29,7 +29,7 @@ const state = {
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
   locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'),
-  cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
+  cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
   forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
   modal:$('#hourModal'), closeModal:$('#closeHourModal'), modalTitle:$('#hourModalTitle'), modalSub:$('#hourModalSub'), modalGlyph:$('#hourModalGlyph'), modalMain:$('#hourModalMain'), hourDetailGrid:$('#hourDetailGrid'),
@@ -382,6 +382,11 @@ function renderTempChart() {
   const area = path ? `${path} L720,150 L0,150 Z` : '';
   refs.tempChart.innerHTML = `<defs><linearGradient id="lineg" x1="0" x2="1"><stop stop-color="#72ebff"/><stop offset="1" stop-color="#7a72ff"/></linearGradient><linearGradient id="areag" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#62ddff" stop-opacity=".28"/><stop offset="1" stop-color="#62ddff" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#areag)"/><path d="${path}" fill="none" stroke="url(#lineg)" stroke-width="4" vector-effect="non-scaling-stroke"/>${points.map((p,i)=>i%4===0||i===points.length-1?`<g><circle cx="${p[0]}" cy="${p[1]}" r="4" fill="#dffbff"/><text class="temp-point-label" x="${clamp(p[0],24,696)}" y="${p[1]<38?p[1]+24:p[1]-11}" text-anchor="middle">${Math.round(vals[i])}°</text><title>${formatHour(slice[i].time)} : ${round(vals[i],1)} °C</title></g>`:'').join('')}`;
   refs.tempRangeLabel.textContent = `${Math.round(min)}° → ${Math.round(max)}°`;
+  refs.tempTimeAxis.innerHTML = slice.map((hour,i) =>
+    i%4===0 || i===slice.length-1
+      ? `<span style="left:${slice.length>1?i/(slice.length-1)*100:0}%" class="${i===0?'first':i===slice.length-1?'last':''}">${formatHour(hour.time)}</span>`
+      : ''
+  ).join('');
 }
 
 function hourlyPrecipitation(h) {
