@@ -108,7 +108,16 @@ export function snowfallFor(data = {}) {
   if (Number.isFinite(reported) && reported > 0) return {amount:reported, estimated:Boolean(data.snowfallEstimated)};
   const code = Number(data.weather_code ?? data.code);
   const precipitation = data.precipitation == null ? NaN : Number(data.precipitation);
-  if ([71,73,75,77,85,86].includes(code) && Number.isFinite(precipitation) && precipitation > 0) {
+  const temperature = data.temperature_2m ?? data.temperature;
+  const wetBulb = data.wet_bulb_temperature_2m ?? data.wetBulb;
+  const elevation = Number(data.elevation);
+  const snowLevel = Number(data.snowLevel);
+  const coldAtElevation = temperature != null && wetBulb != null && data.snowLevel != null &&
+    Number(temperature) <= 0 && Number(wetBulb) <= 0 &&
+    Number.isFinite(elevation) && Number.isFinite(snowLevel) && elevation >= snowLevel + 150;
+  const freezingRain = [56,57,66,67].includes(code);
+  if (Number.isFinite(precipitation) && precipitation > 0 &&
+      ([71,73,75,77,85,86].includes(code) || (coldAtElevation && !freezingRain))) {
     return {amount:precipitation * 0.7, estimated:true};
   }
   return {amount:Number.isFinite(reported) ? Math.max(reported, 0) : null, estimated:false};
