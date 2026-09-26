@@ -719,19 +719,21 @@ function removeFavorite(place) {
 function bindFavoriteLongPress(button,place,onSelect) {
   let timer, startX=0, startY=0, longPressed=false;
   const cancel=()=>{clearTimeout(timer);timer=null;};
+  const offerRemoval=()=>{
+    if(longPressed)return;
+    longPressed=true;
+    if(navigator.vibrate) navigator.vibrate(20);
+    if(window.confirm('Supprimer « '+place.name+' » des favoris ?')) removeFavorite(place);
+  };
   button.addEventListener('pointerdown',e=>{
     if(e.button !== 0 || !e.isPrimary)return;
     longPressed=false;startX=e.clientX;startY=e.clientY;
     cancel();
-    timer=setTimeout(()=>{
-      timer=null;longPressed=true;
-      if(navigator.vibrate) navigator.vibrate(20);
-      if(window.confirm('Supprimer « '+place.name+' » des favoris ?')) removeFavorite(place);
-    },600);
+    timer=setTimeout(()=>{timer=null;offerRemoval();},600);
   });
   button.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-startX,e.clientY-startY)>12)cancel();});
   ['pointerup','pointercancel','pointerleave'].forEach(type=>button.addEventListener(type,cancel));
-  button.addEventListener('contextmenu',e=>{e.preventDefault();cancel();});
+  button.addEventListener('contextmenu',e=>{e.preventDefault();cancel();offerRemoval();});
   button.addEventListener('click',e=>{
     if(longPressed){e.preventDefault();e.stopImmediatePropagation();longPressed=false;return;}
     onSelect();
