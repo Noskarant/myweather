@@ -27,7 +27,7 @@ const state = {
 };
 
 const refs = {
-  searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
+  searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
   locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
@@ -114,9 +114,20 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
   }
 }
 
+function forecastNowLocal() {
+  const tz=state.location?.timezone;
+  if(tz && tz!=='auto'){
+    try{
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).map(p=>[p.type,p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+    }catch{}
+  }
+  const now=new Date();
+  return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+}
 function currentHourly() {
   if (!state.forecast?.hourly?.length) return null;
-  return state.forecast.hourly[nearestIndex(state.forecast.hourly.map(x=>x.time), new Date())];
+  return state.forecast.hourly[nearestIndex(state.forecast.hourly.map(x=>x.time), forecastNowLocal())];
 }
 
 function renderAll() {
@@ -128,6 +139,7 @@ function renderAll() {
   const loc = state.location;
 
   refs.locationName.textContent = loc.name || 'Lieu sélectionné';
+  updateNowClock();
   const elevation = Number(loc.elevation ?? f.elevation);
   refs.locationElevation.textContent = Number.isFinite(elevation) ? `${Math.round(elevation)} m` : 'alt. —';
   refs.locationMeta.textContent = [loc.type && loc.type !== 'Localité' ? loc.type : '', loc.admin1, loc.country].filter(Boolean).join(' · ');
@@ -229,10 +241,12 @@ function renderHeroScene(current={},hourly={}){
   renderWeatherScene(refs.heroScene,{...hourly,...current,time:current.time ?? hourly.time,weather_code:current.weather_code ?? hourly.weather_code,is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),uv_index:hourly.uv_index,cape:hourly.cape,cloud_cover:current.cloud_cover ?? hourly.cloud_cover});
 }
 function futureHourly(offset=state.futureOffset){
-  const hours=state.forecast?.hourly||[]; if(!hours.length)return null; const now=currentHourly(); let i=now?hours.indexOf(now):-1; if(i<0)i=nearestIndex(hours.map(x=>x.time),new Date()); return hours[Math.min(hours.length-1,Math.max(0,i+Number(offset||0)))]||null;
+  const hours=state.forecast?.hourly||[]; if(!hours.length)return null; const now=currentHourly(); let i=now?hours.indexOf(now):-1; if(i<0)i=nearestIndex(hours.map(x=>x.time),forecastNowLocal()); return hours[Math.min(hours.length-1,Math.max(0,i+Number(offset||0)))]||null;
 }
+function updateNowClock(){ if(refs.nowClock) refs.nowClock.textContent=forecastNowLocal().slice(11,16).replace(':','h'); }
 function renderFutureWeather(){
   const h=futureHourly(); if(!h||!refs.futureScene)return; const day=isDayAt(h.time), info=weatherCodeInfo(h.weather_code,day); renderWeatherScene(refs.futureScene,{...h,is_day:day});
+  if(refs.futureClock) refs.futureClock.textContent=h.time.slice(11,16).replace(':','h');
   refs.futureTemp.textContent=Math.round(h.temperature_2m ?? 0)+'°'; refs.futureCondition.textContent=info.label; const precip=Number(h.precipitation ?? 0), prob=Math.round(h.precipitation_probability ?? 0), gust=Math.round(h.wind_gusts_10m ?? 0);
   refs.futureMeta.textContent=formatHour(h.time)+' · '+(precip>0?round(precip,1)+' mm':prob+'% pluie')+' · raf. '+gust+' km/h'; $$('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
 }
@@ -352,7 +366,7 @@ function renderCockpit(c,h) {
 
 function renderTempChart() {
   const f=state.forecast; if (!f) return;
-  const idx=nearestIndex(f.hourly.map(x=>x.time), new Date());
+  const idx=nearestIndex(f.hourly.map(x=>x.time), forecastNowLocal());
   const slice=f.hourly.slice(idx, idx+24);
   const vals=slice.map(x=>x.temperature_2m);
   const {path,min,max,points}=svgPath(vals);
@@ -365,7 +379,7 @@ function renderHourly(dateStr) {
   const f=state.forecast; if (!f) return;
   let items, currentIndex = 0;
   if (dateStr === f.daily[0]?.time) {
-    const idx = nearestIndex(f.hourly.map(x=>x.time), new Date());
+    const idx = nearestIndex(f.hourly.map(x=>x.time), forecastNowLocal());
     const start = f.hourly.findIndex(x=>x.time.slice(0,10)===dateStr);
     items = f.hourly.slice(Math.max(0,start), Math.min(f.hourly.length,idx+24));
     currentIndex = Math.max(0,idx-Math.max(0,start));
@@ -373,9 +387,9 @@ function renderHourly(dateStr) {
     items = f.hourly.filter(x=>x.time.slice(0,10)===dateStr);
   }
   const previousDate=refs.hourlyRail.dataset.date, previousScroll=refs.hourlyRail.scrollLeft;
-  const now=Date.now();
+  const now=forecastNowLocal().slice(0,13);
   refs.hourlyRail.innerHTML = items.map(h=>{
-    const isPast=new Date(h.time).getTime() < now-3600000;
+    const isPast=h.time.slice(0,13)<now;
     return `<button class="hour-card ${isPast?'past':''}" data-hour="${escapeHtml(h.time)}">
       <span class="hour-time">${formatHour(h.time)}</span>
       <span class="hour-glyph">${weatherIcon(h.weather_code, isDayAt(h.time))}</span>
@@ -781,12 +795,14 @@ async function handleRoute(e){
   if(departure.getTime() < Date.now()-30*60000){showToast('Choisis un horaire de départ futur.','warn');return;}
   if(departure.getTime() > Date.now()+15*86400000){showToast('Le trajet météo est limité à l’horizon de prévision (15 jours).','warn');return;}
   refs.routeEmpty.classList.add('hidden');refs.routeResults.classList.add('hidden');refs.routeLoading.classList.remove('hidden');
-  try{const result=await analyzeRoute(from,to,departure);renderRoute(result);refs.routeResults.classList.remove('hidden');}
+  try{const result=await analyzeRoute(from,to,departure);renderRoute(result);refs.routeResults.classList.remove('hidden');requestAnimationFrame(()=>renderRouteMap(result));}
   catch(err){console.error(err);refs.routeEmpty.classList.remove('hidden');refs.routeEmpty.innerHTML=`<div class="empty-icon">!</div><h2>Analyse impossible</h2><p>${escapeHtml(err.message||'Service temporairement indisponible.')}</p>`;showToast('Impossible d’analyser ce trajet.','warn');}
   finally{refs.routeLoading.classList.add('hidden');}
 }
 
+let routeMap=null;
 function renderRoute(r){
+  if(routeMap){routeMap.remove();routeMap=null;refs.routeSketch.classList.remove('has-map');}
   const pts=r.points, worst=pts.reduce((a,b)=>b.risk.score>a.risk.score?b:a,pts[0]);
   const snowPts=pts.filter(p=>p.snowfall>0 || (p.precipitation>0 && p.snowLevel!=null && p.elevation>=p.snowLevel-150));
   const icePts=pts.filter(p=>p.temperature<=1 && p.precipitation>0);
@@ -834,6 +850,67 @@ function renderRouteSketch(r) {
   const caption=firstAlert?`Vigilance vers le km ${Math.round(firstAlert.cumKm)} : ${escapeHtml(firstAlert.risk.reasons.join(', '))}.`:'Aucun risque météo marqué aux points analysés.';
   refs.routeSketch.innerHTML=`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Tracé de ${escapeHtml(r.from.name)} à ${escapeHtml(r.to.name)}, segments colorés selon la vigilance météo"><path class="route-shadow" d="${base}"/>${segments}${markers}</svg><div class="sketch-label start">${escapeHtml(r.from.name)}</div><div class="sketch-label end">${escapeHtml(r.to.name)}</div><div class="route-map-legend"><span><i class="minimal"></i>Calme</span><span><i class="low"></i>À suivre</span><span><i class="medium"></i>Vigilance</span><span><i class="high"></i>Risque marqué</span></div><p class="route-map-caption">${caption}</p>`;
 }
+function renderRouteMap(r) {
+  const L=window.L;
+  if (!L || !refs.routeSketch) return;
+  const coords=r.route.geometry.coordinates, pts=r.points;
+  if (coords.length<2 || !pts.length) return;
+  const fallback=refs.routeSketch.innerHTML;
+  refs.routeSketch.classList.add('has-map');
+  refs.routeSketch.innerHTML='<div id="routeLeaflet" class="route-leaflet" aria-label="Carte du trajet avec villes et points météo"></div>';
+  try {
+    routeMap=L.map('routeLeaflet',{scrollWheelZoom:false,doubleClickZoom:false,touchZoom:true,zoomControl:false});
+    L.control.zoom({position:'topright'}).addTo(routeMap);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(routeMap);
+    const positions=coords.map(c=>[c[1],c[0]]);
+    L.polyline(positions,{color:'#163d4d',weight:10,opacity:.85,interactive:false}).addTo(routeMap);
+    const lengths=[0];
+    for(let i=1;i<coords.length;i++){
+      const lat=(coords[i][1]+coords[i-1][1])/2*Math.PI/180;
+      lengths[i]=lengths[i-1]+Math.hypot((coords[i][0]-coords[i-1][0])*Math.cos(lat),coords[i][1]-coords[i-1][1]);
+    }
+    const total=lengths.at(-1)||1, sections=[];
+    for(let i=1;i<positions.length;i++){
+      const fraction=(lengths[i-1]+lengths[i])/(2*total);
+      const closest=i===positions.length-1?pts.at(-1):pts.reduce((best,p)=>Math.abs(p.fraction-fraction)<Math.abs(best.fraction-fraction)?p:best,pts[0]);
+      const level=closest.risk.level;
+      if(sections.at(-1)?.level===level) sections.at(-1).path.push(positions[i]);
+      else sections.push({level,path:[positions[i-1],positions[i]]});
+    }
+    const colors={minimal:'#20a977',low:'#22a8d2',medium:'#ed982b',high:'#df4859'};
+    sections.forEach(s=>L.polyline(s.path,{color:colors[s.level]||colors.minimal,weight:6,opacity:1,interactive:false,lineCap:'round',lineJoin:'round'}).addTo(routeMap));
+    const pin=(place,position,letter,finish=false)=>{
+      const icon=L.divIcon({className:'route-pin-holder',html:`<span class="route-pin ${finish?'finish':''}">${letter}</span>`,iconSize:[34,34],iconAnchor:[17,17]});
+      L.marker(position,{icon,zIndexOffset:1000}).addTo(routeMap)
+        .bindTooltip(escapeHtml(place.name),{permanent:true,direction:finish?'left':'right',offset:finish?[-20,0]:[20,0],className:'route-city-label'})
+        .bindPopup(`<strong>${escapeHtml(place.name)}</strong><br>${finish?'Arrivée':'Départ'}`);
+    };
+    pin(r.from,positions[0],'D');
+    pin(r.to,positions.at(-1),'A',true);
+    pts.forEach((p,i)=>{
+      if(i===0||i===pts.length-1||!(i%4===0||p.risk.score>=3))return;
+      const color=colors[p.risk.level]||colors.minimal;
+      const time=new Intl.DateTimeFormat('fr-FR',{hour:'2-digit',minute:'2-digit'}).format(p.eta);
+      const reason=p.risk.reasons.length?`<br><b>Vigilance :</b> ${escapeHtml(p.risk.reasons.join(', '))}`:'<br>Pas de risque marqué.';
+      L.circleMarker([p.lat,p.lon],{radius:p.risk.score>=3?7:6,color:'#fff',weight:2,fillColor:color,fillOpacity:1})
+        .addTo(routeMap)
+        .bindPopup(`<strong>Km ${Math.round(p.cumKm)} · ${time}</strong><br>${round(p.temperature,1)} °C · pluie ${round(p.precipitation,1)} mm · rafales ${Math.round(p.gust??0)} km/h${reason}`);
+    });
+    routeMap.fitBounds(L.latLngBounds(positions),{padding:[32,32],maxZoom:12});
+    const first=pts.find(p=>p.risk.score>=3);
+    const caption=first?`Vigilance vers le km ${Math.round(first.cumKm)} : ${escapeHtml(first.risk.reasons.join(', '))}`:'Aucun risque météo marqué aux points analysés.';
+    refs.routeSketch.insertAdjacentHTML('beforeend',`<p class="route-map-caption">${caption}</p><div class="route-map-legend"><span><i class="minimal"></i>Calme</span><span><i class="low"></i>À suivre</span><span><i class="medium"></i>Vigilance</span><span><i class="high"></i>Risque marqué</span></div>`);
+    routeMap.invalidateSize();
+  } catch(err) {
+    console.warn('Carte du trajet indisponible',err);
+    if(routeMap){routeMap.remove();routeMap=null;}
+    refs.routeSketch.classList.remove('has-map');
+    refs.routeSketch.innerHTML=fallback;
+  }
+}
+
 function setupRouteDefaults(){const d=new Date(Date.now()+3600000);refs.routeDate.min=new Date().toISOString().slice(0,10);refs.routeDate.max=new Date(Date.now()+15*86400000).toISOString().slice(0,10);refs.routeDate.value=d.toISOString().slice(0,10);refs.routeTime.value=`${String(d.getHours()).padStart(2,'0')}:00`;}
 
 function bindEvents(){
@@ -856,8 +933,9 @@ async function init(){
   refs.expertToggle?.setAttribute('aria-pressed', String(state.expert));
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
+  setInterval(updateNowClock,30000);
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.9').catch(()=>{});
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.6.0').catch(()=>{});
 }
 init();
