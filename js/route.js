@@ -3,10 +3,17 @@ import { estimateSnowLevel, haversineKm, nearestIndex, riskForPoint } from './ut
 
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
-export async function resolvePlace(query) {
-  const results = await geocode(query, 5);
+export async function resolvePlace(query, nearby = null) {
+  const results = await geocode(query, 12);
   if (!results.length) throw new Error(`Lieu introuvable : ${query}`);
-  return results[0];
+  if (!nearby) return results[0];
+  // An unqualified destination usually refers to a place near the departure.
+  // Preserve explicit country/region queries, which the geocoder already filters.
+  const sameCountry = results.filter(place => place.countryCode && place.countryCode === nearby.countryCode);
+  const candidates = sameCountry.length ? sameCountry : results;
+  return candidates.reduce((best, place) =>
+    haversineKm(nearby, place) < haversineKm(nearby, best) ? place : best
+  );
 }
 
 export async function fetchRoute(from, to) {
@@ -45,7 +52,8 @@ export function sampleRoute(route, maxPoints = 24) {
 }
 
 export async function analyzeRoute(fromQuery, toQuery, departureDate) {
-  const [from, to] = await Promise.all([resolvePlace(fromQuery), resolvePlace(toQuery)]);
+  const from = await resolvePlace(fromQuery);
+  const to = await resolvePlace(toQuery, from);
   const route = await fetchRoute(from, to);
   const points = sampleRoute(route);
   const weather = await getBatchForecast(points, Math.max(2, Math.min(16, Math.ceil((departureDate.getTime()-Date.now())/86400000)+2)));
