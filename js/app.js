@@ -46,7 +46,7 @@ function loadLastLocation() {
 function saveLastLocation() {
   try { localStorage.setItem('myweather:last-location', JSON.stringify(state.location)); } catch {}
 }
-function saveFavorites() { localStorage.setItem('myweather:favorites', JSON.stringify(state.favorites)); }
+function saveFavorites() { try { localStorage.setItem('myweather:favorites', JSON.stringify(state.favorites)); } catch { showToast('Impossible de conserver les favoris sur cet appareil.', 'warn'); } }
 function favoriteKey(loc) { return `${Number(loc.lat).toFixed(3)},${Number(loc.lon).toFixed(3)}`; }
 function isFavorite(loc = state.location) { return state.favorites.some(x => favoriteKey(x) === favoriteKey(loc)); }
 
@@ -593,10 +593,10 @@ function toggleFavorite(){
 function renderFavoriteQuickbar(){
   if(!refs.favoriteQuickbar) return;
   const currentKey = favoriteKey(state.location);
-  const items = state.favorites.filter(x => favoriteKey(x) !== currentKey).slice(0,7);
-  refs.favoriteQuickbar.innerHTML = `<button type="button" class="quick-favorite active current-location" aria-current="true">${escapeHtml(state.location.name || 'Lieu actuel')}</button>${items.map((x,i)=>`<button type="button" data-quick-fav="${i}" class="quick-favorite">${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="quick-favorite quick-add" data-quick-add>${isFavorite()? '★ Favori' : '+ Favori'}</button>`;
+  const items = state.favorites.filter(x => favoriteKey(x) !== currentKey);
+  refs.favoriteQuickbar.innerHTML = `<button type="button" class="quick-favorite active current-location" aria-current="true">${escapeHtml(state.location.name || 'Lieu actuel')}</button>${items.map((x,i)=>`<button type="button" data-quick-fav="${i}" class="quick-favorite">${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="quick-favorite quick-add" data-quick-add>+ Favori</button>`;
   refs.favoriteQuickbar.querySelectorAll('[data-quick-fav]').forEach(b=>b.addEventListener('click',()=>loadLocation(items[Number(b.dataset.quickFav)])));
-  refs.favoriteQuickbar.querySelector('[data-quick-add]')?.addEventListener('click',toggleFavorite);
+  refs.favoriteQuickbar.querySelector('[data-quick-add]')?.addEventListener('click',e=>{e.stopPropagation();openFavoriteSearch();});
 }
 function renderFavorites(){
   if(!state.favorites.length){refs.favoritesGrid.innerHTML='<div class="empty-state glass"><div class="empty-icon">♡</div><h2>Aucun favori</h2><p>Ajoute un lieu depuis les prévisions pour le retrouver ici.</p></div>';return;}
@@ -667,13 +667,45 @@ function showView(name){
   if(name!=='maps')scrollTo({top:0,behavior:'smooth'});
 }
 
+let addingFavorite = false;
+const normalSearchPlaceholder = refs.searchInput.placeholder;
+function closeFavoriteSearch() {
+  if (!addingFavorite) return;
+  addingFavorite = false;
+  refs.searchInput.placeholder = normalSearchPlaceholder;
+  refs.searchInput.value = state.location.name || '';
+  refs.searchResults.classList.add('hidden');
+}
+function openFavoriteSearch() {
+  addingFavorite = true;
+  refs.searchInput.value = '';
+  refs.searchInput.placeholder = 'Rechercher un lieu à ajouter aux favoris…';
+  refs.searchResults.innerHTML = '<div class="search-empty">Recherche un lieu pour l’ajouter aux favoris.</div>';
+  refs.searchResults.classList.remove('hidden');
+  refs.searchInput.focus();
+}
+function addSearchedFavorite(place) {
+  if (isFavorite(place)) showToast('Ce lieu est déjà dans les favoris.');
+  else {
+    state.favorites.push({...place});
+    saveFavorites();
+    renderFavorites();
+    renderFavoriteQuickbar();
+    showToast('Lieu ajouté aux favoris.', 'success');
+  }
+  closeFavoriteSearch();
+  refs.searchInput.blur();
+}
+
 const doSearch=debounce(async q=>{
-  if(q.trim().length<2){refs.searchResults.classList.add('hidden');return;}
+  if(q !== refs.searchInput.value) return;
+  if(q.trim().length<2){if(addingFavorite){refs.searchResults.innerHTML='<div class="search-empty">Recherche un lieu pour l’ajouter aux favoris.</div>';refs.searchResults.classList.remove('hidden');}else refs.searchResults.classList.add('hidden');return;}
   try{
     const items=await geocode(q,7);
+    if(q !== refs.searchInput.value) return;
     refs.searchResults.innerHTML=items.length?items.map((x,i)=>`<button type="button" data-result="${i}"><span class="search-kind-icon">${['Sommet','Col','Volcan'].includes(x.type)?'△':['Lac'].includes(x.type)?'≈':'⌖'}</span><div><strong>${escapeHtml(x.name)} <em class="search-type">${escapeHtml(x.type || 'Lieu')}</em></strong><small>${escapeHtml([x.admin1,x.country].filter(Boolean).join(', '))}${x.elevation!=null?` · <b>${Math.round(x.elevation)} m</b>`:''}</small></div></button>`).join(''):'<div class="search-empty">Aucun lieu trouvé</div>';
     refs.searchResults.classList.remove('hidden');
-    refs.searchResults.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click',async()=>{refs.searchResults.classList.add('hidden');await loadLocation(items[Number(b.dataset.result)]);}));
+    refs.searchResults.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click',async()=>{const place=items[Number(b.dataset.result)];refs.searchResults.classList.add('hidden');if(addingFavorite) addSearchedFavorite(place);else await loadLocation(place);}));
   }catch{refs.searchResults.innerHTML='<div class="search-empty">Recherche indisponible</div>';refs.searchResults.classList.remove('hidden');}
 },700);
 
@@ -724,7 +756,7 @@ function setupRouteDefaults(){const d=new Date(Date.now()+3600000);refs.routeDat
 
 function bindEvents(){
   refs.searchInput.addEventListener('input',e=>doSearch(e.target.value)); refs.searchForm.addEventListener('submit',e=>{e.preventDefault();doSearch(refs.searchInput.value)});
-  document.addEventListener('click',e=>{if(!refs.searchForm.contains(e.target))refs.searchResults.classList.add('hidden')});
+  document.addEventListener('click',e=>{if(!refs.searchForm.contains(e.target)){if(addingFavorite)closeFavoriteSearch();else refs.searchResults.classList.add('hidden');}});
   refs.geoBtn.addEventListener('click',useGeolocation);refs.favoriteBtn.addEventListener('click',toggleFavorite);refs.refreshBtn.addEventListener('click',()=>loadLocation(state.location));
   $$('[data-future-offset]').forEach(b=>b.addEventListener('click',()=>{state.futureOffset=Number(b.dataset.futureOffset)||3;renderFutureWeather()}));
   refs.bulletinBtn?.addEventListener('click',openBulletin); refs.closeBulletin?.addEventListener('click',closeBulletin); refs.bulletinModal?.addEventListener('click',e=>{if(e.target===refs.bulletinModal)closeBulletin()});
@@ -732,7 +764,7 @@ function bindEvents(){
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
   $$('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
   $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
-  refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!refs.modal.classList.contains('hidden')) closeHour(); else if(refs.bulletinModal && !refs.bulletinModal.classList.contains('hidden')) closeBulletin(); else closeDayDetail();}});
+  refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!refs.modal.classList.contains('hidden')) closeHour(); else if(refs.bulletinModal && !refs.bulletinModal.classList.contains('hidden')) closeBulletin(); else if(addingFavorite)closeFavoriteSearch(); else closeDayDetail();}});
   refs.routeForm.addEventListener('submit',handleRoute);refs.swapRoute.addEventListener('click',()=>{const a=refs.routeFrom.value;refs.routeFrom.value=refs.routeTo.value;refs.routeTo.value=a});
 }
 
