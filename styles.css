@@ -840,3 +840,17 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .advanced-section .cockpit{min-height:0}
   .mountain-panel{position:static}
 }
+
+/* Sunrise and sunset for the selected location, visible on both layouts. */
+.sun-times{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:10px;padding:10px 15px;border:1px solid rgba(156,211,236,.12);border-radius:12px;background:rgba(9,45,72,.58);color:#afcbd9;font-size:12px}
+.sun-time{display:inline-flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
+.sun-time-icon{color:#f5cf75;font-size:16px;line-height:1}
+.sun-time-icon.sunset{color:#ffb67e}
+.sun-time time{color:#f3faff;font-weight:750;font-variant-numeric:tabular-nums;margin-left:5px}
+@media(max-width:760px){
+  .sun-times{margin-top:8px;padding:8px 11px;font-size:11px}
+  .sun-time{gap:5px}
+  .sun-time-icon{font-size:14px}
+  .sun-time time{margin-left:3px}
+}
+@media(min-width:1101px){.home-current .sun-times{width:100%;margin-top:0}}
