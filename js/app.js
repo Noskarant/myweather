@@ -600,8 +600,8 @@ function renderDaily() {
       <span class="forecast-temps"><strong>${Math.round(d.max)}°</strong><em>${Math.round(d.min)}°</em></span>
       <span class="forecast-metrics">
         <span><i class="wind-arrow" style="--wind-dir:${Number(d.windDir ?? 0)}deg">↑</i> ${windText} km/h <small>raf. ${Math.round(d.gustMax ?? 0)}</small></span>
-        <span>◌ ${round(d.precipitation ?? 0,1)} mm <small>${Math.round(d.precipProb ?? 0)}%</small></span>
-        <span>${snow>0.1?`❄ ${round(snow,1)} cm`:`☼ ${daylight!=null?`${round(daylight,1)} h`:'—'}`} <small>${conf}% fiab.</small></span>
+        <span>${snow>0?`❄ ${round(snow,1)} cm`:`◌ ${round(d.precipitation ?? 0,1)} mm`} <small>${Math.round(d.precipProb ?? 0)}%</small></span>
+        <span>☼ ${daylight!=null?`${round(daylight,1)} h`:'—'} <small>${conf}% fiab.</small></span>
       </span>
       <span class="forecast-chevron">›</span>
     </button>`;
