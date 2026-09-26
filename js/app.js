@@ -12,6 +12,7 @@ const OFFLINE_TEST = new URLSearchParams(location.search).has('offline');
 
 const state = {
   location: loadLastLocation() || { name:'Oullins', admin1:'Auvergne-Rhône-Alpes', country:'France', lat:45.714, lon:4.807, elevation:180, timezone:'Europe/Paris' },
+  baseLocation:loadBaseLocation() || loadLastLocation() || null,
   forecast:null,
   selectedDate:null,
   dayDetailDate:null,
@@ -43,6 +44,12 @@ function loadFavorites() {
 function loadLastLocation() {
   try { return JSON.parse(localStorage.getItem('myweather:last-location') || 'null'); } catch { return null; }
 }
+function loadBaseLocation() {
+  try { return JSON.parse(localStorage.getItem('myweather:base-location') || 'null'); } catch { return null; }
+}
+function saveBaseLocation() {
+  try { localStorage.setItem('myweather:base-location', JSON.stringify(state.baseLocation)); } catch {}
+}
 function saveLastLocation() {
   try { localStorage.setItem('myweather:last-location', JSON.stringify(state.location)); } catch {}
 }
@@ -58,7 +65,7 @@ function showToast(message, type='info') {
   showToast._t = setTimeout(() => refs.toast.classList.add('hidden'), 3200);
 }
 
-async function loadLocation(location, {silent=false}={}) {
+async function loadLocation(location, {silent=false,asBase=false}={}) {
   if (state.loading) return;
   state.loading = true;
   refs.refreshBtn.classList.add('spinning');
@@ -66,6 +73,7 @@ async function loadLocation(location, {silent=false}={}) {
     if (OFFLINE_TEST) throw new Error('offline test mode');
     const data = await getForecast(location);
     state.location = data.location;
+    if (asBase) { state.baseLocation = data.location; saveBaseLocation(); }
     state.forecast = data;
     state.demo = false;
     state.selectedDate = data.daily[0]?.time || null;
@@ -75,12 +83,14 @@ async function loadLocation(location, {silent=false}={}) {
     const requestedLocation = location?.name ? location : state.location;
     if (OFFLINE_TEST) {
       state.location = requestedLocation;
+      if (asBase) { state.baseLocation = requestedLocation; saveBaseLocation(); }
       state.forecast = createDemoForecast(requestedLocation);
       state.demo = true;
       state.selectedDate = state.forecast.daily[0]?.time || null;
       saveLastLocation();
     } else {
       state.location = requestedLocation;
+      if (asBase) { state.baseLocation = requestedLocation; saveBaseLocation(); }
       state.demo = false;
       if (!state.forecast) {
         refs.locationName.textContent = requestedLocation.name || 'Lieu sélectionné';
@@ -347,19 +357,22 @@ function renderTempChart() {
   const vals=slice.map(x=>x.temperature_2m);
   const {path,min,max,points}=svgPath(vals);
   const area = path ? `${path} L720,150 L0,150 Z` : '';
-  refs.tempChart.innerHTML = `<defs><linearGradient id="lineg" x1="0" x2="1"><stop stop-color="#72ebff"/><stop offset="1" stop-color="#7a72ff"/></linearGradient><linearGradient id="areag" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#62ddff" stop-opacity=".28"/><stop offset="1" stop-color="#62ddff" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#areag)"/><path d="${path}" fill="none" stroke="url(#lineg)" stroke-width="4" vector-effect="non-scaling-stroke"/>${points.filter((_,i)=>i%4===0).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="#dffbff"/>`).join('')}`;
+  refs.tempChart.innerHTML = `<defs><linearGradient id="lineg" x1="0" x2="1"><stop stop-color="#72ebff"/><stop offset="1" stop-color="#7a72ff"/></linearGradient><linearGradient id="areag" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#62ddff" stop-opacity=".28"/><stop offset="1" stop-color="#62ddff" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#areag)"/><path d="${path}" fill="none" stroke="url(#lineg)" stroke-width="4" vector-effect="non-scaling-stroke"/>${points.map((p,i)=>i%4===0||i===points.length-1?`<g><circle cx="${p[0]}" cy="${p[1]}" r="4" fill="#dffbff"/><text class="temp-point-label" x="${clamp(p[0],24,696)}" y="${p[1]<38?p[1]+24:p[1]-11}" text-anchor="middle">${Math.round(vals[i])}°</text><title>${formatHour(slice[i].time)} : ${round(vals[i],1)} °C</title></g>`:'').join('')}`;
   refs.tempRangeLabel.textContent = `${Math.round(min)}° → ${Math.round(max)}°`;
 }
 
 function renderHourly(dateStr) {
   const f=state.forecast; if (!f) return;
-  let items;
+  let items, currentIndex = 0;
   if (dateStr === f.daily[0]?.time) {
     const idx = nearestIndex(f.hourly.map(x=>x.time), new Date());
-    items = f.hourly.slice(idx, idx + 24);
+    const start = f.hourly.findIndex(x=>x.time.slice(0,10)===dateStr);
+    items = f.hourly.slice(Math.max(0,start), Math.min(f.hourly.length,idx+24));
+    currentIndex = Math.max(0,idx-Math.max(0,start));
   } else {
     items = f.hourly.filter(x=>x.time.slice(0,10)===dateStr);
   }
+  const previousDate=refs.hourlyRail.dataset.date, previousScroll=refs.hourlyRail.scrollLeft;
   const now=Date.now();
   refs.hourlyRail.innerHTML = items.map(h=>{
     const isPast=new Date(h.time).getTime() < now-3600000;
@@ -371,6 +384,12 @@ function renderHourly(dateStr) {
     </button>`;
   }).join('');
   refs.hourlyRail.querySelectorAll('[data-hour]').forEach(btn=>btn.addEventListener('click',()=>openHour(btn.dataset.hour)));
+  refs.hourlyRail.dataset.date=dateStr || '';
+  if (previousDate===dateStr) refs.hourlyRail.scrollLeft=previousScroll;
+  else if (dateStr===f.daily[0]?.time) {
+    const first=refs.hourlyRail.firstElementChild, selected=refs.hourlyRail.children[currentIndex];
+    refs.hourlyRail.scrollLeft=selected&&first?selected.offsetLeft-first.offsetLeft:0;
+  } else refs.hourlyRail.scrollLeft=0;
 }
 
 
@@ -410,7 +429,7 @@ function ensureDayDetailView() {
             </div>
           </div>
           <div class="day-detail-columns" aria-hidden="true">
-            <span>Heure</span><span>Temps</span><span>Temp.</span><span>Vent</span><span>Détails scientifiques</span><span></span>
+            <span>Heure</span><span>Temps</span><span>Temp.</span><span>Vent</span><span>Détails</span>
           </div>
           <div id="dayDetailRows" class="day-detail-rows"></div>
         </section>
@@ -439,12 +458,14 @@ function openDayDetail(date) {
   const d = state.forecast?.daily?.find(x=>x.time===date);
   if (!d) return;
   state.dayDetailDate = date;
+  state.dayDetailStep = 1;
   state.selectedDate = date;
   renderDaily();
 
   const view = ensureDayDetailView();
   view.querySelector('#dayDetailPlace').textContent = state.location.name;
   view.querySelector('#dayDetailDate').textContent = formatDetailDate(date);
+  view.querySelectorAll('[data-day-step]').forEach(b=>b.classList.toggle('active',b.dataset.dayStep==='1'));
   const scienceDetails = view.querySelector('#dayDetailSummary');
   if (scienceDetails) scienceDetails.open = false;
 
@@ -495,6 +516,8 @@ function openDayDetail(date) {
   view.classList.remove('hidden');
   document.body.classList.add('day-detail-open');
   view.scrollTop = 0;
+  const start = [...view.querySelectorAll('.day-hour-row')].find(row=>Number(row.dataset.dayHour.slice(11,13))>=8);
+  if (start) view.scrollTop = start.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop - view.querySelector('.day-detail-bar').offsetHeight - 8;
 }
 
 function renderDayDetailRows() {
@@ -515,21 +538,26 @@ function renderDayDetailRows() {
     const humidity = Number(h.relative_humidity_2m);
     const uv = Number(h.uv_index);
     const cape = Number(h.cape);
-    return `<button type="button" class="day-hour-row" data-day-hour="${escapeHtml(h.time)}">
+    return `<div class="day-hour-entry"><button type="button" class="day-hour-row" data-day-hour="${escapeHtml(h.time)}" aria-expanded="false" aria-controls="science-${escapeHtml(h.time)}">
       <span class="day-hour-time"><strong>${formatHour(h.time)}</strong><small>${day?'jour':'nuit'}</small></span>
       <span class="day-hour-weather">${weatherIcon(h.weather_code, day)}<small>${escapeHtml(info.label)}</small></span>
       <span class="day-hour-temp"><strong>${Math.round(h.temperature_2m)}°</strong><small>ress. ${Math.round(h.apparent_temperature ?? h.temperature_2m)}°</small></span>
       <span class="day-hour-wind"><strong><i class="wind-arrow" style="--wind-dir:${Number(h.wind_direction_10m ?? 0)}deg">↑</i> ${Math.round(h.wind_speed_10m ?? 0)} km/h</strong><small>raf. ${Math.round(h.wind_gusts_10m ?? 0)} · ${cardinal(h.wind_direction_10m)}</small></span>
-      <span class="day-hour-science">
+      <span class="day-hour-chevron">⌄</span>
+    </button>
+    <div id="science-${escapeHtml(h.time)}" class="day-hour-extra" hidden><div class="day-hour-science">
         <span><b>Précip.</b><strong>${precip>0?round(precip,1):'0'} mm · ${Math.round(h.precipitation_probability ?? 0)}%</strong><small>${snow>0?`❄ ${round(snow,1)} cm`:`pluie ${round(h.rain ?? 0,1)} mm`}</small></span>
         <span><b>Atmosphère</b><strong>${Number.isFinite(humidity)?Math.round(humidity)+'%':'—'} · ${Number.isFinite(pressure)?Math.round(pressure)+' hPa':'—'}</strong><small>vis. ${Number.isFinite(vis)?(vis/1000).toFixed(1)+' km':'—'} · nuages ${Number.isFinite(cloud)?Math.round(cloud)+'%':'—'}</small></span>
         <span><b>Montagne</b><strong>LPN ${h.snowLevel!=null?'~'+Math.round(h.snowLevel)+' m':'—'}</strong><small>0 °C ${h.freezing_level_height!=null?Math.round(h.freezing_level_height)+' m':'—'} · UV ${Number.isFinite(uv)?round(uv,1):'—'}${Number.isFinite(cape)&&cape>0?` · CAPE ${Math.round(cape)}`:''}</small></span>
-      </span>
-      <span class="day-hour-chevron">›</span>
-    </button>`;
+      </div><button type="button" class="day-hour-more" data-hour-more="${escapeHtml(h.time)}">Voir tous les détails →</button></div></div>`;
   }).join('');
 
-  rows.querySelectorAll('[data-day-hour]').forEach(b=>b.addEventListener('click',()=>openHour(b.dataset.dayHour)));
+  rows.querySelectorAll('[data-day-hour]').forEach(b=>b.addEventListener('click',()=>{
+    const expanded=b.getAttribute('aria-expanded')==='true';
+    rows.querySelectorAll('[data-day-hour]').forEach(row=>{row.setAttribute('aria-expanded','false');row.nextElementSibling.hidden=true;});
+    if (!expanded) { b.setAttribute('aria-expanded','true'); b.nextElementSibling.hidden=false; }
+  }));
+  rows.querySelectorAll('[data-hour-more]').forEach(b=>b.addEventListener('click',()=>openHour(b.dataset.hourMore)));
 }
 
 function closeDayDetail() {
@@ -614,9 +642,11 @@ function toggleFavorite(){
 }
 function renderFavoriteQuickbar(){
   if(!refs.favoriteQuickbar) return;
-  const currentKey = favoriteKey(state.location);
-  const items = state.favorites.filter(x => favoriteKey(x) !== currentKey);
-  refs.favoriteQuickbar.innerHTML = `<button type="button" class="quick-favorite active current-location" aria-current="true">${escapeHtml(state.location.name || 'Lieu actuel')}</button>${items.map((x,i)=>`<button type="button" data-quick-fav="${i}" class="quick-favorite">${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="quick-favorite quick-add" data-quick-add>+ Favori</button>`;
+  const base = state.baseLocation || state.location;
+  const baseKey = favoriteKey(base), selectedKey = favoriteKey(state.location);
+  const items = state.favorites.filter(x => favoriteKey(x) !== baseKey);
+  refs.favoriteQuickbar.innerHTML = `<button type="button" class="quick-favorite current-location ${selectedKey===baseKey?'active':''}" data-base-location ${selectedKey===baseKey?'aria-current="true"':''}>${escapeHtml(base.name || 'Lieu actuel')}</button>${items.map((x,i)=>`<button type="button" data-quick-fav="${i}" class="quick-favorite ${favoriteKey(x)===selectedKey?'active':''}" ${favoriteKey(x)===selectedKey?'aria-current="true"':''}>${escapeHtml(x.name)}</button>`).join('')}<button type="button" class="quick-favorite quick-add" data-quick-add>+ Favori</button>`;
+  refs.favoriteQuickbar.querySelector('[data-base-location]')?.addEventListener('click',()=>loadLocation(base));
   refs.favoriteQuickbar.querySelectorAll('[data-quick-fav]').forEach(b=>b.addEventListener('click',()=>loadLocation(items[Number(b.dataset.quickFav)])));
   refs.favoriteQuickbar.querySelector('[data-quick-add]')?.addEventListener('click',e=>{e.stopPropagation();openFavoriteSearch();});
 }
@@ -731,7 +761,7 @@ const doSearch=debounce(async q=>{
     if(q !== refs.searchInput.value) return;
     refs.searchResults.innerHTML=items.length?items.map((x,i)=>`<button type="button" data-result="${i}"><span class="search-kind-icon">${['Sommet','Col','Volcan'].includes(x.type)?'△':['Lac'].includes(x.type)?'≈':'⌖'}</span><div><strong>${escapeHtml(x.name)} <em class="search-type">${escapeHtml(x.type || 'Lieu')}</em></strong><small>${escapeHtml([x.admin1,x.country].filter(Boolean).join(', '))}${x.elevation!=null?` · <b>${Math.round(x.elevation)} m</b>`:''}</small></div></button>`).join(''):'<div class="search-empty">Aucun lieu trouvé</div>';
     refs.searchResults.classList.remove('hidden');
-    refs.searchResults.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click',async()=>{const place=items[Number(b.dataset.result)];refs.searchResults.classList.add('hidden');if(addingFavorite) addSearchedFavorite(place);else await loadLocation(place);}));
+    refs.searchResults.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click',async()=>{const place=items[Number(b.dataset.result)];refs.searchResults.classList.add('hidden');if(addingFavorite) addSearchedFavorite(place);else await loadLocation(place,{asBase:true});}));
   }catch{refs.searchResults.innerHTML='<div class="search-empty">Recherche indisponible</div>';refs.searchResults.classList.remove('hidden');}
 },700);
 
@@ -739,7 +769,7 @@ async function useGeolocation(){
   if(!navigator.geolocation){showToast('Géolocalisation non prise en charge.','warn');return;}
   refs.geoBtn.classList.add('spinning');
   navigator.geolocation.getCurrentPosition(async pos=>{
-    const loc=await reverseGeocodeApprox(pos.coords.latitude,pos.coords.longitude); refs.geoBtn.classList.remove('spinning'); await loadLocation(loc);
+    const loc=await reverseGeocodeApprox(pos.coords.latitude,pos.coords.longitude); refs.geoBtn.classList.remove('spinning'); await loadLocation(loc,{asBase:true});
   },()=>{refs.geoBtn.classList.remove('spinning');showToast('Position non accessible. Autorise la localisation dans le navigateur.','warn');},{enableHighAccuracy:false,timeout:8000,maximumAge:300000});
 }
 
@@ -770,14 +800,40 @@ function renderRoute(r){
   }).join('');
 }
 
-function renderRouteSketch(r){
-  const coords=r.route.geometry.coordinates; const lons=coords.map(c=>c[0]),lats=coords.map(c=>c[1]); const minX=Math.min(...lons),maxX=Math.max(...lons),minY=Math.min(...lats),maxY=Math.max(...lats); const w=900,h=340,pad=24;
+function renderRouteSketch(r) {
+  const coords=r.route.geometry.coordinates, pts=r.points;
+  const lons=coords.map(c=>c[0]), lats=coords.map(c=>c[1]);
+  const minX=Math.min(...lons),maxX=Math.max(...lons),minY=Math.min(...lats),maxY=Math.max(...lats);
+  const w=900,h=340,pad=26;
   const proj=c=>[pad+(c[0]-minX)/(maxX-minX||1)*(w-pad*2),h-pad-(c[1]-minY)/(maxY-minY||1)*(h-pad*2)];
-  const base=coords.map((c,i)=>`${i?'L':'M'}${proj(c)[0].toFixed(1)},${proj(c)[1].toFixed(1)}`).join(' ');
-  const markers=r.points.map(p=>{const [x,y]=proj([p.lon,p.lat]);return `<g><circle cx="${x}" cy="${y}" r="7" class="risk-${p.risk.level}"/><circle cx="${x}" cy="${y}" r="14" class="risk-ring risk-${p.risk.level}"/></g>`}).join('');
-  refs.routeSketch.innerHTML=`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet"><defs><linearGradient id="routeGlow" x1="0" x2="1"><stop stop-color="#54ecff"/><stop offset=".5" stop-color="#7e7cff"/><stop offset="1" stop-color="#ffba66"/></linearGradient></defs><path class="route-shadow" d="${base}"/><path class="route-path" d="${base}"/>${markers}</svg><div class="sketch-label start">${escapeHtml(r.from.name)}</div><div class="sketch-label end">${escapeHtml(r.to.name)}</div>`;
+  const xy=coords.map(proj);
+  const lengths=[0];
+  for(let i=1;i<coords.length;i++){
+    const lat=(coords[i][1]+coords[i-1][1])/2*Math.PI/180;
+    lengths[i]=lengths[i-1]+Math.hypot((coords[i][0]-coords[i-1][0])*Math.cos(lat),coords[i][1]-coords[i-1][1]);
+  }
+  const total=lengths.at(-1)||1;
+  const base=xy.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const sections=[];
+  for(let i=1;i<xy.length;i++){
+    const fraction=(lengths[i-1]+lengths[i])/(2*total);
+    const nearest=i===xy.length-1?pts.at(-1):pts.reduce((best,p)=>Math.abs(p.fraction-fraction)<Math.abs(best.fraction-fraction)?p:best,pts[0]);
+    const level=nearest.risk.level;
+    const point=`${xy[i][0].toFixed(1)},${xy[i][1].toFixed(1)}`;
+    if(sections.at(-1)?.level===level) sections.at(-1).path+=` L${point}`;
+    else sections.push({level,path:`M${xy[i-1][0].toFixed(1)},${xy[i-1][1].toFixed(1)} L${point}`});
+  }
+  const segments=sections.map(s=>`<path class="route-section ${s.level}" d="${s.path}"/>`).join('');
+  const markers=pts.map((p,i)=>{
+    const [x,y]=proj([p.lon,p.lat]);
+    const title=`Km ${Math.round(p.cumKm)} · ${p.risk.reasons.length?p.risk.reasons.join(', '):'conditions calmes'}`;
+    return `<g><title>${escapeHtml(title)}</title><circle cx="${x}" cy="${y}" r="${i===0||i===pts.length-1?7:p.risk.score>=3?5:3.5}" class="risk-${p.risk.level}"/></g>`;
+  }).join('');
+  const alerts=pts.filter(p=>p.risk.score>=3);
+  const firstAlert=alerts[0];
+  const caption=firstAlert?`Vigilance vers le km ${Math.round(firstAlert.cumKm)} : ${escapeHtml(firstAlert.risk.reasons.join(', '))}.`:'Aucun risque météo marqué aux points analysés.';
+  refs.routeSketch.innerHTML=`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Tracé de ${escapeHtml(r.from.name)} à ${escapeHtml(r.to.name)}, segments colorés selon la vigilance météo"><path class="route-shadow" d="${base}"/>${segments}${markers}</svg><div class="sketch-label start">${escapeHtml(r.from.name)}</div><div class="sketch-label end">${escapeHtml(r.to.name)}</div><div class="route-map-legend"><span><i class="minimal"></i>Calme</span><span><i class="low"></i>À suivre</span><span><i class="medium"></i>Vigilance</span><span><i class="high"></i>Risque marqué</span></div><p class="route-map-caption">${caption}</p>`;
 }
-
 function setupRouteDefaults(){const d=new Date(Date.now()+3600000);refs.routeDate.min=new Date().toISOString().slice(0,10);refs.routeDate.max=new Date(Date.now()+15*86400000).toISOString().slice(0,10);refs.routeDate.value=d.toISOString().slice(0,10);refs.routeTime.value=`${String(d.getHours()).padStart(2,'0')}:00`;}
 
 function bindEvents(){
@@ -795,12 +851,13 @@ function bindEvents(){
 }
 
 async function init(){
+  if (!state.baseLocation) { state.baseLocation=state.location; saveBaseLocation(); }
   state.expert = window.matchMedia('(min-width:1101px)').matches;
   refs.expertToggle?.setAttribute('aria-pressed', String(state.expert));
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.4').catch(()=>{});
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.8').catch(()=>{});
 }
 init();
