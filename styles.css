@@ -685,3 +685,43 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 /* MyWeather icon in the header */
 .brand-mark{border:0;border-radius:12px;box-shadow:none}
 .brand-mark img{display:block;width:100%;height:100%;border-radius:12px}
+
+/* V1.5.5 — lisibilité du trajet et détails mobiles */
+.temp-point-label{fill:#eefaff;font-size:15px;font-weight:700;paint-order:stroke;stroke:#08243a;stroke-width:4px;stroke-linejoin:round}
+.route-sketch .route-section{fill:none;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(90,220,205,.25))}
+.route-sketch .route-section.minimal{stroke:#63dfa5}
+.route-sketch .route-section.low{stroke:#69cced}
+.route-sketch .route-section.medium{stroke:#ffbe67}
+.route-sketch .route-section.high{stroke:#ff6879}
+.route-sketch .route-path{stroke:#63dfa5}
+.route-sketch .risk-minimal{fill:#63dfa5}
+.route-map-legend{position:absolute;z-index:3;bottom:47px;left:11px;right:11px;display:flex;justify-content:center;flex-wrap:wrap;gap:5px 12px;font-size:9px;color:#d7e7ef}
+.route-map-legend span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.route-map-legend i{display:inline-block;width:8px;height:8px;border-radius:50%}
+.route-map-legend i.minimal{background:#63dfa5}.route-map-legend i.low{background:#69cced}.route-map-legend i.medium{background:#ffbe67}.route-map-legend i.high{background:#ff6879}
+.route-map-caption{position:absolute;z-index:3;top:10px;left:10px;right:10px;width:max-content;max-width:calc(100% - 20px);margin:0;padding:6px 9px;border-radius:8px;background:rgba(2,13,23,.79);color:#c9e1ec;font-size:10px;line-height:1.35}
+.day-detail-columns,.day-hour-row{grid-template-columns:90px 125px 95px minmax(0,1fr) 18px}
+.day-hour-entry:nth-child(even) .day-hour-row,.day-hour-entry:nth-child(even) .day-hour-extra{background:#0b3b5d}
+.day-hour-row{min-height:82px}
+.day-hour-row[aria-expanded="true"]{background:#155071}
+.day-hour-chevron{transition:transform .18s ease}
+.day-hour-row[aria-expanded="true"] .day-hour-chevron{transform:rotate(180deg)}
+.day-hour-extra{padding:0 17px 13px;background:#0a3554;border-top:1px solid rgba(190,220,236,.08)}
+.day-hour-extra[hidden]{display:none!important}
+.day-hour-science{padding-top:12px}
+.day-hour-more{display:block;margin:12px 0 0 auto;border:1px solid rgba(127,207,240,.22);border-radius:8px;padding:7px 10px;background:#124464;color:#c4e9f7;cursor:pointer;font-size:11px}
+@media(max-width:900px){
+  input,textarea,select{font-size:16px!important}
+  button,input,select,textarea,a,summary{touch-action:manipulation}
+  .day-hour-row{grid-template-columns:56px 48px 64px minmax(0,1fr) 14px;grid-template-areas:"time weather temp wind arrow";min-height:77px}
+  .day-hour-extra{padding:0 10px 13px}
+  .day-hour-science{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hour-card.past{opacity:.75}
+  .temp-point-label{font-size:21px}
+  .route-map-legend{gap:4px 9px;font-size:8px}
+}
+@media(max-width:470px){
+  .day-hour-row{grid-template-columns:52px 43px 60px minmax(0,1fr) 12px;min-height:74px}
+  .route-form input{min-width:0}
+  .route-map-caption{font-size:9px}
+}
