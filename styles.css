@@ -642,13 +642,6 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 
   .hero-now .current-reading{width:100%;min-width:0;padding-top:18px}
   .hero-now .temperature{position:relative;z-index:2;text-shadow:0 2px 18px rgba(3,23,39,.75)}
-  .hero-now .scene-sun,.hero-now .scene-moon{left:10%!important;top:40%!important}
-  .future-weather-panel .scene-sun,.future-weather-panel .scene-moon{left:82%!important;top:66%!important;width:42px!important;height:42px!important}
-  .hero-now .hero-scene .scene-sun,.hero-now .hero-scene .scene-moon,.future-weather-panel .hero-scene .scene-sun,.future-weather-panel .hero-scene .scene-moon{opacity:0!important}
-  .hero-now .hero-scene.sunny .scene-sun,.hero-now .hero-scene.partly-cloudy .scene-sun{opacity:.65!important}
-  .future-weather-panel .hero-scene.sunny .scene-sun,.future-weather-panel .hero-scene.partly-cloudy .scene-sun{opacity:.38!important}
-  .hero-now .hero-scene.clear-night .scene-moon,.hero-now .hero-scene.night-cloudy .scene-moon{opacity:.72!important}
-  .future-weather-panel .hero-scene.clear-night .scene-moon,.future-weather-panel .hero-scene.night-cloudy .scene-moon{opacity:.4!important}
   .future-weather-head,.future-weather-copy{position:relative;z-index:2}
   .future-offsets{position:relative;z-index:3}
   .future-weather-copy small{font-size:9px;line-height:1.3;overflow-wrap:anywhere}
@@ -867,3 +860,42 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 .mini-chart-hours span.first{transform:none}
 .mini-chart-hours span.last{transform:translateX(-100%)}
 @media(max-width:760px){.mini-chart-hours{height:18px;font-size:9px}}
+
+/* Soleil et lune suivent les heures locales de lever et coucher. Le sol masque l'astre à l'horizon. */
+.hero-scene .scene-twilight{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 42% 32% at var(--sun-x,20%) 74%,rgba(255,165,75,.40),rgba(227,113,85,.14) 46%,transparent 100%);
+  opacity:var(--twilight-alpha,0);
+}
+.hero-scene .scene-sun,.hero-scene .scene-moon{
+  left:var(--sun-x,20%)!important;top:var(--sun-y,74%)!important;
+  z-index:2;transform:translate(-50%,-50%)!important;
+  animation:none;
+}
+.hero-scene .scene-sun{opacity:0!important}
+.hero-scene .scene-moon{opacity:0!important}
+.hero-scene.phase-day.sunny .scene-sun,.hero-scene.phase-day.partly-cloudy .scene-sun{opacity:var(--orb-alpha,.8)!important}
+.hero-scene.phase-night.clear-night .scene-moon,.hero-scene.phase-night.night-cloudy .scene-moon{opacity:var(--orb-alpha,.8)!important}
+.hero-scene .scene-horizon{
+  position:absolute;inset:74% 0 0;z-index:3;pointer-events:none;
+  background:linear-gradient(180deg,rgba(32,82,96,.9),rgba(15,52,69,.96) 33%,#0b2d43 100%);
+  border-top:1px solid rgba(145,204,193,.48);
+  box-shadow:0 -5px 14px rgba(97,175,175,.12),inset 0 9px 22px rgba(48,127,132,.10);
+}
+.hero-scene.phase-night .scene-horizon{
+  background:linear-gradient(180deg,#24495a,#102d43 35%,#092239);
+  border-top-color:rgba(125,172,188,.42);
+}
+.hero-scene .scene-horizon:after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent 0 22%,rgba(3,28,44,.21) 22% 29%,transparent 29% 55%,rgba(3,28,44,.26) 55% 64%,transparent 64%);
+  opacity:.75;
+}
+.hero-scene .scene-cloud,.hero-scene .scene-rain,.hero-scene .scene-snow,.hero-scene .scene-fog,.hero-scene .scene-lightning{z-index:4}
+.hero-scene .scene-stars{z-index:1}
+@media(max-width:760px){
+  .hero-now .hero-scene .scene-sun,.hero-now .hero-scene .scene-moon{width:52px!important;height:52px!important}
+  .future-weather-panel .hero-scene .scene-sun,.future-weather-panel .hero-scene .scene-moon{width:42px!important;height:42px!important}
+  .hero-scene .scene-moon:after{width:100%;height:100%;left:35%;top:-10%}
+  .future-weather-panel .hero-scene .scene-sun span{inset:-12px}
+}
