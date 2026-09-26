@@ -1,4 +1,4 @@
-import { estimateSnowLevel, weatherCodeInfo } from './utils.js';
+import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -191,6 +191,8 @@ export function normalizeForecast(data) {
       freezingLevel:obj.freezing_level_height, wetBulb:obj.wet_bulb_temperature_2m,
       precipitation:obj.precipitation, elevation:data.elevation ?? 0
     });
+    const snow = snowfallFor(obj);
+    if (snow.estimated) { obj.snowfall = snow.amount; obj.snowfallEstimated = true; }
     obj.info = weatherCodeInfo(obj.weather_code, 1);
     return obj;
   });
@@ -209,6 +211,13 @@ export function normalizeForecast(data) {
     windMax:d.wind_speed_10m_max?.[i] ?? null, gustMax:d.wind_gusts_10m_max?.[i] ?? null, windDir:d.wind_direction_10m_dominant?.[i] ?? null,
     info:weatherCodeInfo(d.weather_code?.[i], 1)
   }));
+  daily.forEach(day => {
+    if (Number(day.snowfall ?? 0) > 0) return;
+    const snowyHours = hourly.filter(h => h.time.startsWith(day.time) && Number(h.snowfall) > 0);
+    if (!snowyHours.length) return;
+    day.snowfall = snowyHours.reduce((sum,h) => sum + Number(h.snowfall), 0);
+    day.snowfallEstimated = snowyHours.some(h => h.snowfallEstimated);
+  });
   return { ...data, hourly, daily };
 }
 
