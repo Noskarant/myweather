@@ -851,13 +851,13 @@ function bindEvents(){
 }
 
 async function init(){
-  if (!state.baseLocation) { state.baseLocation=state.location; saveBaseLocation(); }
+  if (!loadBaseLocation()) { state.baseLocation=state.baseLocation || state.location; saveBaseLocation(); }
   state.expert = window.matchMedia('(min-width:1101px)').matches;
   refs.expertToggle?.setAttribute('aria-pressed', String(state.expert));
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.8').catch(()=>{});
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.5.9').catch(()=>{});
 }
 init();
