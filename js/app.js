@@ -643,6 +643,8 @@ function renderDaily() {
     const nightHour = representativeHour(d.time, 23) || representativeHour(d.time, 2);
     const windRange = windRangeForDate(d.time);
     const windText = windRange ? `${windRange[0]}–${windRange[1]}` : `${Math.round(d.windMax ?? 0)}`;
+    const uvValue = Number(d.uv);
+    const uvText = d.uv != null && Number.isFinite(uvValue) ? round(uvValue,1) : '—';
     return `<button class="forecast-row ${active?'selected':''}" data-day="${d.time}">
       <span class="forecast-date"><strong>${i===0?'Aujourd’hui':formatDay(d.time).split(' ')[0]}</strong><small>${new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit'}).format(new Date(`${d.time}T12:00:00`))}</small></span>
       <span class="forecast-weather"><span class="forecast-icons">${weatherIcon(dayHour?.weather_code ?? d.weather_code,1)}${weatherIcon(nightHour?.weather_code ?? d.weather_code,0)}</span><small>${escapeHtml(daylightCondition(d))}</small></span>
@@ -651,6 +653,7 @@ function renderDaily() {
         <span><i class="wind-arrow" style="--wind-dir:${Number(d.windDir ?? 0)}deg">↑</i> ${windText} km/h <small>raf. ${Math.round(d.gustMax ?? 0)}</small></span>
         <span>${formatPrecipitation(d, {icon:true})} <small>${Math.round(d.precipProb ?? 0)}%</small></span>
         <span>☼ ${daylight!=null?`${round(daylight,1)} h`:'—'} <small>${conf}% fiab.</small></span>
+        <span class="forecast-uv">UV max. ${uvText}</span>
       </span>
       <span class="forecast-chevron">›</span>
     </button>`;
