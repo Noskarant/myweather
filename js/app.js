@@ -1,9 +1,9 @@
-import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.6.10';
+import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.6.11';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
   formatHour, formatPrecipitation, isSnowForecast, nearestIndex, precipitationLabel, round, seasonFor, svgPath, weatherCodeInfo
-} from './utils.js?v=1.6.10';
+} from './utils.js?v=1.6.11';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -166,8 +166,9 @@ function renderAll() {
   const visibilityNow = Number(hNow.visibility);
   const pressureNow = Number(c.pressure_msl ?? hNow.pressure_msl);
   const cloudNow = Number(hNow.cloud_cover);
+  const nowPrecip = {...hNow, ...c, snowLevel:hNow.snowLevel, wet_bulb_temperature_2m:hNow.wet_bulb_temperature_2m, elevation};
   const metrics = [
-    [precipitationLabel(c.snowfall != null ? c : hNow), formatPrecipitation(c.snowfall != null ? c : hNow), '◌'],
+    [precipitationLabel(nowPrecip), formatPrecipitation(nowPrecip), '◌'],
     ['Vent', `${Math.round(c.wind_speed_10m ?? 0)} km/h`, '≋'],
     ['Rafales', `${Math.round(c.wind_gusts_10m ?? 0)} km/h`, '⚑'],
     ['Humidité', `${Math.round(c.relative_humidity_2m ?? 0)}%`, '◇'],
