@@ -1,9 +1,9 @@
-import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js';
+import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.6.10';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
   formatHour, formatPrecipitation, isSnowForecast, nearestIndex, precipitationLabel, round, seasonFor, svgPath, weatherCodeInfo
-} from './utils.js';
+} from './utils.js?v=1.6.10';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
