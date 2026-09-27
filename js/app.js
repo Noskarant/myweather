@@ -236,47 +236,204 @@ function sceneIntensity(data,kind){
   if(kind==='rain'){ if([65,67,82].includes(code)||precip>=4)return 3; if([63,81,55].includes(code)||precip>=1.2)return 2; return 1; }
   return 1;
 }
+const ASTRO_RAD=Math.PI/180;
+const ASTRO_DAY_MS=86400000;
+const ASTRO_J2000=2451545;
+const ASTRO_E=23.4397*ASTRO_RAD;
+let moonSvgSequence=0;
+
+function zonedLocalDate(time){
+  const value=String(time||'');
+  const match=value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if(!match) return new Date(time||Date.now());
+  const target=Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3]),Number(match[4]||12),Number(match[5]||0),Number(match[6]||0));
+  const timezone=state.location?.timezone;
+  if(!timezone||timezone==='auto') return new Date(target);
+  try{
+    const offsetAt=ms=>{
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{
+        timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit',
+        hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'
+      }).formatToParts(new Date(ms)).map(p=>[p.type,p.value]));
+      const shownAsUtc=Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day),Number(parts.hour),Number(parts.minute),Number(parts.second));
+      return shownAsUtc-ms;
+    };
+    let utc=target-offsetAt(target);
+    utc=target-offsetAt(utc);
+    return new Date(utc);
+  }catch{
+    return new Date(target);
+  }
+}
+function astroDays(date){ return date.getTime()/ASTRO_DAY_MS+2440587.5-ASTRO_J2000; }
+function astroRightAscension(l,b){ return Math.atan2(Math.sin(l)*Math.cos(ASTRO_E)-Math.tan(b)*Math.sin(ASTRO_E),Math.cos(l)); }
+function astroDeclination(l,b){ return Math.asin(Math.sin(b)*Math.cos(ASTRO_E)+Math.cos(b)*Math.sin(ASTRO_E)*Math.sin(l)); }
+function astroAzimuth(H,phi,dec){ return Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(phi)-Math.tan(dec)*Math.cos(phi)); }
+function astroAltitude(H,phi,dec){ return Math.asin(Math.sin(phi)*Math.sin(dec)+Math.cos(phi)*Math.cos(dec)*Math.cos(H)); }
+function astroSiderealTime(d,lw){ return ASTRO_RAD*(280.16+360.9856235*d)-lw; }
+function astroSolarMeanAnomaly(d){ return ASTRO_RAD*(357.5291+.98560028*d); }
+function astroEclipticLongitude(M){
+  const C=ASTRO_RAD*(1.9148*Math.sin(M)+.02*Math.sin(2*M)+.0003*Math.sin(3*M));
+  return M+C+ASTRO_RAD*102.9372+Math.PI;
+}
+function astroSunCoords(d){
+  const M=astroSolarMeanAnomaly(d),L=astroEclipticLongitude(M);
+  return {dec:astroDeclination(L,0),ra:astroRightAscension(L,0)};
+}
+function astroMoonCoords(d){
+  const L=ASTRO_RAD*(218.316+13.176396*d),M=ASTRO_RAD*(134.963+13.064993*d),F=ASTRO_RAD*(93.272+13.229350*d);
+  const l=L+ASTRO_RAD*6.289*Math.sin(M),b=ASTRO_RAD*5.128*Math.sin(F),dist=385001-20905*Math.cos(M);
+  return {ra:astroRightAscension(l,b),dec:astroDeclination(l,b),dist};
+}
+function sceneAstronomy(time){
+  const lat=Number(state.location?.lat),lon=Number(state.location?.lon);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)) return null;
+  const date=zonedLocalDate(time),d=astroDays(date),phi=sceneClamp(lat,-89.8,89.8)*ASTRO_RAD,lw=-lon*ASTRO_RAD,st=astroSiderealTime(d,lw);
+  const sunCoords=astroSunCoords(d),moonCoords=astroMoonCoords(d);
+  const sunH=st-sunCoords.ra,moonH=st-moonCoords.ra;
+  const sunAltitude=astroAltitude(sunH,phi,sunCoords.dec),sunAzimuth=astroAzimuth(sunH,phi,sunCoords.dec);
+  const moonAltitude=astroAltitude(moonH,phi,moonCoords.dec),moonAzimuth=astroAzimuth(moonH,phi,moonCoords.dec);
+  const separation=Math.acos(sceneClamp(
+    Math.sin(sunCoords.dec)*Math.sin(moonCoords.dec)+Math.cos(sunCoords.dec)*Math.cos(moonCoords.dec)*Math.cos(sunCoords.ra-moonCoords.ra),
+    -1,1
+  ));
+  const sunDistance=149598000;
+  const incidence=Math.atan2(sunDistance*Math.sin(separation),moonCoords.dist-sunDistance*Math.cos(separation));
+  const brightLimbAngle=Math.atan2(
+    Math.cos(sunCoords.dec)*Math.sin(sunCoords.ra-moonCoords.ra),
+    Math.sin(sunCoords.dec)*Math.cos(moonCoords.dec)-Math.cos(sunCoords.dec)*Math.sin(moonCoords.dec)*Math.cos(sunCoords.ra-moonCoords.ra)
+  );
+  const illumination=sceneClamp((1+Math.cos(incidence))/2,0,1);
+  const rawPhase=.5+.5*incidence*(brightLimbAngle<0?-1:1)/Math.PI;
+  const phase=((rawPhase%1)+1)%1;
+  return {
+    sun:{altitude:sunAltitude,azimuth:sunAzimuth},
+    moon:{altitude:moonAltitude,azimuth:moonAzimuth,illumination,phase,brightLimbAngle}
+  };
+}
+function moonPhaseFallback(time){
+  const jd=zonedLocalDate(time).getTime()/ASTRO_DAY_MS+2440587.5;
+  const phase=(((jd-2451550.25972)/29.530588853)%1+1)%1;
+  return {phase,illumination:(1-Math.cos(2*Math.PI*phase))/2};
+}
+function moonPhaseName(phase){
+  const p=((phase%1)+1)%1;
+  if(p<.03125||p>=.96875)return 'Nouvelle lune';
+  if(p<.21875)return 'Premier croissant';
+  if(p<.28125)return 'Premier quartier';
+  if(p<.46875)return 'Gibbeuse croissante';
+  if(p<.53125)return 'Pleine lune';
+  if(p<.71875)return 'Gibbeuse décroissante';
+  if(p<.78125)return 'Dernier quartier';
+  return 'Dernier croissant';
+}
+function moonIlluminatedPath(phase,steps=56){
+  const p=((phase%1)+1)%1,r=49,cx=50,cy=50,waxing=p<=.5;
+  const q=(waxing?p:1-p)*2*Math.PI,c=Math.cos(q),limb=[],term=[];
+  for(let i=0;i<=steps;i++){
+    const y=-r+2*r*i/steps,s=Math.sqrt(Math.max(0,r*r-y*y));
+    limb.push([cx+(waxing?s:-s),cy+y]);
+  }
+  for(let i=steps;i>=0;i--){
+    const y=-r+2*r*i/steps,s=Math.sqrt(Math.max(0,r*r-y*y));
+    term.push([cx+(waxing?c*s:-c*s),cy+y]);
+  }
+  return [...limb,...term].map((point,i)=>(i?'L':'M')+point[0].toFixed(2)+' '+point[1].toFixed(2)).join(' ')+' Z';
+}
+function sceneMoonSvg(moon){
+  const id='mwMoon'+(++moonSvgSequence),path=moonIlluminatedPath(moon.phase);
+  const flip=Number(state.location?.lat)<0?-1:1;
+  return '<svg viewBox="0 0 100 100" focusable="false" aria-hidden="true" style="--moon-flip:'+flip+'">'+
+    '<defs>'+
+      '<radialGradient id="'+id+'g" cx="34%" cy="29%" r="78%"><stop offset="0" stop-color="#fffbe5"/><stop offset=".52" stop-color="#f1e6bb"/><stop offset="1" stop-color="#c9bf98"/></radialGradient>'+
+      '<clipPath id="'+id+'c"><path d="'+path+'"/></clipPath>'+
+    '</defs>'+
+    '<circle cx="50" cy="50" r="49" fill="#bdd0da" fill-opacity=".12"/>'+
+    '<g clip-path="url(#'+id+'c)">'+
+      '<circle cx="50" cy="50" r="49" fill="url(#'+id+'g)"/>'+
+      '<circle cx="33" cy="31" r="6.5" fill="#b8ae8b" fill-opacity=".22"/>'+
+      '<circle cx="61" cy="25" r="4" fill="#b8ae8b" fill-opacity=".18"/>'+
+      '<circle cx="69" cy="53" r="8" fill="#a99f80" fill-opacity=".17"/>'+
+      '<circle cx="42" cy="67" r="5.5" fill="#b8ae8b" fill-opacity=".18"/>'+
+      '<circle cx="25" cy="57" r="3.5" fill="#a99f80" fill-opacity=".15"/>'+
+    '</g>'+
+    '<circle cx="50" cy="50" r="49" fill="none" stroke="#fff8db" stroke-opacity=".15" stroke-width="1"/>'+
+  '</svg>';
+}
 function sceneSunPosition(time,fallbackDay){
-  const days=state.forecast?.daily||[], date=String(time||'').slice(0,10);
-  const index=days.findIndex(d=>d.time===date), daily=days[index], t=new Date(time||Date.now()).getTime();
-  const rise=daily?.sunrise?new Date(daily.sunrise).getTime():NaN;
-  const set=daily?.sunset?new Date(daily.sunset).getTime():NaN;
-  let isDay=Boolean(fallbackDay), fraction;
+  const days=state.forecast?.daily||[],date=String(time||'').slice(0,10);
+  const index=days.findIndex(d=>d.time===date),daily=days[index],t=new Date(time||Date.now()).getTime();
+  const rise=daily?.sunrise?new Date(daily.sunrise).getTime():NaN,set=daily?.sunset?new Date(daily.sunset).getTime():NaN;
+  let isDay=Boolean(fallbackDay),fraction;
   if(Number.isFinite(t)&&Number.isFinite(rise)&&Number.isFinite(set)&&set>rise){
     isDay=t>=rise&&t<set;
     if(isDay) fraction=(t-rise)/(set-rise);
-    else {
+    else{
       const previousSet=index>0&&days[index-1]?.sunset?new Date(days[index-1].sunset).getTime():set-86400000;
       const nextRise=index<days.length-1&&days[index+1]?.sunrise?new Date(days[index+1].sunrise).getTime():rise+86400000;
-      const start=t<rise?previousSet:set, end=t<rise?rise:nextRise;
+      const start=t<rise?previousSet:set,end=t<rise?rise:nextRise;
       fraction=(t-start)/Math.max(1,end-start);
     }
-  } else {
+  }else{
     const hour=Number(String(time||'').slice(11,13))+Number(String(time||'').slice(14,16)||0)/60;
     isDay=Number.isFinite(hour)?hour>=7&&hour<19:isDay;
     fraction=isDay?(hour-7)/12:hour>=19?(hour-19)/12:(hour+5)/12;
   }
-  const f=sceneClamp(fraction,0,1), altitude=Math.sin(Math.PI*f);
+  const f=sceneClamp(fraction,0,1),astro=sceneAstronomy(time);
+  if(astro&&Number.isFinite(astro.sun.altitude)&&Number.isFinite(astro.sun.azimuth)){
+    const altDeg=astro.sun.altitude/ASTRO_RAD,above=Math.max(0,Math.sin(Math.max(0,astro.sun.altitude)));
+    return {
+      isDay,
+      x:sceneClamp(50+32*Math.sin(astro.sun.azimuth),14,86),
+      y:74-60*above,
+      brightness:.70+.38*above,
+      twilight:sceneClamp(1-Math.abs(altDeg)/12,0,1),
+      astro
+    };
+  }
+  const altitude=Math.sin(Math.PI*f);
   const twilight=sceneClamp(1-Math.min(f,1-f)/.13,0,1);
-  return {isDay,x:20+60*f,y:74-(isDay?53:47)*altitude,brightness:.65+.45*altitude,twilight};
+  return {isDay,x:20+60*f,y:74-(isDay?53:47)*altitude,brightness:.65+.45*altitude,twilight,astro:null};
+}
+function sceneMoonState(time,astro,fallbackPos){
+  const phaseData=astro?.moon&&Number.isFinite(astro.moon.phase)
+    ? {phase:astro.moon.phase,illumination:astro.moon.illumination}
+    : moonPhaseFallback(time);
+  const alt=astro?.moon?.altitude,az=astro?.moon?.azimuth;
+  const hasPosition=Number.isFinite(alt)&&Number.isFinite(az),above=hasPosition?Math.max(0,Math.sin(Math.max(0,alt))):0;
+  return {
+    ...phaseData,
+    name:moonPhaseName(phaseData.phase),
+    visible:hasPosition?alt>-1.5*ASTRO_RAD:true,
+    altitude:hasPosition?alt:null,
+    x:hasPosition?sceneClamp(50+32*Math.sin(az),14,86):fallbackPos.x,
+    y:hasPosition?74-58*above:fallbackPos.y
+  };
 }
 function renderWeatherScene(container,data={}){
   if(!container)return;
-  const time=data.time||forecastNowLocal(), pos=sceneSunPosition(time,Number(data.is_day ?? isDayAt(time)));
-  const kind=heroSceneKind(Number(data.weather_code ?? 0),pos.isDay), intensity=sceneIntensity(data,kind);
-  const clouds=sceneClamp(Number(data.cloud_cover ?? (['rain','snow','storm','fog'].includes(kind)?88:kind.includes('cloudy')?55:6)),0,100), wind=Math.max(0,Number(data.wind_speed_10m ?? 0)), uv=Math.max(0,Number(data.uv_index ?? 0));
-  const cloudLevel=sceneClamp(Math.ceil(clouds/34),0,3), rainCount=kind==='storm'?[0,12,22,34][intensity]:[0,8,16,28][intensity], snowCount=[0,8,17,29][intensity], rainSpeed=intensity===3?.46:intensity===2?.67:.94, snowSpeed=intensity===3?3.1:intensity===2?4.5:6.2;
+  const time=data.time||forecastNowLocal(),pos=sceneSunPosition(time,Number(data.is_day ?? isDayAt(time)));
+  const astro=pos.astro||sceneAstronomy(time),moon=sceneMoonState(time,astro,pos);
+  const kind=heroSceneKind(Number(data.weather_code ?? 0),pos.isDay),intensity=sceneIntensity(data,kind);
+  const clouds=sceneClamp(Number(data.cloud_cover ?? (['rain','snow','storm','fog'].includes(kind)?88:kind.includes('cloudy')?55:6)),0,100),wind=Math.max(0,Number(data.wind_speed_10m ?? 0)),uv=Math.max(0,Number(data.uv_index ?? 0));
+  const cloudLevel=sceneClamp(Math.ceil(clouds/34),0,3),rainCount=kind==='storm'?[0,12,22,34][intensity]:[0,8,16,28][intensity],snowCount=[0,8,17,29][intensity],rainSpeed=intensity===3?.46:intensity===2?.67:.94,snowSpeed=intensity===3?3.1:intensity===2?4.5:6.2;
   const drops=Array.from({length:rainCount},(_,i)=>'<i style="left:'+(3+((i*19)%94))+'%;animation-delay:'+(-i*.08).toFixed(2)+'s;animation-duration:'+(rainSpeed+(i%5)*.04).toFixed(2)+'s"></i>').join('');
   const flakes=Array.from({length:snowCount},(_,i)=>'<i style="left:'+(3+((i*23)%92))+'%;animation-delay:'+(-i*.22).toFixed(2)+'s;animation-duration:'+(snowSpeed+(i%6)*.24).toFixed(2)+'s"></i>').join('');
   const stars=Array.from({length:13},(_,i)=>'<i style="left:'+(4+((i*23)%88))+'%;top:'+(10+((i*13)%55))+'%;animation-delay:'+(-i*.18).toFixed(2)+'s"></i>').join('');
   const role=container.classList.contains('future-scene')?'future-scene':'current-scene';
-  container.className='hero-scene '+role+' '+kind+' '+(pos.isDay?'phase-day':'phase-night')+' intensity-'+intensity+' cloud-'+cloudLevel;
-  container.style.setProperty('--sun-x',pos.x+'%'); container.style.setProperty('--sun-y',pos.y+'%'); container.style.setProperty('--sun-brightness',String(pos.brightness));
+  const moonVisible=moon.visible&&moon.illumination>.008;
+  container.className='hero-scene '+role+' '+kind+' '+(pos.isDay?'phase-day':'phase-night')+' intensity-'+intensity+' cloud-'+cloudLevel+(moonVisible?' moon-visible':'');
+  container.dataset.moonPhase=moon.name;
+  container.dataset.moonIllumination=Math.round(moon.illumination*100)+'%';
+  container.style.setProperty('--sun-x',pos.x+'%');container.style.setProperty('--sun-y',pos.y+'%');container.style.setProperty('--sun-brightness',String(pos.brightness));
+  container.style.setProperty('--moon-x',moon.x+'%');container.style.setProperty('--moon-y',moon.y+'%');
   container.style.setProperty('--sun-alpha',String(sceneClamp((.45+uv*.05)*(1-clouds*.004),.18,.98)));
   container.style.setProperty('--orb-alpha',String(sceneClamp((1-clouds/120)*(.72+uv*.04),.08,.92)));
+  container.style.setProperty('--moon-alpha',String(sceneClamp((1-clouds/125)*(.18+.82*Math.sqrt(moon.illumination)),.03,.94)));
+  container.style.setProperty('--moon-day-alpha',String(sceneClamp((1-clouds/130)*(.06+.24*Math.sqrt(moon.illumination)),.03,.28)));
   container.style.setProperty('--twilight-alpha',String(pos.twilight*(1-clouds/150)));
-  container.style.setProperty('--cloud-speed',sceneClamp(18-wind*.16,7,18)+'s'); container.style.setProperty('--flash-duration',(intensity===3?3:intensity===2?5:8)+'s');
-  container.innerHTML='<div class="scene-glow"></div><div class="scene-twilight"></div><div class="scene-stars">'+stars+'</div><div class="scene-sun"><span></span></div><div class="scene-moon"></div><div class="scene-horizon"></div><div class="scene-cloud scene-cloud-a"><b></b><em></em></div><div class="scene-cloud scene-cloud-b"><b></b><em></em></div><div class="scene-cloud scene-cloud-c"><b></b><em></em></div><div class="scene-rain">'+drops+'</div><div class="scene-snow">'+flakes+'</div><div class="scene-fog"><i></i><i></i><i></i></div>'+(kind==='storm'?'<div class="scene-lightning"></div>':'');
+  container.style.setProperty('--cloud-speed',sceneClamp(18-wind*.16,7,18)+'s');container.style.setProperty('--flash-duration',(intensity===3?3:intensity===2?5:8)+'s');
+  container.innerHTML='<div class="scene-glow"></div><div class="scene-twilight"></div><div class="scene-stars">'+stars+'</div><div class="scene-sun"><span></span></div><div class="scene-moon">'+sceneMoonSvg(moon)+'</div><div class="scene-horizon"></div><div class="scene-cloud scene-cloud-a"><b></b><em></em></div><div class="scene-cloud scene-cloud-b"><b></b><em></em></div><div class="scene-cloud scene-cloud-c"><b></b><em></em></div><div class="scene-rain">'+drops+'</div><div class="scene-snow">'+flakes+'</div><div class="scene-fog"><i></i><i></i><i></i></div>'+(kind==='storm'?'<div class="scene-lightning"></div>':'');
 }
 function renderHeroScene(current={},hourly={}){
   renderWeatherScene(refs.heroScene,{...hourly,...current,time:forecastNowLocal(),weather_code:current.weather_code ?? hourly.weather_code,is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),uv_index:hourly.uv_index,cape:hourly.cape,cloud_cover:current.cloud_cover ?? hourly.cloud_cover});
