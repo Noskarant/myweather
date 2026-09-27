@@ -924,7 +924,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .forecast-metrics>.forecast-uv{grid-column:1/-1}
 }
 
-/* V1.6.17 — astres astronomiques : trajectoire solaire saisonnière + phase lunaire continue. */
+/* V1.6.18 — astres astronomiques : trajectoire solaire saisonnière + phase lunaire continue. */
 .hero-scene .scene-moon{
   left:var(--moon-x,20%)!important;
   top:var(--moon-y,74%)!important;
@@ -941,7 +941,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 }
 .hero-scene.phase-night:not(.moon-visible) .scene-moon{opacity:0!important}
 .hero-scene.phase-night.moon-visible.clear-night .scene-moon{opacity:var(--moon-alpha,.82)!important}
-.hero-scene.phase-night.moon-visible.night-cloudy .scene-moon{opacity:calc(var(--moon-alpha,.72) * .78)!important}
+.hero-scene.phase-night.moon-visible.night-cloudy .scene-moon{opacity:var(--moon-alpha,.72)!important}
 .hero-scene.phase-day.moon-visible.sunny .scene-moon{opacity:var(--moon-day-alpha,.16)!important}
-.hero-scene.phase-day.moon-visible.partly-cloudy .scene-moon{opacity:calc(var(--moon-day-alpha,.14) * .68)!important}
+.hero-scene.phase-day.moon-visible.partly-cloudy .scene-moon{opacity:var(--moon-day-alpha,.14)!important}
 
