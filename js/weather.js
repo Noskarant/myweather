@@ -19,7 +19,7 @@ export const CURRENT_VARS = [
 ];
 export const DAILY_VARS = [
   'weather_code','temperature_2m_max','temperature_2m_min','apparent_temperature_max','apparent_temperature_min',
-  'sunrise','sunset','uv_index_max','precipitation_sum','rain_sum','showers_sum','snowfall_sum',
+  'sunrise','sunset','sunshine_duration','uv_index_max','precipitation_sum','rain_sum','showers_sum','snowfall_sum',
   'precipitation_probability_max','wind_speed_10m_max','wind_gusts_10m_max','wind_direction_10m_dominant'
 ];
 
@@ -205,6 +205,7 @@ export function normalizeForecast(data) {
     apparentMax:d.apparent_temperature_max?.[i] ?? null,
     apparentMin:d.apparent_temperature_min?.[i] ?? null,
     sunrise:d.sunrise?.[i] ?? null, sunset:d.sunset?.[i] ?? null,
+    sunshineDuration:d.sunshine_duration?.[i] ?? null,
     uv:d.uv_index_max?.[i] ?? null,
     precipitation:d.precipitation_sum?.[i] ?? null, rain:d.rain_sum?.[i] ?? null, showers:d.showers_sum?.[i] ?? null,
     snowfall:d.snowfall_sum?.[i] ?? null, precipProb:d.precipitation_probability_max?.[i] ?? null,
