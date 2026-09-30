@@ -1,4 +1,4 @@
-import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.6.11';
+import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.6.20';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -826,7 +826,8 @@ function renderDaily() {
   refs.dailyGrid.innerHTML = state.forecast.daily.slice(0,15).map((d,i)=>{
     const conf=confidenceForHorizon(i*24+12);
     const active=d.time===state.selectedDate;
-    const daylight=daylightHours(d);
+    const sunshineSeconds=Number(d.sunshineDuration);
+    const sunshineHours=Number.isFinite(sunshineSeconds) ? sunshineSeconds / 3600 : null;
     const dayHour = representativeHour(d.time, 14);
     const nightHour = representativeHour(d.time, 23) || representativeHour(d.time, 2);
     const windRange = windRangeForDate(d.time);
@@ -840,7 +841,7 @@ function renderDaily() {
       <span class="forecast-metrics">
         <span><i class="wind-arrow" style="--wind-dir:${Number(d.windDir ?? 0)}deg">↑</i> ${windText} km/h <small>raf. ${Math.round(d.gustMax ?? 0)}</small></span>
         <span>${formatPrecipitation(d, {icon:true})} <small>${Math.round(d.precipProb ?? 0)}%</small></span>
-        <span>☼ ${daylight!=null?`${round(daylight,1)} h`:'—'} <small>${conf}% fiab.</small></span>
+        <span class="forecast-sunshine" title="Ensoleillement prévu (définition OMM, selon le rayonnement direct)">☀ ${sunshineHours!=null?`${round(sunshineHours,1)} h`:'—'} <small>${conf}% fiab.</small></span>
         <span class="forecast-uv">UV max. ${uvText}</span>
       </span>
       <span class="forecast-chevron">›</span>
