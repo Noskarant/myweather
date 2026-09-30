@@ -1,4 +1,4 @@
-import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.6.20';
+import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.6.21';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -826,8 +826,8 @@ function renderDaily() {
   refs.dailyGrid.innerHTML = state.forecast.daily.slice(0,15).map((d,i)=>{
     const conf=confidenceForHorizon(i*24+12);
     const active=d.time===state.selectedDate;
-    const sunshineSeconds=Number(d.sunshineDuration);
-    const sunshineHours=Number.isFinite(sunshineSeconds) ? sunshineSeconds / 3600 : null;
+    const sunshineSeconds=d.sunshineDuration == null ? null : Number(d.sunshineDuration);
+    const sunshineHours=Number.isFinite(sunshineSeconds) && sunshineSeconds >= 0 ? sunshineSeconds / 3600 : null;
     const dayHour = representativeHour(d.time, 14);
     const nightHour = representativeHour(d.time, 23) || representativeHour(d.time, 2);
     const windRange = windRangeForDate(d.time);
