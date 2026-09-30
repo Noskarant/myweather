@@ -254,8 +254,14 @@ export function createDemoForecast(location = { name:'Chamonix', admin1:'Haute-S
     const snow=slice.reduce((a,b)=>a+b.snowfall,0);
     const precip=slice.reduce((a,b)=>a+b.precipitation,0);
     const code=snow>.5?73:(precip>.5?61:(d%4===0?1:2));
+    const sunshineDuration = slice.reduce((sum,h) => {
+      const hour = Number(h.time.slice(11,13));
+      if (hour < 8 || hour >= 17) return sum;
+      const cloud = Math.max(0, Math.min(100, Number(h.cloud_cover ?? 100)));
+      return sum + 3600 * (1 - cloud/100);
+    }, 0);
     daily.push({time:date.toISOString().slice(0,10), weather_code:code, max:Math.max(...temps), min:Math.min(...temps), apparentMax:Math.max(...temps)-2, apparentMin:Math.min(...temps)-3,
-      sunrise:`${date.toISOString().slice(0,10)}T08:01`, sunset:`${date.toISOString().slice(0,10)}T16:53`, uv:2, precipitation:precip, rain:snow?0:precip, showers:0,
+      sunrise:`${date.toISOString().slice(0,10)}T08:01`, sunset:`${date.toISOString().slice(0,10)}T16:53`, sunshineDuration, uv:2, precipitation:precip, rain:snow?0:precip, showers:0,
       snowfall:snow, precipProb:snow?84:22, windMax:32, gustMax:61, windDir:225, info:weatherCodeInfo(code,1)});
   }
   const c=hourly[0];
