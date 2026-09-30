@@ -7,6 +7,7 @@ import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS } from './js/
 assert.ok(HOURLY_VARS.length >= 20);
 assert.ok(CURRENT_VARS.includes('temperature_2m'));
 assert.ok(DAILY_VARS.includes('temperature_2m_max'));
+assert.ok(DAILY_VARS.includes('sunshine_duration'));
 assert.ok(HOURLY_VARS.includes('freezing_level_height'));
 
 const lpn = estimateSnowLevel({freezingLevel:1600, wetBulb:0, precipitation:2, elevation:900});
