@@ -947,13 +947,13 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 
 
 
-/* V1.6.20 — ensoleillement météo réel + lisibilité des métriques quotidiennes. */
+/* V1.6.21 — ensoleillement météo réel + lisibilité des métriques quotidiennes. */
 .forecast-metrics>.forecast-sunshine{font-weight:600}
 @media(max-width:760px){
   .forecast-metrics>span{font-size:11px}
   .forecast-metrics small{font-size:9px}
 }
 @media(max-width:470px){
-  .forecast-metrics>span{font-size:10px}
-  .forecast-metrics small{font-size:8px}
+  .forecast-metrics>span{font-size:11px}
+  .forecast-metrics small{font-size:9px}
 }
