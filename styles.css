@@ -1019,6 +1019,8 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 .mountain-grid text{fill:#a9c7d6;font-size:14px;font-family:inherit}
 .mountain-area-path{fill:url(#mountainAreaGradient);opacity:.8}
 .mountain-relief-path{fill:none;stroke:url(#mountainStrokeGradient);stroke-width:3.2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 7px rgba(94,214,255,.28))}
+.mountain-place-guide{stroke:#58dfad;stroke-width:1.4;stroke-dasharray:5 6;vector-effect:non-scaling-stroke;opacity:.75}
+.mountain-place-dot{fill:#61e8b4;stroke:#dffff3;stroke-width:2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 8px rgba(82,229,174,.72))}
 .mountain-focus-line{stroke:rgba(133,223,255,.45);stroke-width:1.4;stroke-dasharray:5 6;vector-effect:non-scaling-stroke}
 .mountain-focus-dot{fill:#9beaff;stroke:#e6fbff;stroke-width:2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 8px rgba(94,215,255,.8))}
 .mountain-profile-sun{position:absolute;z-index:1;right:7.5%;top:16%;width:25px;height:25px;border-radius:50%;background:#fff9de;box-shadow:0 0 15px #ffd36b,0 0 42px rgba(255,189,79,.62)}
