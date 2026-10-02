@@ -1156,3 +1156,230 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 @media(prefers-reduced-motion:reduce){
   .mountain-period-tabs button,.mountain-stat-card,.mountain-sun-track i,.mountain-v2 .alt-line,.mountain-v2 .alt-line span{transition:none!important}
 }
+
+
+/* V1.7.1 — compact local mountain summary */
+.mountain-panel.mountain-v2.mountain-compact{
+  position:static;
+  top:auto;
+  overflow:hidden;
+  padding:24px;
+  border-radius:26px;
+  background:
+    radial-gradient(circle at 82% 2%,rgba(44,135,205,.14),transparent 24%),
+    linear-gradient(155deg,rgba(9,48,78,.96),rgba(4,28,49,.97));
+  border-color:rgba(99,205,255,.27);
+}
+.mountain-compact .mountain-v2-head{display:block}
+.mountain-compact .mountain-v2-title{max-width:none}
+.mountain-compact .mountain-v2-title h2{margin:4px 0 7px}
+.mountain-compact .mountain-v2-title p{max-width:none}
+.mountain-compact .mountain-period-tabs-wide{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:4px;
+  margin-top:18px;
+  padding:5px;
+}
+.mountain-compact .mountain-period-tabs-wide button{width:100%;min-width:0}
+.mountain-compact .mountain-status-wide{
+  max-width:none;
+  width:100%;
+  margin-top:12px;
+  padding:10px 14px;
+  min-height:58px;
+}
+.mountain-status-copy{min-width:0}
+.mountain-status-copy strong,
+.mountain-status-copy span{display:block}
+.mountain-status-copy strong{font-size:12px;color:#f0fbff;line-height:1.2}
+.mountain-status-copy span{margin-top:3px;color:#9fbccc;font-size:10px;line-height:1.35}
+.mountain-compact .mountain-status-icon{width:34px;height:34px;border-radius:11px;font-size:18px}
+
+.mountain-altitude-card{
+  margin-top:12px;
+  padding:14px 14px 12px;
+  border:1px solid rgba(126,210,249,.21);
+  border-radius:20px;
+  background:linear-gradient(145deg,rgba(8,48,77,.72),rgba(3,27,48,.82));
+  box-shadow:inset 0 1px rgba(255,255,255,.035);
+}
+.mountain-altitude-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:0 1px 10px}
+.mountain-altitude-heading strong{font-size:15px;color:#effaff}
+.mountain-altitude-heading span{font-size:9px;color:#789cb0;text-align:right}
+.mountain-altitude-visual{
+  position:relative;
+  height:270px;
+  overflow:hidden;
+  border-radius:15px;
+  border:1px solid rgba(126,210,249,.13);
+  background:
+    linear-gradient(rgba(143,214,246,.085) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(143,214,246,.055) 1px,transparent 1px),
+    radial-gradient(circle at 76% 24%,rgba(45,140,205,.11),transparent 34%),
+    linear-gradient(180deg,rgba(5,38,65,.78),rgba(3,25,44,.92));
+  background-size:100% 20%,20% 100%,auto,auto;
+}
+.mountain-contours{
+  position:absolute;
+  left:10%;
+  right:0;
+  bottom:0;
+  width:90%;
+  height:72%;
+  opacity:.42;
+  pointer-events:none;
+}
+.mountain-contours path{fill:none;stroke:rgba(83,179,232,.33);stroke-width:1.2;vector-effect:non-scaling-stroke}
+.mountain-contours path:nth-child(2){stroke:rgba(84,176,226,.22)}
+.mountain-contours path:nth-child(3){stroke:rgba(70,155,208,.18)}
+.mountain-contours path:nth-child(4){stroke:rgba(102,193,239,.25)}
+.mountain-altitude-scale{position:absolute;z-index:2;left:8px;top:14px;bottom:14px;width:54px;pointer-events:none}
+.mountain-altitude-scale span{
+  position:absolute;
+  top:var(--alt-y);
+  left:0;
+  transform:translateY(-50%);
+  color:#8eacbc;
+  font-size:9px;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.mountain-altitude-scale span:first-child{transform:none}
+.mountain-altitude-scale span:last-child{transform:translateY(-100%)}
+
+.mountain-compact .alt-line{
+  left:66px;
+  right:10px;
+  z-index:5;
+  border-top-width:1.5px;
+  pointer-events:none;
+}
+.mountain-compact .alt-line .alt-line-label{
+  top:-20px;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  min-width:116px;
+  max-width:145px;
+  padding:6px 9px;
+  border-radius:11px;
+  background:rgba(2,18,31,.91);
+  backdrop-filter:blur(9px);
+  -webkit-backdrop-filter:blur(9px);
+  box-shadow:0 5px 15px rgba(0,0,0,.2);
+  line-height:1.05;
+}
+.mountain-compact .alt-line .alt-line-name{display:block;font-size:8px;font-weight:650;color:inherit}
+.mountain-compact .alt-line .alt-line-value{display:block;font-size:15px;font-weight:800;color:inherit;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mountain-compact .alt-line.zero{border-color:#ffae45;border-top-style:dashed}
+.mountain-compact .alt-line.zero .alt-line-label{right:6px;left:auto;color:#ffbc62;border-color:rgba(255,174,69,.5)}
+.mountain-compact .alt-line.snow{border-color:#55d7ff;border-top-style:dashed}
+.mountain-compact .alt-line.snow .alt-line-label{right:6px;left:auto;color:#83e5ff;border-color:rgba(85,215,255,.5)}
+.mountain-compact .alt-line.place{border-color:#53dfa9;border-top-style:dashed}
+.mountain-compact .alt-line.place .alt-line-label{left:12%;right:auto;color:#70efbb;border-color:rgba(83,223,169,.46)}
+.mountain-compact .alt-line.shift-up .alt-line-label{transform:translateY(-18px)}
+.mountain-compact .alt-line.shift-down .alt-line-label{transform:translateY(18px)}
+
+.mountain-summary-grid{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:9px;
+  margin-top:11px;
+}
+.mountain-summary-card{
+  min-width:0;
+  min-height:92px;
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr);
+  align-items:center;
+  gap:9px;
+  padding:11px;
+  border:1px solid rgba(127,208,246,.18);
+  border-radius:16px;
+  background:linear-gradient(145deg,rgba(10,52,82,.72),rgba(3,28,49,.78));
+}
+.mountain-summary-icon{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(94,200,255,.22);
+  border-radius:10px;
+  background:rgba(35,133,190,.16);
+  color:#72dcff;
+  font-size:16px;
+}
+.mountain-summary-card[data-kind="place"] .mountain-summary-icon{color:#61e6ad}
+.mountain-summary-card[data-kind="zero"] .mountain-summary-icon{color:#ffae56}
+.mountain-summary-card[data-kind="feels"] .mountain-summary-icon{color:#ff8b75}
+.mountain-summary-copy{min-width:0}
+.mountain-summary-copy>span{display:block;color:#9fbac9;font-size:9px;line-height:1.2;min-height:22px}
+.mountain-summary-copy strong{
+  display:block;
+  margin-top:3px;
+  color:#f2fbff;
+  font-size:16px;
+  line-height:1.08;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.mountain-summary-copy small{display:block;margin-top:4px;color:#718fa1;font-size:8px;line-height:1.1}
+.mountain-summary-card[data-kind="wind"] .mountain-summary-copy strong{font-size:14px}
+
+@media(max-width:900px){
+  .mountain-panel.mountain-v2.mountain-compact{padding:18px 15px}
+  .mountain-compact .mountain-v2-title h2{font-size:27px}
+  .mountain-compact .mountain-v2-title p{font-size:11px}
+  .mountain-compact .mountain-period-tabs-wide{margin-top:14px}
+  .mountain-altitude-card{margin-top:10px;padding:12px 10px 10px}
+  .mountain-altitude-heading{display:block;margin-bottom:8px}
+  .mountain-altitude-heading strong{display:block;font-size:13px}
+  .mountain-altitude-heading span{display:block;text-align:left;margin-top:3px;font-size:8px}
+  .mountain-altitude-visual{height:255px}
+  .mountain-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .mountain-summary-card{min-height:82px;padding:9px;grid-template-columns:30px minmax(0,1fr);gap:7px}
+  .mountain-summary-icon{width:29px;height:29px;font-size:14px}
+  .mountain-summary-copy>span{font-size:8px;min-height:19px}
+  .mountain-summary-copy strong{font-size:15px}
+  .mountain-summary-card[data-kind="wind"] .mountain-summary-copy strong{font-size:12px}
+}
+@media(max-width:620px){
+  .mountain-panel.mountain-v2.mountain-compact{
+    width:calc(100% - 20px);
+    padding:15px 12px 16px;
+    border-radius:21px;
+  }
+  .mountain-compact .mountain-v2-title .eyebrow{font-size:9px}
+  .mountain-compact .mountain-v2-title h2{font-size:26px;line-height:1.03}
+  .mountain-compact .mountain-v2-title p{font-size:10px}
+  .mountain-compact .mountain-period-tabs-wide{min-height:0;padding:4px}
+  .mountain-compact .mountain-period-tabs-wide button{padding:9px 4px;font-size:10px}
+  .mountain-compact .mountain-status-wide{min-height:52px;margin-top:9px;padding:8px 10px}
+  .mountain-compact .mountain-status-icon{width:30px;height:30px;font-size:16px}
+  .mountain-status-copy strong{font-size:10px}
+  .mountain-status-copy span{font-size:9px}
+  .mountain-altitude-visual{height:238px}
+  .mountain-altitude-scale{left:5px;top:12px;bottom:12px;width:46px}
+  .mountain-altitude-scale span{font-size:7.5px}
+  .mountain-compact .alt-line{left:51px;right:7px}
+  .mountain-compact .alt-line .alt-line-label{min-width:98px;max-width:118px;padding:5px 7px}
+  .mountain-compact .alt-line .alt-line-name{font-size:7px}
+  .mountain-compact .alt-line .alt-line-value{font-size:13px}
+  .mountain-compact .alt-line.place .alt-line-label{left:5%}
+  .mountain-compact .alt-line.shift-up .alt-line-label{transform:translateY(-14px)}
+  .mountain-compact .alt-line.shift-down .alt-line-label{transform:translateY(14px)}
+  .mountain-summary-grid{margin-top:9px;gap:6px}
+  .mountain-summary-card{min-height:76px;padding:8px 7px;grid-template-columns:26px minmax(0,1fr);gap:6px;border-radius:13px}
+  .mountain-summary-icon{width:25px;height:25px;border-radius:8px;font-size:12px}
+  .mountain-summary-copy>span{font-size:7.5px;min-height:18px}
+  .mountain-summary-copy strong{font-size:14px}
+  .mountain-summary-copy small{font-size:7px}
+  .mountain-summary-card[data-kind="wind"] .mountain-summary-copy strong{font-size:10.5px}
+}
+@media(max-width:390px){
+  .mountain-altitude-visual{height:225px}
+  .mountain-summary-copy strong{font-size:12.5px}
+  .mountain-summary-card[data-kind="wind"] .mountain-summary-copy strong{font-size:9.5px}
+}
