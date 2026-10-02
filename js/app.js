@@ -959,6 +959,8 @@ function renderMountainProfile(profile, maxAlt) {
     </g>
     <path class="mountain-area-path" d="${area}"/>
     <path class="mountain-relief-path" d="${path}"/>
+    <line class="mountain-place-guide" x1="${x(3)}" x2="${x(3)}" y1="${y(Number(state.location?.elevation ?? 0))}" y2="${bottom}"/>
+    <circle class="mountain-place-dot" cx="${x(3)}" cy="${y(Number(state.location?.elevation ?? 0))}" r="7"/>
     <line class="mountain-focus-line" x1="${x(3)}" x2="${x(3)}" y1="${top}" y2="${bottom}"/>
     <circle class="mountain-focus-dot" cx="${x(3)}" cy="${y(profile[Math.min(profile.length-1,Math.round(profile.length*.2))]?.elevation ?? 0)}" r="7"/>
   `;
@@ -1006,7 +1008,7 @@ function renderMountainSnowTrend(h) {
     const cm=item?.snow_depth!=null ? Math.max(0,Number(item.snow_depth)*100) : 0;
     values.push({hour:offset,cm:Number.isFinite(cm)?cm:0});
   }
-  const max=Math.max(5,...values.map(v=>v.cm)*1.15);
+  const max=Math.max(5,...values.map(v=>v.cm*1.15));
   const x=hour=>45+hour/168*370, y=cm=>142-clamp(cm/max,0,1)*102;
   const line=values.map((v,i)=>`${i?'L':'M'}${x(v.hour).toFixed(1)},${y(v.cm).toFixed(1)}`).join(' ');
   const area=`${line} L${x(168)},142 L${x(0)},142 Z`;
