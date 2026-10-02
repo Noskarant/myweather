@@ -1,4 +1,4 @@
-import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.6.21';
+import { createDemoForecast, geocode, getForecast, getTerrainProfile, reverseGeocodeApprox } from './weather.js?v=1.7.0';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -24,14 +24,25 @@ const state = {
   favorites:loadFavorites(),
   searchHistory:loadSearchHistory(),
   loading:false,
-  demo:false
+  demo:false,
+  mountainPeriod:'today',
+  mountainTerrain:null,
+  mountainTerrainKey:null,
+  mountainTerrainLoading:false,
+  mountainTerrainError:false,
+  mountainProfileDistance:3,
+  mountainChartMaxAlt:4500
 };
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
   locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
-  mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
+  mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusText:$('#mountainStatusText'), zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'),
+  mountainPeriodTabs:$('#mountainPeriodTabs'), mountainProfileSvg:$('#mountainProfileSvg'), mountainProfileRange:$('#mountainProfileRange'), mountainProfilePrev:$('#mountainProfilePrev'), mountainProfileNext:$('#mountainProfileNext'), mountainProfileReadout:$('#mountainProfileReadout'),
+  mountainTempSvg:$('#mountainTempSvg'), mountainTempCaption:$('#mountainTempCaption'), mountainSnowSvg:$('#mountainSnowSvg'), mountainPrecipText:$('#mountainPrecipText'),
+  mountainWindValue:$('#mountainWindValue'), mountainWindMeta:$('#mountainWindMeta'), mountainHumidityValue:$('#mountainHumidityValue'), mountainHumidityMeta:$('#mountainHumidityMeta'), mountainSunValue:$('#mountainSunValue'), mountainSunFill:$('#mountainSunFill'), mountainSunrise:$('#mountainSunrise'), mountainSunset:$('#mountainSunset'),
+  mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
   forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
   modal:$('#hourModal'), closeModal:$('#closeHourModal'), modalTitle:$('#hourModalTitle'), modalSub:$('#hourModalSub'), modalGlyph:$('#hourModalGlyph'), modalMain:$('#hourModalMain'), hourDetailGrid:$('#hourDetailGrid'),
   routeForm:$('#routeForm'), routeFrom:$('#routeFrom'), routeTo:$('#routeTo'), routeDate:$('#routeDate'), routeTime:$('#routeTime'), swapRoute:$('#swapRoute'), routeLoading:$('#routeLoading'), routeEmpty:$('#routeEmpty'), routeResults:$('#routeResults'), routeSummary:$('#routeSummary'), routeRisk:$('#routeRisk'), routeSketch:$('#routeSketch'), routeTimeline:$('#routeTimeline'),
@@ -852,23 +863,294 @@ function renderDaily() {
   }));
 }
 
-function renderMountain(h) {
+
+function mountainHourForPeriod(fallback = null) {
+  const hours = state.forecast?.hourly || [];
+  if (!hours.length) return fallback;
+  const baseTime = state.forecast?.current?.time || fallback?.time || new Date();
+  const baseIndex = nearestIndex(hours.map(x => x.time), baseTime);
+  const offset = state.mountainPeriod === 'tomorrow' ? 24 : state.mountainPeriod === '7d' ? 168 : 0;
+  return hours[clamp(baseIndex + offset, 0, hours.length - 1)] || fallback || hours[0];
+}
+
+function mountainDailyForHour(h) {
+  const date = String(h?.time || '').slice(0,10);
+  return state.forecast?.daily?.find(d => d.time === date) || state.forecast?.daily?.[0] || null;
+}
+
+function mountainClock(iso) {
+  const match = String(iso || '').match(/T(\d{2}:\d{2})/);
+  return match?.[1] || '—';
+}
+
+function mountainProfilePoints(elevation) {
+  const valid = (state.mountainTerrain || []).filter(p => Number.isFinite(Number(p.elevation)));
+  if (valid.length > 1) return valid;
+  return [
+    {distanceKm:0,elevation},{distanceKm:3,elevation},{distanceKm:6,elevation},
+    {distanceKm:9,elevation},{distanceKm:12,elevation},{distanceKm:15,elevation}
+  ];
+}
+
+function mountainAltitudeTop(altitude, maxAlt) {
+  const top = 12.1, bottom = 79.1;
+  const safe = clamp(Number(altitude) || 0, 0, maxAlt);
+  return top + (1 - safe / maxAlt) * (bottom - top);
+}
+
+function setMountainAltitudeLine(ref, altitude, maxAlt, label) {
+  if (!ref) return null;
+  const valid = Number.isFinite(Number(altitude));
+  ref.hidden = !valid;
+  if (!valid) return null;
+  const top = mountainAltitudeTop(Number(altitude), maxAlt);
+  ref.style.top = `${top}%`;
+  const span = ref.querySelector('span');
+  if (span) span.textContent = label;
+  return top;
+}
+
+function renderMountainProfileFocus(profile, maxAlt) {
+  if (!refs.mountainProfileSvg || !profile?.length) return;
+  const wanted = clamp(Number(state.mountainProfileDistance ?? 3), 0, 15);
+  let point = profile[0];
+  for (const candidate of profile) {
+    if (Math.abs(Number(candidate.distanceKm) - wanted) < Math.abs(Number(point.distanceKm) - wanted)) point = candidate;
+  }
+  const x = 72 + (Number(point.distanceKm) / 15) * 806;
+  const y = 52 + (1 - clamp(Number(point.elevation) / maxAlt, 0, 1)) * 288;
+  const focusLine = refs.mountainProfileSvg.querySelector('.mountain-focus-line');
+  const focusDot = refs.mountainProfileSvg.querySelector('.mountain-focus-dot');
+  if (focusLine) { focusLine.setAttribute('x1', x); focusLine.setAttribute('x2', x); focusLine.setAttribute('y1', 52); focusLine.setAttribute('y2', 340); }
+  if (focusDot) { focusDot.setAttribute('cx', x); focusDot.setAttribute('cy', y); }
+  if (refs.mountainProfileReadout) {
+    if (state.mountainTerrainLoading) refs.mountainProfileReadout.textContent = 'Chargement du relief local…';
+    else if (state.mountainTerrainError) refs.mountainProfileReadout.textContent = 'Profil topo indisponible · météo conservée';
+    else refs.mountainProfileReadout.textContent = `${Number(point.distanceKm).toFixed(1)} km · ${Math.round(Number(point.elevation))} m`;
+  }
+}
+
+function renderMountainProfile(profile, maxAlt) {
+  if (!refs.mountainProfileSvg) return;
+  const left=72, right=878, top=52, bottom=340;
+  const x = d => left + clamp(Number(d),0,15) / 15 * (right-left);
+  const y = a => top + (1 - clamp(Number(a),0,maxAlt) / maxAlt) * (bottom-top);
+  const path = profile.map((p,i)=>`${i?'L':'M'}${x(p.distanceKm).toFixed(1)},${y(p.elevation).toFixed(1)}`).join(' ');
+  const area = `${path} L${x(profile.at(-1)?.distanceKm ?? 15)},${bottom} L${x(profile[0]?.distanceKm ?? 0)},${bottom} Z`;
+  const ySteps = [];
+  const step = maxAlt <= 4000 ? 1000 : maxAlt <= 6000 ? 1000 : 2000;
+  for (let alt=0; alt<=maxAlt; alt+=step) ySteps.push(alt);
+  const xSteps = [0,3,6,9,12,15];
+  refs.mountainProfileSvg.innerHTML = `
+    <defs>
+      <linearGradient id="mountainAreaGradient" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(64,166,255,.72)"/>
+        <stop offset="54%" stop-color="rgba(21,103,180,.38)"/>
+        <stop offset="100%" stop-color="rgba(5,37,67,.16)"/>
+      </linearGradient>
+      <linearGradient id="mountainStrokeGradient" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#b9f4ff"/><stop offset="55%" stop-color="#8fe8ff"/><stop offset="100%" stop-color="#d8f8ff"/>
+      </linearGradient>
+      <filter id="mountainGlow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <g class="mountain-grid">
+      ${ySteps.map(alt=>`<line x1="${left}" x2="${right}" y1="${y(alt)}" y2="${y(alt)}"/><text x="20" y="${y(alt)+5}">${Math.round(alt)} m</text>`).join('')}
+      ${xSteps.map(km=>`<line x1="${x(km)}" x2="${x(km)}" y1="${top}" y2="${bottom}"/>`).join('')}
+    </g>
+    <path class="mountain-area-path" d="${area}"/>
+    <path class="mountain-relief-path" d="${path}"/>
+    <line class="mountain-place-guide" x1="${x(3)}" x2="${x(3)}" y1="${y(Number(state.location?.elevation ?? 0))}" y2="${bottom}"/>
+    <circle class="mountain-place-dot" cx="${x(3)}" cy="${y(Number(state.location?.elevation ?? 0))}" r="7"/>
+    <line class="mountain-focus-line" x1="${x(3)}" x2="${x(3)}" y1="${top}" y2="${bottom}"/>
+    <circle class="mountain-focus-dot" cx="${x(3)}" cy="${y(profile[Math.min(profile.length-1,Math.round(profile.length*.2))]?.elevation ?? 0)}" r="7"/>
+  `;
+  renderMountainProfileFocus(profile,maxAlt);
+}
+
+function renderMountainTemperature(h, elevation, zero, maxAlt) {
+  if (!refs.mountainTempSvg) return;
+  const baseTemp = Number(h?.temperature_2m);
+  let lapse = .0065;
+  if (Number.isFinite(baseTemp) && Number.isFinite(zero) && Math.abs(zero-elevation) > 180) {
+    const inferred = baseTemp / (zero - elevation);
+    if (Number.isFinite(inferred) && inferred > .0035 && inferred < .0105) lapse = inferred;
+  }
+  const topAlt = Math.max(3000, Math.min(5000, Math.ceil(maxAlt/1000)*1000));
+  const levels = [];
+  for (let alt=0; alt<=topAlt; alt+=1000) levels.push(alt);
+  if (!levels.includes(Math.round(elevation/250)*250)) levels.push(Math.round(elevation/250)*250);
+  levels.sort((a,b)=>a-b);
+  const values = levels.map(alt => {
+    const t = Number.isFinite(baseTemp) ? baseTemp - lapse*(alt-elevation) : Number.isFinite(zero) ? (zero-alt)*lapse : NaN;
+    return {alt,temp:t};
+  }).filter(v=>Number.isFinite(v.temp));
+  const minT=Math.min(...values.map(v=>v.temp),-5), maxT=Math.max(...values.map(v=>v.temp),5);
+  const x=t=>86+(t-minT)/Math.max(1,maxT-minT)*300;
+  const y=a=>260-(a/topAlt)*218;
+  const path=values.map((v,i)=>`${i?'L':'M'}${x(v.temp).toFixed(1)},${y(v.alt).toFixed(1)}`).join(' ');
+  refs.mountainTempSvg.innerHTML=`
+    <defs><linearGradient id="tempAltitudeGradient" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#ffb35f"/><stop offset="52%" stop-color="#8cdfff"/><stop offset="100%" stop-color="#587dff"/></linearGradient></defs>
+    <g class="mountain-small-grid">${[0,1000,2000,3000,4000,5000].filter(a=>a<=topAlt).map(a=>`<line x1="70" x2="400" y1="${y(a)}" y2="${y(a)}"/><text x="8" y="${y(a)+4}">${a} m</text>`).join('')}</g>
+    <path class="mountain-temp-line" d="${path}"/>
+    ${values.map(v=>`<circle class="mountain-temp-dot" cx="${x(v.temp)}" cy="${y(v.alt)}" r="6"/><text class="mountain-temp-label" x="${Math.min(394,x(v.temp)+14)}" y="${y(v.alt)+5}">${Math.round(v.temp)} °C</text>`).join('')}
+  `;
+  const currentTemp = Number.isFinite(baseTemp) ? `${round(baseTemp,1)} °C` : '—';
+  if (refs.mountainTempCaption) refs.mountainTempCaption.textContent = `À ${state.location.name} : ${currentTemp} · estimation à partir du profil thermique`;
+}
+
+function renderMountainSnowTrend(h) {
+  if (!refs.mountainSnowSvg) return;
+  const hours=state.forecast?.hourly || [];
+  const start=Math.max(0,hours.findIndex(x=>x.time===h?.time));
+  const values=[];
+  for(let offset=0; offset<=168; offset+=12) {
+    const item=hours[Math.min(hours.length-1,start+offset)];
+    const cm=item?.snow_depth!=null ? Math.max(0,Number(item.snow_depth)*100) : 0;
+    values.push({hour:offset,cm:Number.isFinite(cm)?cm:0});
+  }
+  const max=Math.max(5,...values.map(v=>v.cm*1.15));
+  const x=hour=>45+hour/168*370, y=cm=>142-clamp(cm/max,0,1)*102;
+  const line=values.map((v,i)=>`${i?'L':'M'}${x(v.hour).toFixed(1)},${y(v.cm).toFixed(1)}`).join(' ');
+  const area=`${line} L${x(168)},142 L${x(0)},142 Z`;
+  refs.mountainSnowSvg.innerHTML=`
+    <defs><linearGradient id="snowDepthGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(91,178,255,.9)"/><stop offset="100%" stop-color="rgba(18,87,170,.18)"/></linearGradient></defs>
+    <g class="mountain-small-grid"><line x1="45" x2="415" y1="142" y2="142"/><line x1="45" x2="415" y1="91" y2="91"/><line x1="45" x2="415" y1="40" y2="40"/></g>
+    <path class="mountain-snow-area" d="${area}"/><path class="mountain-snow-line" d="${line}"/>
+    ${[0,48,96,144].map(hour=>`<text class="mountain-snow-axis-label" x="${x(hour)}" y="164" text-anchor="middle">${hour===0?'maint.':`+${Math.round(hour/24)} j`}</text>`).join('')}
+    <text class="mountain-snow-value-label" x="405" y="31" text-anchor="end">${round(values.at(-1)?.cm ?? 0,1)} cm</text>
+  `;
+}
+
+function ensureMountainTerrain() {
+  const loc=state.location;
+  const key=`${Number(loc?.lat).toFixed(4)},${Number(loc?.lon).toFixed(4)}`;
+  if (state.mountainTerrainKey===key && (state.mountainTerrainLoading || state.mountainTerrain || state.mountainTerrainError)) return;
+  state.mountainTerrainKey=key;
+  state.mountainTerrain=null;
+  state.mountainTerrainError=false;
+  state.mountainTerrainLoading=true;
+  getTerrainProfile(loc,{distanceKm:15,samples:31,locationKm:3,bearing:135}).then(profile=>{
+    if (state.mountainTerrainKey!==key) return;
+    state.mountainTerrain=Array.isArray(profile)?profile:null;
+    state.mountainTerrainError=!(state.mountainTerrain?.some(p=>Number.isFinite(Number(p.elevation))));
+  }).catch(err=>{
+    console.warn('Profil de relief indisponible',err);
+    if (state.mountainTerrainKey===key) state.mountainTerrainError=true;
+  }).finally(()=>{
+    if (state.mountainTerrainKey!==key) return;
+    state.mountainTerrainLoading=false;
+    renderMountain();
+  });
+}
+
+function bindMountainControls() {
+  if (refs.mountainPeriodTabs && !refs.mountainPeriodTabs.dataset.bound) {
+    refs.mountainPeriodTabs.dataset.bound='1';
+    refs.mountainPeriodTabs.addEventListener('click',event=>{
+      const btn=event.target.closest('[data-mountain-period]');
+      if (!btn) return;
+      state.mountainPeriod=btn.dataset.mountainPeriod;
+      renderMountain();
+    });
+  }
+  if (refs.mountainProfileRange && !refs.mountainProfileRange.dataset.bound) {
+    refs.mountainProfileRange.dataset.bound='1';
+    const sync=()=>{
+      state.mountainProfileDistance=15*Number(refs.mountainProfileRange.value)/100;
+      renderMountainProfileFocus(mountainProfilePoints(Number(state.location?.elevation ?? 0)),state.mountainChartMaxAlt);
+    };
+    refs.mountainProfileRange.addEventListener('input',sync);
+    const step=delta=>{
+      refs.mountainProfileRange.value=String(clamp(Number(refs.mountainProfileRange.value)+delta,0,100));
+      sync();
+    };
+    refs.mountainProfilePrev?.addEventListener('click',()=>step(-5));
+    refs.mountainProfileNext?.addEventListener('click',()=>step(5));
+  }
+}
+
+function renderMountain(fallbackHour = null) {
+  if (!state.forecast || !refs.mountainStats) return;
+  bindMountainControls();
+  ensureMountainTerrain();
+  const h=mountainHourForPeriod(fallbackHour);
+  if (!h) return;
   const elevation=Number(state.location.elevation ?? state.forecast.elevation ?? 0);
   const zero=Number(h.freezing_level_height);
   const snow=Number(h.snowLevel);
-  const maxAlt=Math.max(3000, zero+600, elevation+900);
-  const pos = alt => clamp(100 - (alt/maxAlt*86), 8, 92);
-  refs.zeroLine.style.top = `${pos(zero)}%`; refs.zeroLine.querySelector('span').textContent = Number.isFinite(zero) ? `ISO 0 °C · ${Math.round(zero)} m` : 'ISO 0 °C · —';
-  refs.snowLine.style.top = `${pos(snow)}%`; refs.snowLine.querySelector('span').textContent = Number.isFinite(snow) ? `LPN estimée · ~${Math.round(snow)} m` : 'LPN estimée · —';
-  refs.placeLine.style.top = `${pos(elevation)}%`; refs.placeLine.querySelector('span').textContent = `${state.location.name} · ${Math.round(elevation)} m`;
-  const precip=h.precipitation ?? 0, wb=h.wet_bulb_temperature_2m;
-  const snowHere = Number.isFinite(snow) && elevation >= snow - 100 && precip>0;
-  refs.mountainStatus.textContent = snowHere ? 'Neige possible au lieu' : precip>0 ? 'Précipitations à surveiller' : 'Pas de précipitation immédiate';
-  refs.mountainStatus.dataset.level=snowHere?'snow':precip>0?'wet':'calm';
-  refs.mountainStats.innerHTML = [
-    ['Altitude du lieu', `${Math.round(elevation)} m`],['Niveau 0 °C', Number.isFinite(zero)?`${Math.round(zero)} m`:'—'],['LPN estimée',Number.isFinite(snow)?`~${Math.round(snow)} m`:'—'],
-    ['Température humide',Number.isFinite(wb)?`${round(wb,1)} °C`:'—'],['Neige au sol modèle',h.snow_depth!=null?`${Math.round(h.snow_depth*100)} cm`:'—'],[precipitationLabel(h),formatPrecipitation(h,{rate:true})]
-  ].map(([k,v])=>`<div><span>${k}</span><strong>${v}</strong></div>`).join('');
+  const profile=mountainProfilePoints(elevation);
+  const profileMax=Math.max(elevation,...profile.map(p=>Number(p.elevation)||0));
+  const maxAlt=Math.max(3000,Number.isFinite(zero)?zero+500:0,Number.isFinite(snow)?snow+500:0,profileMax+450);
+  state.mountainChartMaxAlt=Math.max(3000,Math.ceil(maxAlt/500)*500);
+
+  const zeroTop=setMountainAltitudeLine(refs.zeroLine,zero,state.mountainChartMaxAlt,Number.isFinite(zero)?`Niveau 0 °C · ${Math.round(zero)} m`:'Niveau 0 °C · —');
+  const snowTop=setMountainAltitudeLine(refs.snowLine,snow,state.mountainChartMaxAlt,Number.isFinite(snow)?`LPN estimée · ~${Math.round(snow)} m`:'LPN estimée · —');
+  const placeTop=setMountainAltitudeLine(refs.placeLine,elevation,state.mountainChartMaxAlt,`${state.location.name} · ${Math.round(elevation)} m`);
+  [refs.zeroLine,refs.snowLine,refs.placeLine].forEach(x=>x?.classList.remove('shift-up','shift-down'));
+  if (zeroTop!=null && snowTop!=null && Math.abs(zeroTop-snowTop)<5.5) { refs.zeroLine?.classList.add('shift-up'); refs.snowLine?.classList.add('shift-down'); }
+  if (snowTop!=null && placeTop!=null && Math.abs(snowTop-placeTop)<4.8) refs.placeLine?.classList.add('shift-down');
+
+  renderMountainProfile(profile,state.mountainChartMaxAlt);
+  renderMountainTemperature(h,elevation,zero,state.mountainChartMaxAlt);
+  renderMountainSnowTrend(h);
+
+  refs.mountainPeriodTabs?.querySelectorAll('[data-mountain-period]').forEach(btn=>{
+    const active=btn.dataset.mountainPeriod===state.mountainPeriod;
+    btn.classList.toggle('active',active);
+    btn.setAttribute('aria-selected',String(active));
+  });
+
+  const precip=Number(h.precipitation ?? 0), wb=Number(h.wet_bulb_temperature_2m);
+  const snowHere=Number.isFinite(snow) && elevation>=snow-100 && precip>0;
+  const status=snowHere?'Neige possible au lieu':precip>0?'Précipitations à surveiller':'Pas de précipitation à cette échéance';
+  if (refs.mountainStatusText) refs.mountainStatusText.textContent=status;
+  if (refs.mountainStatusIcon) refs.mountainStatusIcon.textContent=snowHere?'❄':precip>0?'◌':'☀';
+  if (refs.mountainStatus) refs.mountainStatus.dataset.level=snowHere?'snow':precip>0?'wet':'calm';
+
+  const hours=state.forecast.hourly || [];
+  const idx=Math.max(0,hours.findIndex(x=>x.time===h.time));
+  const plus24=hours[Math.min(hours.length-1,idx+24)] || h;
+  const zero24=Number(plus24.freezing_level_height);
+  const snow24=Number(plus24.snowLevel);
+  const depth= h.snow_depth!=null ? Math.max(0,Number(h.snow_depth)*100) : null;
+  const depth24= plus24.snow_depth!=null ? Math.max(0,Number(plus24.snow_depth)*100) : null;
+  const zeroDelta=Number.isFinite(zero)&&Number.isFinite(zero24)?Math.round(zero24-zero):null;
+  const stats=[
+    ['△','Altitude du lieu',`${Math.round(elevation)} m`,'Position sélectionnée','place'],
+    ['♨','Niveau 0 °C',Number.isFinite(zero)?`${Math.round(zero)} m`:'—',zeroDelta!=null?`${zeroDelta>=0?'+':''}${zeroDelta} m dans 24 h`:'Évolution indisponible','zero'],
+    ['❄','LPN estimée',Number.isFinite(snow)?`~${Math.round(snow)} m`:'—',Number.isFinite(snow24)?`Dans 24 h : ~${Math.round(snow24)} m`:'Dans 24 h : —','snow'],
+    ['▰','Neige au sol (modèle)',depth!=null?`${round(depth,1)} cm`:'—',depth24!=null?`Dans 24 h : ${round(depth24,1)} cm`:'Dans 24 h : —','snowpack']
+  ];
+  refs.mountainStats.innerHTML=stats.map(([icon,label,value,meta,focus])=>`<button type="button" class="mountain-stat-card" data-mountain-focus="${focus}"><span class="mountain-stat-icon">${icon}</span><span class="mountain-stat-copy"><span>${label}</span><strong>${value}</strong><small>${meta}</small></span><span class="mountain-stat-chevron">›</span></button>`).join('');
+  refs.mountainStats.querySelectorAll('[data-mountain-focus]').forEach(btn=>btn.addEventListener('click',()=>{
+    const focus=btn.dataset.mountainFocus;
+    [refs.zeroLine,refs.snowLine,refs.placeLine].forEach(line=>line?.classList.remove('is-highlighted'));
+    if (focus==='zero') refs.zeroLine?.classList.add('is-highlighted');
+    if (focus==='snow') refs.snowLine?.classList.add('is-highlighted');
+    if (focus==='place') refs.placeLine?.classList.add('is-highlighted');
+    if (focus==='snowpack') document.querySelector('.mountain-snow-card')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }));
+
+  if (refs.mountainPrecipText) refs.mountainPrecipText.textContent=precip>0?`${precipitationLabel(h)} · ${formatPrecipitation(h,{rate:true})}`:'Pas de précipitation à cette échéance';
+  if (refs.mountainWindValue) refs.mountainWindValue.textContent=`${Math.round(h.wind_speed_10m ?? 0)} km/h · ${cardinal(h.wind_direction_10m)}`;
+  if (refs.mountainWindMeta) refs.mountainWindMeta.textContent=`Rafales : ${Math.round(h.wind_gusts_10m ?? 0)} km/h`;
+  if (refs.mountainHumidityValue) refs.mountainHumidityValue.textContent=`${Math.round(h.relative_humidity_2m ?? 0)} %`;
+  if (refs.mountainHumidityMeta) refs.mountainHumidityMeta.textContent=h.dew_point_2m!=null?`Point de rosée : ${round(h.dew_point_2m,1)} °C`:'Point de rosée : —';
+
+  const day=mountainDailyForHour(h);
+  const sunshineHours=day?.sunshineDuration!=null?Number(day.sunshineDuration)/3600:null;
+  const sunrise=mountainClock(day?.sunrise), sunset=mountainClock(day?.sunset);
+  if (refs.mountainSunValue) refs.mountainSunValue.textContent=Number.isFinite(sunshineHours)?`${round(sunshineHours,1)} h`:'—';
+  if (refs.mountainSunrise) refs.mountainSunrise.textContent=sunrise;
+  if (refs.mountainSunset) refs.mountainSunset.textContent=sunset;
+  if (refs.mountainSunFill) {
+    let pct=Number.isFinite(sunshineHours)?clamp(sunshineHours/12*100,0,100):0;
+    const riseMin=Number(sunrise.slice(0,2))*60+Number(sunrise.slice(3,5));
+    const setMin=Number(sunset.slice(0,2))*60+Number(sunset.slice(3,5));
+    const daylight=(Number.isFinite(riseMin)&&Number.isFinite(setMin)&&setMin>riseMin)?(setMin-riseMin)/60:null;
+    if (Number.isFinite(daylight)&&daylight>0&&Number.isFinite(sunshineHours)) pct=clamp(sunshineHours/daylight*100,0,100);
+    refs.mountainSunFill.style.width=`${pct}%`;
+  }
 }
 
 function openHour(time) {

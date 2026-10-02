@@ -79,6 +79,43 @@ async function terrainElevations(points) {
   } catch { return points.map(() => null); }
 }
 
+
+function destinationPoint(lat, lon, bearingDeg, distanceKm) {
+  const R = 6371;
+  const brng = Number(bearingDeg) * Math.PI / 180;
+  const d = Number(distanceKm) / R;
+  const lat1 = Number(lat) * Math.PI / 180;
+  const lon1 = Number(lon) * Math.PI / 180;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng));
+  const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+  return { lat:lat2 * 180 / Math.PI, lon:lon2 * 180 / Math.PI };
+}
+
+/**
+ * Returns a real local terrain transect using the same Open-Meteo elevation
+ * endpoint already used by geocoding. The selected place sits around 3 km
+ * from the start of the 15 km profile, which keeps the mobile chart readable.
+ */
+export async function getTerrainProfile(location, options = {}) {
+  const lat = Number(location?.lat), lon = Number(location?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return [];
+  const distanceKm = Math.max(3, Math.min(30, Number(options.distanceKm ?? 15)));
+  const samples = Math.max(9, Math.min(48, Math.round(Number(options.samples ?? 31))));
+  const locationKm = Math.max(0, Math.min(distanceKm, Number(options.locationKm ?? 3)));
+  const bearing = Number.isFinite(Number(options.bearing)) ? Number(options.bearing) : 135;
+  const start = destinationPoint(lat, lon, bearing + 180, locationKm);
+  const points = Array.from({length:samples}, (_,i) => {
+    const distance = distanceKm * i / Math.max(1, samples - 1);
+    const point = destinationPoint(start.lat, start.lon, bearing, distance);
+    return {...point, distanceKm:distance};
+  });
+  const elevations = await terrainElevations(points);
+  return points.map((point,i) => ({
+    ...point,
+    elevation:Number.isFinite(Number(elevations[i])) ? Number(elevations[i]) : null
+  }));
+}
+
 async function openMeteoGeocode(name, count) {
   const q = new URLSearchParams({ name, count:String(count), language:'fr', format:'json' });
   const r = await fetch(`${GEOCODE}?${q}`);

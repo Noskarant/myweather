@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://api.open-meteo.com" />
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="./styles.css?v=1.6.21" />
+  <link rel="stylesheet" href="./styles.css?v=1.7.0" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -129,21 +129,101 @@
         </article>
       </section>
 
-      <section class="page-width section-block mountain-panel glass">
-        <div class="section-title-row">
-          <div><div class="eyebrow">MONTAGNE & HIVER</div><h2>Profil neige et altitude</h2></div>
-          <span id="mountainStatus" class="status-pill">Analyse locale</span>
+      <section class="page-width section-block mountain-panel glass mountain-v2">
+        <div class="mountain-v2-head">
+          <div class="mountain-v2-title">
+            <div class="eyebrow"><span class="mountain-eyebrow-icon" aria-hidden="true">△</span> MONTAGNE & HIVER</div>
+            <h2>Profil neige et altitude</h2>
+            <p>Visualisez l’altitude, la neige et les conditions tout au long du relief.</p>
+          </div>
+          <div class="mountain-v2-actions">
+            <div id="mountainPeriodTabs" class="mountain-period-tabs" role="tablist" aria-label="Échéance du profil montagne">
+              <button type="button" class="active" data-mountain-period="today" role="tab" aria-selected="true">Aujourd’hui</button>
+              <button type="button" data-mountain-period="tomorrow" role="tab" aria-selected="false">Demain</button>
+              <button type="button" data-mountain-period="7d" role="tab" aria-selected="false">7 jours</button>
+            </div>
+            <div id="mountainStatus" class="mountain-status-card" data-level="calm" aria-live="polite">
+              <span id="mountainStatusIcon" class="mountain-status-icon" aria-hidden="true">◌</span>
+              <span id="mountainStatusText">Analyse locale</span>
+            </div>
+          </div>
         </div>
-        <div class="mountain-content">
-          <div id="mountainVisual" class="mountain-visual">
-            <div class="mountain-sky"></div>
-            <div class="mountain-shape back"></div>
-            <div class="mountain-shape front"></div>
+
+        <div class="mountain-content mountain-v2-content">
+          <div id="mountainVisual" class="mountain-visual mountain-profile-stage">
+            <div class="mountain-sky" aria-hidden="true"></div>
+            <div class="mountain-profile-axis-title">Altitude (m)</div>
+            <svg id="mountainProfileSvg" class="mountain-profile-svg" viewBox="0 0 900 430" preserveAspectRatio="none" aria-label="Profil du relief sur 15 kilomètres"></svg>
+            <div class="mountain-profile-sun" aria-hidden="true"></div>
             <div id="zeroLine" class="alt-line zero"><span>ISO 0 °C</span></div>
             <div id="snowLine" class="alt-line snow"><span>LPN estimée</span></div>
             <div id="placeLine" class="alt-line place"><span>Lieu</span></div>
+            <div id="mountainProfileReadout" class="mountain-profile-readout" aria-live="polite">Relief local</div>
           </div>
-          <div id="mountainStats" class="mountain-stats"></div>
+
+          <div class="mountain-profile-controls">
+            <button id="mountainProfilePrev" class="mountain-range-step" type="button" aria-label="Reculer sur le profil">‹</button>
+            <div class="mountain-range-shell">
+              <input id="mountainProfileRange" type="range" min="0" max="100" value="20" step="1" aria-label="Explorer le profil de relief" />
+              <div class="mountain-range-labels" aria-hidden="true"><span>0 km</span><span>3 km</span><span>6 km</span><span>9 km</span><span>12 km</span><span>15 km</span></div>
+            </div>
+            <button id="mountainProfileNext" class="mountain-range-step" type="button" aria-label="Avancer sur le profil">›</button>
+          </div>
+
+          <div class="mountain-profile-legend" aria-label="Légende du profil">
+            <span><i class="legend-line relief"></i>Altitude du relief</span>
+            <span><i class="legend-line snow"></i>LPN estimée</span>
+            <span><i class="legend-line zero"></i>Niveau 0 °C</span>
+            <span><i class="legend-box snowpack"></i>Enneigement (modèle)</span>
+          </div>
+        </div>
+
+        <div id="mountainStats" class="mountain-stats mountain-primary-stats"></div>
+
+        <div class="mountain-detail-grid">
+          <article class="mountain-data-card mountain-temp-card">
+            <div class="mountain-data-head">
+              <div><span class="mountain-data-icon" aria-hidden="true">♨</span><strong>Température par altitude</strong></div>
+              <small>Estimation verticale</small>
+            </div>
+            <svg id="mountainTempSvg" class="mountain-temp-svg" viewBox="0 0 440 300" preserveAspectRatio="none" aria-label="Température estimée selon l’altitude"></svg>
+            <div id="mountainTempCaption" class="mountain-card-caption">—</div>
+          </article>
+
+          <div class="mountain-detail-stack">
+            <article class="mountain-data-card mountain-snow-card">
+              <div class="mountain-data-head">
+                <div><span class="mountain-data-icon" aria-hidden="true">❄</span><strong>Neige au sol (modèle)</strong></div>
+                <small>Évolution locale</small>
+              </div>
+              <svg id="mountainSnowSvg" class="mountain-snow-svg" viewBox="0 0 440 176" preserveAspectRatio="none" aria-label="Évolution de la neige au sol"></svg>
+            </article>
+            <article id="mountainPrecipCard" class="mountain-data-card mountain-precip-card">
+              <span class="mountain-data-icon" aria-hidden="true">◌</span>
+              <div><strong>Précipitations</strong><span id="mountainPrecipText">—</span></div>
+              <span class="mountain-card-action" aria-hidden="true">›</span>
+            </article>
+          </div>
+        </div>
+
+        <div class="mountain-bottom-grid">
+          <article class="mountain-kpi-card">
+            <span class="mountain-kpi-icon" aria-hidden="true">≋</span>
+            <div><span>Vent au lieu</span><strong id="mountainWindValue">—</strong><small id="mountainWindMeta">—</small></div>
+          </article>
+          <article class="mountain-kpi-card">
+            <span class="mountain-kpi-icon" aria-hidden="true">◇</span>
+            <div><span>Humidité</span><strong id="mountainHumidityValue">—</strong><small id="mountainHumidityMeta">—</small></div>
+          </article>
+          <article class="mountain-kpi-card mountain-sun-card">
+            <span class="mountain-kpi-icon sun" aria-hidden="true">☀</span>
+            <div class="mountain-sun-copy">
+              <span>Ensoleillement</span>
+              <strong id="mountainSunValue">—</strong>
+              <div class="mountain-sun-track" aria-hidden="true"><i id="mountainSunFill"></i></div>
+              <small><span id="mountainSunrise">—</span><span id="mountainSunset">—</span></small>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -253,6 +333,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="./js/app.js?v=1.6.21"></script>
+  <script type="module" src="./js/app.js?v=1.7.0"></script>
 </body>
 </html>
