@@ -66,3 +66,28 @@ for (const required of [
   assert.equal(appSource.includes(required), true, 'Map picker logic missing: ' + required);
 }
 console.log('✓ map location picker regression checks passed');
+
+
+// map picker search and map layers regression checks
+for (const required of [
+  'id="locationPickerSearchInput"',
+  'id="locationPickerSearchResults"',
+  'data-picker-layer="street"',
+  'data-picker-layer="satellite"',
+  'data-picker-layer="topo"'
+]) {
+  assert.equal(indexSource.includes(required), true, 'Map picker search/layer markup missing: ' + required);
+}
+for (const required of [
+  'const searchLocationPicker = debounce',
+  'geocode(query, 7)',
+  'function setLocationPickerLayer(mode)',
+  'World_Imagery/MapServer/tile',
+  'World_Transportation/MapServer/tile',
+  'World_Boundaries_and_Places/MapServer/tile',
+  'tile.opentopomap.org',
+  "localStorage.setItem('myweather:picker-layer'"
+]) {
+  assert.equal(appSource.includes(required), true, 'Map picker search/layer logic missing: ' + required);
+}
+console.log('✓ map search, satellite labels and topography regression checks passed');
