@@ -39,7 +39,7 @@ const refs = {
   modal:$('#hourModal'), closeModal:$('#closeHourModal'), modalTitle:$('#hourModalTitle'), modalSub:$('#hourModalSub'), modalGlyph:$('#hourModalGlyph'), modalMain:$('#hourModalMain'), hourDetailGrid:$('#hourDetailGrid'),
   routeForm:$('#routeForm'), routeFrom:$('#routeFrom'), routeTo:$('#routeTo'), routeDate:$('#routeDate'), routeTime:$('#routeTime'), swapRoute:$('#swapRoute'), routeLoading:$('#routeLoading'), routeEmpty:$('#routeEmpty'), routeResults:$('#routeResults'), routeSummary:$('#routeSummary'), routeRisk:$('#routeRisk'), routeSketch:$('#routeSketch'), routeTimeline:$('#routeTimeline'),
   bulletinBtn:$('#bulletinBtn'), bulletinModal:$('#bulletinModal'), closeBulletin:$('#closeBulletinModal'), bulletinContent:$('#bulletinContent'), bulletinUpdated:$('#bulletinUpdated'),
-  locationPickerModal:$('#locationPickerModal'), closeLocationPicker:$('#closeLocationPicker'), locationPickerMap:$('#locationPickerMap'), locationPickerCoords:$('#locationPickerCoords'), locationPickerMeta:$('#locationPickerMeta'), locationPickerName:$('#locationPickerName'), locationPickerUse:$('#locationPickerUse'), locationPickerSearchInput:$('#locationPickerSearchInput'), locationPickerSearchResults:$('#locationPickerSearchResults'), locationPickerLayers:$('#locationPickerLayers'),
+  locationPickerModal:$('#locationPickerModal'), closeLocationPicker:$('#closeLocationPicker'), locationPickerMap:$('#locationPickerMap'), locationPickerCoords:$('#locationPickerCoords'), locationPickerMeta:$('#locationPickerMeta'), locationPickerName:$('#locationPickerName'), locationPickerUse:$('#locationPickerUse'), locationPickerSearchInput:$('#locationPickerSearchInput'), locationPickerSearchResults:$('#locationPickerSearchResults'), locationPickerLocate:$('#locationPickerLocate'), locationPickerLayers:$('#locationPickerLayers'),
   toast:$('#toast'), canvas:$('#weatherFx')
 };
 
@@ -309,6 +309,35 @@ function renderLocationPickerSearchResults(items) {
     });
   });
 }
+async function locateLocationPickerSelf() {
+  if (!navigator.geolocation) {
+    showToast('Géolocalisation non prise en charge.', 'warn');
+    return;
+  }
+  refs.locationPickerLocate?.setAttribute('aria-busy','true');
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      const lat = pos.coords.latitude, lon = pos.coords.longitude;
+      const resolved = await reverseGeocodeApprox(lat, lon);
+      setLocationPickerPlace({...resolved, lat, lon, type:'Point carte'}, {moveMap:true, zoom:15});
+      refs.locationPickerSearchInput.value = resolved.name || '';
+      closePickerSearchResults();
+    } catch {
+      setLocationPickerPlace({
+        name:pickerFallbackName(pos.coords.latitude,pos.coords.longitude),
+        admin1:'', country:'', lat:pos.coords.latitude, lon:pos.coords.longitude,
+        elevation:null, timezone:'auto', type:'Point carte'
+      }, {moveMap:true, zoom:15});
+      showToast('Position trouvée, nom du lieu indisponible.', 'warn');
+    } finally {
+      refs.locationPickerLocate?.removeAttribute('aria-busy');
+    }
+  }, () => {
+    refs.locationPickerLocate?.removeAttribute('aria-busy');
+    showToast('Position non accessible. Autorise la localisation dans le navigateur.', 'warn');
+  }, {enableHighAccuracy:true, timeout:10000, maximumAge:60000});
+}
+
 const searchLocationPicker = debounce(async q => {
   const query = q.trim();
   if (query !== refs.locationPickerSearchInput.value.trim()) return;
@@ -1590,6 +1619,7 @@ function bindEvents(){
   refs.locationPickerName?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!refs.locationPickerUse.disabled)useLocationPickerSelection()});
   refs.locationPickerSearchInput?.addEventListener('input',e=>searchLocationPicker(e.target.value));
   refs.locationPickerSearchInput?.addEventListener('keydown',e=>{if(e.key==='Escape')closePickerSearchResults()});
+  refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf);
   refs.locationPickerLayers?.querySelectorAll('[data-picker-layer]').forEach(button=>button.addEventListener('click',()=>setLocationPickerLayer(button.dataset.pickerLayer)));
   window.addEventListener('pagehide', saveFavorites);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') saveFavorites(); });
@@ -1603,6 +1633,28 @@ function bindEvents(){
   refs.routeForm.addEventListener('submit',handleRoute);refs.swapRoute.addEventListener('click',()=>{const a=refs.routeFrom.value;refs.routeFrom.value=refs.routeTo.value;refs.routeTo.value=a});
 }
 
+async function registerServiceWorker() {
+  if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
+  try {
+    const hadController = Boolean(navigator.serviceWorker.controller);
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.7.4', {updateViaCache:'none'});
+    let refreshing = false;
+    const checkForUpdate = () => registration.update().catch(()=>{});
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
+    window.addEventListener('pageshow', checkForUpdate);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkForUpdate();
+    });
+    checkForUpdate();
+  } catch (err) {
+    console.warn('Mise à jour PWA indisponible', err);
+  }
+}
+
 async function init(){
   if (!loadBaseLocation()) { state.baseLocation=state.baseLocation || state.location; saveBaseLocation(); }
   state.expert = window.matchMedia('(min-width:1101px)').matches;
@@ -1612,6 +1664,6 @@ async function init(){
   setInterval(updateNowClock,30000);
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.7.3').catch(()=>{});
+  registerServiceWorker();
 }
 init();
