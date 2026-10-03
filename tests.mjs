@@ -91,3 +91,21 @@ for (const required of [
   assert.equal(appSource.includes(required), true, 'Map picker search/layer logic missing: ' + required);
 }
 console.log('✓ map search, satellite labels and topography regression checks passed');
+
+// picker geolocation + PWA update regression checks
+assert.equal(indexSource.includes('id="locationPickerLocate"'), true, 'Map picker self-location button missing');
+for (const required of [
+  'async function locateLocationPickerSelf()',
+  'enableHighAccuracy:true',
+  "locationPickerLocate:$('#locationPickerLocate')",
+  "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
+  "navigator.serviceWorker.register('./sw.js?v=1.7.4', {updateViaCache:'none'})",
+  "window.addEventListener('pageshow', checkForUpdate)",
+  "document.visibilityState === 'visible'",
+  "navigator.serviceWorker.addEventListener('controllerchange'"
+]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
+const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.7.4'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
+assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
+console.log('✓ picker geolocation and PWA update regression checks passed');
