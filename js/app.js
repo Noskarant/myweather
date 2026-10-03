@@ -39,7 +39,7 @@ const refs = {
   modal:$('#hourModal'), closeModal:$('#closeHourModal'), modalTitle:$('#hourModalTitle'), modalSub:$('#hourModalSub'), modalGlyph:$('#hourModalGlyph'), modalMain:$('#hourModalMain'), hourDetailGrid:$('#hourDetailGrid'),
   routeForm:$('#routeForm'), routeFrom:$('#routeFrom'), routeTo:$('#routeTo'), routeDate:$('#routeDate'), routeTime:$('#routeTime'), swapRoute:$('#swapRoute'), routeLoading:$('#routeLoading'), routeEmpty:$('#routeEmpty'), routeResults:$('#routeResults'), routeSummary:$('#routeSummary'), routeRisk:$('#routeRisk'), routeSketch:$('#routeSketch'), routeTimeline:$('#routeTimeline'),
   bulletinBtn:$('#bulletinBtn'), bulletinModal:$('#bulletinModal'), closeBulletin:$('#closeBulletinModal'), bulletinContent:$('#bulletinContent'), bulletinUpdated:$('#bulletinUpdated'),
-  locationPickerModal:$('#locationPickerModal'), closeLocationPicker:$('#closeLocationPicker'), locationPickerMap:$('#locationPickerMap'), locationPickerCoords:$('#locationPickerCoords'), locationPickerMeta:$('#locationPickerMeta'), locationPickerName:$('#locationPickerName'), locationPickerUse:$('#locationPickerUse'),
+  locationPickerModal:$('#locationPickerModal'), closeLocationPicker:$('#closeLocationPicker'), locationPickerMap:$('#locationPickerMap'), locationPickerCoords:$('#locationPickerCoords'), locationPickerMeta:$('#locationPickerMeta'), locationPickerName:$('#locationPickerName'), locationPickerUse:$('#locationPickerUse'), locationPickerSearchInput:$('#locationPickerSearchInput'), locationPickerSearchResults:$('#locationPickerSearchResults'), locationPickerLayers:$('#locationPickerLayers'),
   toast:$('#toast'), canvas:$('#weatherFx')
 };
 
@@ -121,6 +121,12 @@ let locationPickerMap = null;
 let locationPickerMarker = null;
 let locationPickerSelection = null;
 let locationPickerRequest = 0;
+let locationPickerBaseLayer = null;
+let locationPickerReferenceLayers = [];
+let locationPickerLayerMode = (() => {
+  try { return localStorage.getItem('myweather:picker-layer') || 'satellite'; }
+  catch { return 'satellite'; }
+})();
 
 function pickerFallbackName(lat, lon) {
   return `Point ${Number(lat).toFixed(4)}, ${Number(lon).toFixed(4)}`;
@@ -131,11 +137,92 @@ function pickerMeta(place) {
   if (Number.isFinite(elevation)) parts.push(`${Math.round(elevation)} m`);
   return parts.join(' · ') || 'Coordonnées précises sélectionnées';
 }
+function closePickerSearchResults() {
+  refs.locationPickerSearchResults?.classList.add('hidden');
+}
 function closeLocationPicker() {
   if (!refs.locationPickerModal) return;
   refs.locationPickerModal.classList.add('hidden');
   document.body.classList.remove('modal-open');
+  closePickerSearchResults();
   locationPickerRequest++;
+}
+function clearLocationPickerLayers() {
+  if (!locationPickerMap) return;
+  if (locationPickerBaseLayer) {
+    locationPickerMap.removeLayer(locationPickerBaseLayer);
+    locationPickerBaseLayer = null;
+  }
+  locationPickerReferenceLayers.forEach(layer => locationPickerMap.removeLayer(layer));
+  locationPickerReferenceLayers = [];
+}
+function setLocationPickerLayer(mode) {
+  const L = window.L;
+  if (!L || !locationPickerMap) return;
+  if (!['street','satellite','topo'].includes(mode)) mode = 'satellite';
+  locationPickerLayerMode = mode;
+  try { localStorage.setItem('myweather:picker-layer', mode); } catch {}
+  clearLocationPickerLayers();
+
+  if (mode === 'satellite') {
+    locationPickerBaseLayer = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {maxZoom:19, attribution:'Tiles &copy; Esri'}
+    ).addTo(locationPickerMap);
+    const transport = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+      {maxZoom:19, opacity:.88, attribution:'Esri transportation'}
+    ).addTo(locationPickerMap);
+    const labels = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      {maxZoom:19, opacity:1, attribution:'Esri labels'}
+    ).addTo(locationPickerMap);
+    locationPickerReferenceLayers = [transport, labels];
+  } else if (mode === 'topo') {
+    locationPickerBaseLayer = L.tileLayer(
+      'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      {maxNativeZoom:17, maxZoom:19, attribution:'Map data &copy; OpenStreetMap contributors · Map style &copy; OpenTopoMap'}
+    ).addTo(locationPickerMap);
+  } else {
+    locationPickerBaseLayer = L.tileLayer(
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}
+    ).addTo(locationPickerMap);
+  }
+
+  refs.locationPickerLayers?.querySelectorAll('[data-picker-layer]').forEach(button => {
+    const active = button.dataset.pickerLayer === mode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+function setLocationPickerMarker(lat, lon) {
+  const L = window.L;
+  if (!L || !locationPickerMap) return;
+  if (locationPickerMarker) locationPickerMarker.setLatLng([lat, lon]);
+  else {
+    locationPickerMarker = L.circleMarker([lat, lon], {
+      radius:9, weight:3, color:'#e9fbff', fillColor:'#5ddcff', fillOpacity:1
+    }).addTo(locationPickerMap);
+  }
+}
+function setLocationPickerPlace(place, {moveMap=true, zoom=13}={}) {
+  if (!place) return;
+  const lat = Number(place.lat), lon = Number(place.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  locationPickerSelection = {
+    ...place,
+    name:place.name || pickerFallbackName(lat, lon),
+    lat, lon,
+    timezone:place.timezone || 'auto',
+    type:'Point carte'
+  };
+  refs.locationPickerCoords.textContent = `${lat.toFixed(5)}°, ${lon.toFixed(5)}°`;
+  refs.locationPickerMeta.textContent = pickerMeta(locationPickerSelection);
+  refs.locationPickerName.value = locationPickerSelection.name;
+  refs.locationPickerUse.disabled = false;
+  setLocationPickerMarker(lat, lon);
+  if (moveMap) locationPickerMap?.flyTo([lat, lon], Math.max(locationPickerMap.getZoom(), zoom), {duration:.45});
 }
 function openLocationPicker() {
   const L = window.L;
@@ -151,6 +238,8 @@ function openLocationPicker() {
   refs.locationPickerMeta.textContent = 'Les coordonnées exactes seront utilisées pour la météo.';
   refs.locationPickerName.value = '';
   refs.locationPickerUse.disabled = true;
+  refs.locationPickerSearchInput.value = '';
+  closePickerSearchResults();
   refs.locationPickerModal.classList.remove('hidden');
   document.body.classList.add('modal-open');
 
@@ -165,12 +254,12 @@ function openLocationPicker() {
       doubleClickZoom:true,
       touchZoom:true
     });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom:19,
-      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(locationPickerMap);
-    locationPickerMap.on('click', e => selectLocationPickerPoint(e.latlng.lat, e.latlng.lng));
+    locationPickerMap.on('click', e => {
+      closePickerSearchResults();
+      selectLocationPickerPoint(e.latlng.lat, e.latlng.lng);
+    });
   }
+  setLocationPickerLayer(locationPickerLayerMode);
   if (locationPickerMarker) {
     locationPickerMarker.remove();
     locationPickerMarker = null;
@@ -179,8 +268,7 @@ function openLocationPicker() {
   requestAnimationFrame(() => locationPickerMap?.invalidateSize());
 }
 async function selectLocationPickerPoint(lat, lon) {
-  const L = window.L;
-  if (!L || !locationPickerMap) return;
+  if (!locationPickerMap) return;
   lat = Number(lat); lon = Number(lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
@@ -191,13 +279,7 @@ async function selectLocationPickerPoint(lat, lon) {
   refs.locationPickerMeta.textContent = 'Recherche du lieu et de l’altitude…';
   refs.locationPickerName.value = fallbackName;
   refs.locationPickerUse.disabled = false;
-
-  if (locationPickerMarker) locationPickerMarker.setLatLng([lat, lon]);
-  else {
-    locationPickerMarker = L.circleMarker([lat, lon], {
-      radius:9, weight:3, color:'#e9fbff', fillColor:'#5ddcff', fillOpacity:1
-    }).addTo(locationPickerMap);
-  }
+  setLocationPickerMarker(lat, lon);
 
   try {
     const resolved = await reverseGeocodeApprox(lat, lon);
@@ -211,6 +293,40 @@ async function selectLocationPickerPoint(lat, lon) {
     refs.locationPickerMeta.textContent = 'Point sans nom connu · coordonnées conservées';
   }
 }
+function renderLocationPickerSearchResults(items) {
+  if (!refs.locationPickerSearchResults) return;
+  refs.locationPickerSearchResults.innerHTML = items.length
+    ? items.map((place,i) => `<button type="button" data-picker-result="${i}"><span class="search-kind-icon">${['Sommet','Col','Volcan'].includes(place.type)?'△':place.type==='Lac'?'≈':'⌖'}</span><div><strong>${escapeHtml(place.name)}</strong><small>${escapeHtml([place.type,place.admin1,place.country].filter(Boolean).join(' · '))}${place.elevation!=null?` · <b>${Math.round(place.elevation)} m</b>`:''}</small></div></button>`).join('')
+    : '<div class="search-empty">Aucun lieu trouvé</div>';
+  refs.locationPickerSearchResults.classList.remove('hidden');
+  refs.locationPickerSearchResults.querySelectorAll('[data-picker-result]').forEach(button => {
+    button.addEventListener('click', () => {
+      const place = items[Number(button.dataset.pickerResult)];
+      if (!place) return;
+      refs.locationPickerSearchInput.value = place.name;
+      closePickerSearchResults();
+      setLocationPickerPlace(place, {moveMap:true, zoom:13});
+    });
+  });
+}
+const searchLocationPicker = debounce(async q => {
+  const query = q.trim();
+  if (query !== refs.locationPickerSearchInput.value.trim()) return;
+  if (query.length < 2) {
+    closePickerSearchResults();
+    return;
+  }
+  refs.locationPickerSearchResults.innerHTML = '<div class="search-empty">Recherche…</div>';
+  refs.locationPickerSearchResults.classList.remove('hidden');
+  try {
+    const items = await geocode(query, 7);
+    if (query !== refs.locationPickerSearchInput.value.trim()) return;
+    renderLocationPickerSearchResults(items);
+  } catch {
+    refs.locationPickerSearchResults.innerHTML = '<div class="search-empty">Recherche indisponible</div>';
+    refs.locationPickerSearchResults.classList.remove('hidden');
+  }
+}, 450);
 async function useLocationPickerSelection() {
   if (!locationPickerSelection || state.loading) return;
   const customName = refs.locationPickerName.value.trim();
@@ -1472,6 +1588,9 @@ function bindEvents(){
   refs.locationPickerModal?.addEventListener('click',e=>{if(e.target===refs.locationPickerModal)closeLocationPicker()});
   refs.locationPickerUse?.addEventListener('click',useLocationPickerSelection);
   refs.locationPickerName?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!refs.locationPickerUse.disabled)useLocationPickerSelection()});
+  refs.locationPickerSearchInput?.addEventListener('input',e=>searchLocationPicker(e.target.value));
+  refs.locationPickerSearchInput?.addEventListener('keydown',e=>{if(e.key==='Escape')closePickerSearchResults()});
+  refs.locationPickerLayers?.querySelectorAll('[data-picker-layer]').forEach(button=>button.addEventListener('click',()=>setLocationPickerLayer(button.dataset.pickerLayer)));
   window.addEventListener('pagehide', saveFavorites);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') saveFavorites(); });
   $$('[data-future-offset]').forEach(b=>b.addEventListener('click',()=>{state.futureOffset=Number(b.dataset.futureOffset)||3;renderFutureWeather()}));
@@ -1493,6 +1612,6 @@ async function init(){
   setInterval(updateNowClock,30000);
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.7.2').catch(()=>{});
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.7.3').catch(()=>{});
 }
 init();

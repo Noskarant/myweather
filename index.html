@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://api.open-meteo.com" />
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="./styles.css?v=1.7.2" />
+  <link rel="stylesheet" href="./styles.css?v=1.7.3" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -275,6 +275,18 @@
           <p>Zoome puis appuie où tu veux — sommet, forêt, vallée ou lieu sans adresse.</p>
         </div>
       </div>
+      <div class="location-picker-tools">
+        <div class="location-picker-search-wrap">
+          <span class="location-picker-search-icon" aria-hidden="true">⌕</span>
+          <input id="locationPickerSearchInput" type="search" placeholder="Rechercher une ville, un sommet, une rue…" aria-label="Rechercher un lieu sur la carte" autocomplete="off" />
+          <div id="locationPickerSearchResults" class="location-picker-search-results glass hidden" role="listbox"></div>
+        </div>
+        <div id="locationPickerLayers" class="location-picker-layers" role="group" aria-label="Fond de carte">
+          <button type="button" data-picker-layer="street">Plan</button>
+          <button type="button" data-picker-layer="satellite" class="active">Satellite</button>
+          <button type="button" data-picker-layer="topo">Topo</button>
+        </div>
+      </div>
       <div id="locationPickerMap" class="location-picker-map" aria-label="Carte de sélection d’un point météo"></div>
       <div class="location-picker-selection">
         <div class="location-picker-point">
@@ -323,6 +335,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="./js/app.js?v=1.7.2"></script>
+  <script type="module" src="./js/app.js?v=1.7.3"></script>
 </body>
 </html>
