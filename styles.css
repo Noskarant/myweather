@@ -1443,3 +1443,11 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .location-picker-layers button{width:100%;padding:0 6px}
   .location-picker-search-results{top:48px;max-height:36vh}
 }
+
+/* Picker self-location */
+.location-picker-locate{height:44px;border:1px solid var(--line2);background:rgba(1,11,21,.64);color:#c8f8ff;border-radius:14px;padding:0 12px;display:flex;align-items:center;gap:7px;cursor:pointer;white-space:nowrap;font-size:10px;font-weight:650}
+.location-picker-locate>span:first-child{font-size:17px;color:var(--cyan)}
+.location-picker-locate:hover{border-color:rgba(105,232,255,.38);background:rgba(82,202,255,.08)}
+.location-picker-locate[aria-busy="true"]{pointer-events:none;opacity:.7}
+.location-picker-locate[aria-busy="true"]>span:first-child{animation:spin .8s linear infinite}
+@media(max-width:760px){.location-picker-locate{width:100%;height:40px;justify-content:center}}
