@@ -1418,3 +1418,28 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .location-picker-point,.location-picker-name{padding:10px 12px}
   .location-picker-use{width:100%;height:48px}
 }
+
+
+/* Map picker search + layer switcher */
+.location-picker-tools{display:flex;gap:10px;align-items:center;margin-bottom:10px;position:relative;z-index:800}
+.location-picker-search-wrap{position:relative;flex:1;min-width:0;height:44px;border:1px solid var(--line2);background:rgba(1,11,21,.64);border-radius:14px;display:flex;align-items:center;padding:0 12px}
+.location-picker-search-wrap:focus-within{border-color:rgba(105,232,255,.52);box-shadow:0 0 0 3px rgba(105,232,255,.06)}
+.location-picker-search-icon{font-size:20px;color:var(--cyan);margin-right:8px}
+.location-picker-search-wrap input{flex:1;min-width:0;border:0;background:transparent;color:var(--text);height:100%;outline:0;font:inherit;font-size:12px}
+.location-picker-search-wrap input::placeholder{color:#708a9d}
+.location-picker-search-results{position:absolute;left:0;right:0;top:50px;padding:7px;border-radius:14px;max-height:min(44vh,360px);overflow:auto;z-index:1200}
+.location-picker-search-results button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:10px;border-radius:11px;text-align:left;cursor:pointer}
+.location-picker-search-results button:hover{background:rgba(105,232,255,.07)}
+.location-picker-search-results button>span{color:var(--cyan);font-size:17px}
+.location-picker-search-results strong,.location-picker-search-results small{display:block}
+.location-picker-search-results small{color:var(--muted);margin-top:3px;font-size:9px}
+.location-picker-layers{display:flex;gap:4px;padding:4px;border:1px solid var(--line2);background:rgba(1,11,21,.64);border-radius:14px;flex:0 0 auto}
+.location-picker-layers button{height:34px;border:0;background:transparent;color:#7f9daf;border-radius:10px;padding:0 12px;font-size:10px;font-weight:650;cursor:pointer}
+.location-picker-layers button.active{background:rgba(82,202,255,.14);color:#d6faff;box-shadow:inset 0 0 0 1px rgba(105,232,255,.14)}
+@media(max-width:760px){
+  .location-picker-tools{flex-direction:column;align-items:stretch;gap:7px}
+  .location-picker-search-wrap{height:42px}
+  .location-picker-layers{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}
+  .location-picker-layers button{width:100%;padding:0 6px}
+  .location-picker-search-results{top:48px;max-height:36vh}
+}
