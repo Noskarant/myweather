@@ -48,3 +48,21 @@ for (const good of [
   assert.equal(appSource.includes(good), true, 'Expected collection selector missing: ' + good);
 }
 console.log('✓ selector helper regression checks passed');
+
+
+// map picker regression checks
+const indexSource = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+for (const required of ['id="mapPickerBtn"','id="locationPickerModal"','id="locationPickerMap"','id="locationPickerName"','id="locationPickerUse"']) {
+  assert.equal(indexSource.includes(required), true, 'Map picker markup missing: ' + required);
+}
+for (const required of [
+  "mapPickerBtn:$('#mapPickerBtn')",
+  'function openLocationPicker()',
+  'async function selectLocationPickerPoint',
+  'async function useLocationPickerSelection',
+  'reverseGeocodeApprox(lat, lon)',
+  "type:'Point carte'"
+]) {
+  assert.equal(appSource.includes(required), true, 'Map picker logic missing: ' + required);
+}
+console.log('✓ map location picker regression checks passed');

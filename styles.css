@@ -1383,3 +1383,38 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   .mountain-summary-copy strong{font-size:12.5px}
   .mountain-summary-card[data-kind="wind"] .mountain-summary-copy strong{font-size:9.5px}
 }
+
+
+/* Location picker */
+.map-picker-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;color:var(--cyan)}
+.location-picker-backdrop{z-index:110}
+.location-picker-modal{width:min(980px,100%);max-height:min(94vh,940px);border-radius:26px;padding:24px;position:relative;overflow:auto}
+.location-picker-head{padding:2px 52px 16px 2px}
+.location-picker-head h2{margin:0;font-size:28px;letter-spacing:-.7px}
+.location-picker-head p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.55}
+.location-picker-map{height:min(58vh,560px);min-height:360px;border:1px solid var(--line2);border-radius:19px;overflow:hidden;background:#07131f}
+.location-picker-map .leaflet-control-zoom a{background:rgba(7,25,40,.94);color:#dffaff;border-color:var(--line2)}
+.location-picker-map .leaflet-control-zoom a:hover{background:#12364b}
+.location-picker-map .leaflet-control-attribution{background:rgba(5,18,31,.78);color:#8daabe}
+.location-picker-map .leaflet-control-attribution a{color:#9fefff}
+.location-picker-selection{display:grid;grid-template-columns:minmax(190px,.85fr) minmax(260px,1.3fr) auto;gap:12px;align-items:end;margin-top:14px}
+.location-picker-point,.location-picker-name{min-width:0;border:1px solid var(--line2);background:rgba(0,8,18,.25);border-radius:15px;padding:12px 14px}
+.location-picker-point span,.location-picker-name>span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:7px}
+.location-picker-point strong{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.location-picker-point small,.location-picker-name small{display:block;margin-top:5px;color:#7899aa;font-size:9px;line-height:1.35}
+.location-picker-name input{width:100%;border:0;border-bottom:1px solid rgba(105,232,255,.18);background:transparent;color:var(--text);font:inherit;font-size:14px;padding:2px 0 7px;outline:0}
+.location-picker-name input:focus{border-bottom-color:rgba(105,232,255,.6)}
+.location-picker-use{height:52px;white-space:nowrap;padding-inline:18px}
+.location-picker-use:disabled{opacity:.42;cursor:not-allowed;filter:saturate(.4)}
+@media(max-width:760px){
+  .search-box .map-picker-btn,.search-box #geoBtn{height:34px;min-width:34px;border-radius:11px}
+  .location-picker-backdrop{padding:8px;align-items:end}
+  .location-picker-modal{max-height:96vh;border-radius:22px;padding:16px}
+  .location-picker-head{padding:0 44px 12px 0}
+  .location-picker-head h2{font-size:22px}
+  .location-picker-head p{font-size:10px}
+  .location-picker-map{height:52vh;min-height:300px;border-radius:16px}
+  .location-picker-selection{grid-template-columns:1fr;gap:8px;margin-top:10px}
+  .location-picker-point,.location-picker-name{padding:10px 12px}
+  .location-picker-use{width:100%;height:48px}
+}

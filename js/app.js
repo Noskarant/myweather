@@ -29,7 +29,7 @@ const state = {
 };
 
 const refs = {
-  searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
+  searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), mapPickerBtn:$('#mapPickerBtn'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
   locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
@@ -39,6 +39,7 @@ const refs = {
   modal:$('#hourModal'), closeModal:$('#closeHourModal'), modalTitle:$('#hourModalTitle'), modalSub:$('#hourModalSub'), modalGlyph:$('#hourModalGlyph'), modalMain:$('#hourModalMain'), hourDetailGrid:$('#hourDetailGrid'),
   routeForm:$('#routeForm'), routeFrom:$('#routeFrom'), routeTo:$('#routeTo'), routeDate:$('#routeDate'), routeTime:$('#routeTime'), swapRoute:$('#swapRoute'), routeLoading:$('#routeLoading'), routeEmpty:$('#routeEmpty'), routeResults:$('#routeResults'), routeSummary:$('#routeSummary'), routeRisk:$('#routeRisk'), routeSketch:$('#routeSketch'), routeTimeline:$('#routeTimeline'),
   bulletinBtn:$('#bulletinBtn'), bulletinModal:$('#bulletinModal'), closeBulletin:$('#closeBulletinModal'), bulletinContent:$('#bulletinContent'), bulletinUpdated:$('#bulletinUpdated'),
+  locationPickerModal:$('#locationPickerModal'), closeLocationPicker:$('#closeLocationPicker'), locationPickerMap:$('#locationPickerMap'), locationPickerCoords:$('#locationPickerCoords'), locationPickerMeta:$('#locationPickerMeta'), locationPickerName:$('#locationPickerName'), locationPickerUse:$('#locationPickerUse'),
   toast:$('#toast'), canvas:$('#weatherFx')
 };
 
@@ -113,6 +114,117 @@ function showToast(message, type='info') {
   refs.toast.classList.remove('hidden');
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => refs.toast.classList.add('hidden'), 3200);
+}
+
+
+let locationPickerMap = null;
+let locationPickerMarker = null;
+let locationPickerSelection = null;
+let locationPickerRequest = 0;
+
+function pickerFallbackName(lat, lon) {
+  return `Point ${Number(lat).toFixed(4)}, ${Number(lon).toFixed(4)}`;
+}
+function pickerMeta(place) {
+  const parts = [place?.admin1, place?.country].filter(Boolean);
+  const elevation = Number(place?.elevation);
+  if (Number.isFinite(elevation)) parts.push(`${Math.round(elevation)} m`);
+  return parts.join(' · ') || 'Coordonnées précises sélectionnées';
+}
+function closeLocationPicker() {
+  if (!refs.locationPickerModal) return;
+  refs.locationPickerModal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+  locationPickerRequest++;
+}
+function openLocationPicker() {
+  const L = window.L;
+  if (!L || !refs.locationPickerModal || !refs.locationPickerMap) {
+    showToast('Carte de sélection indisponible sur cet appareil.', 'warn');
+    return;
+  }
+  if (addingFavorite) closeFavoriteSearch();
+  refs.searchResults.classList.add('hidden');
+  locationPickerSelection = null;
+  locationPickerRequest++;
+  refs.locationPickerCoords.textContent = 'Appuie sur la carte';
+  refs.locationPickerMeta.textContent = 'Les coordonnées exactes seront utilisées pour la météo.';
+  refs.locationPickerName.value = '';
+  refs.locationPickerUse.disabled = true;
+  refs.locationPickerModal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+
+  const lat = Number(state.location?.lat);
+  const lon = Number(state.location?.lon);
+  const center = [Number.isFinite(lat) ? lat : 45.714, Number.isFinite(lon) ? lon : 4.807];
+
+  if (!locationPickerMap) {
+    locationPickerMap = L.map(refs.locationPickerMap, {
+      zoomControl:true,
+      scrollWheelZoom:true,
+      doubleClickZoom:true,
+      touchZoom:true
+    });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(locationPickerMap);
+    locationPickerMap.on('click', e => selectLocationPickerPoint(e.latlng.lat, e.latlng.lng));
+  }
+  if (locationPickerMarker) {
+    locationPickerMarker.remove();
+    locationPickerMarker = null;
+  }
+  locationPickerMap.setView(center, 9);
+  requestAnimationFrame(() => locationPickerMap?.invalidateSize());
+}
+async function selectLocationPickerPoint(lat, lon) {
+  const L = window.L;
+  if (!L || !locationPickerMap) return;
+  lat = Number(lat); lon = Number(lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+  const fallbackName = pickerFallbackName(lat, lon);
+  const requestId = ++locationPickerRequest;
+  locationPickerSelection = {name:fallbackName, admin1:'', country:'', lat, lon, elevation:null, timezone:'auto', type:'Point carte'};
+  refs.locationPickerCoords.textContent = `${lat.toFixed(5)}°, ${lon.toFixed(5)}°`;
+  refs.locationPickerMeta.textContent = 'Recherche du lieu et de l’altitude…';
+  refs.locationPickerName.value = fallbackName;
+  refs.locationPickerUse.disabled = false;
+
+  if (locationPickerMarker) locationPickerMarker.setLatLng([lat, lon]);
+  else {
+    locationPickerMarker = L.circleMarker([lat, lon], {
+      radius:9, weight:3, color:'#e9fbff', fillColor:'#5ddcff', fillOpacity:1
+    }).addTo(locationPickerMap);
+  }
+
+  try {
+    const resolved = await reverseGeocodeApprox(lat, lon);
+    if (requestId !== locationPickerRequest || refs.locationPickerModal.classList.contains('hidden')) return;
+    const currentInput = refs.locationPickerName.value.trim();
+    locationPickerSelection = {...resolved, lat, lon, type:'Point carte'};
+    refs.locationPickerMeta.textContent = pickerMeta(locationPickerSelection);
+    if (!currentInput || currentInput === fallbackName) refs.locationPickerName.value = resolved.name || fallbackName;
+  } catch {
+    if (requestId !== locationPickerRequest) return;
+    refs.locationPickerMeta.textContent = 'Point sans nom connu · coordonnées conservées';
+  }
+}
+async function useLocationPickerSelection() {
+  if (!locationPickerSelection || state.loading) return;
+  const customName = refs.locationPickerName.value.trim();
+  const place = {
+    ...locationPickerSelection,
+    name:customName || pickerFallbackName(locationPickerSelection.lat, locationPickerSelection.lon),
+    type:'Point carte'
+  };
+  rememberSearch(place);
+  closeLocationPicker();
+  refs.searchInput.value = place.name;
+  refs.searchInput.blur();
+  showView('forecast');
+  await loadLocation(place);
 }
 
 async function loadLocation(location, {silent=false,asBase=false}={}) {
@@ -1355,7 +1467,11 @@ function bindEvents(){
   refs.searchInput.addEventListener('focus',()=>{refs.searchInput.select();renderSearchHistory();});
   refs.searchInput.addEventListener('input',e=>{if(e.target.value.trim().length<2)renderSearchHistory();else doSearch(e.target.value);}); refs.searchForm.addEventListener('submit',e=>{e.preventDefault();doSearch(refs.searchInput.value)});
   document.addEventListener('click',e=>{if(!refs.searchForm.contains(e.target)){if(addingFavorite)closeFavoriteSearch();else refs.searchResults.classList.add('hidden');}});
-  refs.geoBtn.addEventListener('click',useGeolocation);refs.favoriteBtn.addEventListener('click',toggleFavorite);refs.refreshBtn.addEventListener('click',()=>loadLocation(state.location));
+  refs.mapPickerBtn?.addEventListener('click',openLocationPicker);refs.geoBtn.addEventListener('click',useGeolocation);refs.favoriteBtn.addEventListener('click',toggleFavorite);refs.refreshBtn.addEventListener('click',()=>loadLocation(state.location));
+  refs.closeLocationPicker?.addEventListener('click',closeLocationPicker);
+  refs.locationPickerModal?.addEventListener('click',e=>{if(e.target===refs.locationPickerModal)closeLocationPicker()});
+  refs.locationPickerUse?.addEventListener('click',useLocationPickerSelection);
+  refs.locationPickerName?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!refs.locationPickerUse.disabled)useLocationPickerSelection()});
   window.addEventListener('pagehide', saveFavorites);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') saveFavorites(); });
   $$('[data-future-offset]').forEach(b=>b.addEventListener('click',()=>{state.futureOffset=Number(b.dataset.futureOffset)||3;renderFutureWeather()}));
@@ -1364,7 +1480,7 @@ function bindEvents(){
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
   $$('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
   $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
-  refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!refs.modal.classList.contains('hidden')) closeHour(); else if(refs.bulletinModal && !refs.bulletinModal.classList.contains('hidden')) closeBulletin(); else if(addingFavorite)closeFavoriteSearch(); else closeDayDetail();}});
+  refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(refs.locationPickerModal && !refs.locationPickerModal.classList.contains('hidden')) closeLocationPicker(); else if(!refs.modal.classList.contains('hidden')) closeHour(); else if(refs.bulletinModal && !refs.bulletinModal.classList.contains('hidden')) closeBulletin(); else if(addingFavorite)closeFavoriteSearch(); else closeDayDetail();}});
   refs.routeForm.addEventListener('submit',handleRoute);refs.swapRoute.addEventListener('click',()=>{const a=refs.routeFrom.value;refs.routeFrom.value=refs.routeTo.value;refs.routeTo.value=a});
 }
 
@@ -1377,6 +1493,6 @@ async function init(){
   setInterval(updateNowClock,30000);
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.6.0').catch(()=>{});
+  if(!OFFLINE_TEST && 'serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('./sw.js?v=1.7.2').catch(()=>{});
 }
 init();
