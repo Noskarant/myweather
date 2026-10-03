@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://api.open-meteo.com" />
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="./styles.css?v=1.7.1" />
+  <link rel="stylesheet" href="./styles.css?v=1.7.2" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -31,6 +31,9 @@
     <form id="searchForm" class="search-box" role="search" autocomplete="off">
       <span class="search-icon">⌕</span>
       <input id="searchInput" type="search" placeholder="Rechercher un lieu, hameau, sommet, col…" aria-label="Rechercher un lieu" />
+      <button type="button" id="mapPickerBtn" class="icon-btn map-picker-btn" title="Choisir sur la carte" aria-label="Choisir un point sur la carte">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5 8.8 3l6.4 2.4 5.3-2.5v15.6l-5.3 2.5-6.4-2.4-5.3 2.5V5.5Zm5.3-.4v11.4l5.4 2V7.1l-5.4-2Zm7.4 2v11.3l2.3-1.1V6l-2.3 1.1ZM5.5 6.8v11.1l1.3-.6V6.2l-1.3.6Z"/></svg>
+      </button>
       <button type="button" id="geoBtn" class="icon-btn" title="Ma position" aria-label="Utiliser ma position">◎</button>
       <div id="searchResults" class="search-results glass hidden" role="listbox"></div>
     </form>
@@ -262,6 +265,33 @@
     <button data-nav="favorites"><span>♡</span><small>Favoris</small></button>
   </nav>
 
+  <div id="locationPickerModal" class="modal-backdrop hidden location-picker-backdrop" role="dialog" aria-modal="true" aria-labelledby="locationPickerTitle">
+    <article class="location-picker-modal glass">
+      <button id="closeLocationPicker" class="modal-close" aria-label="Fermer">×</button>
+      <div class="location-picker-head">
+        <div>
+          <div class="eyebrow">POINT SUR LA CARTE</div>
+          <h2 id="locationPickerTitle">Choisir n’importe quel lieu</h2>
+          <p>Zoome puis appuie où tu veux — sommet, forêt, vallée ou lieu sans adresse.</p>
+        </div>
+      </div>
+      <div id="locationPickerMap" class="location-picker-map" aria-label="Carte de sélection d’un point météo"></div>
+      <div class="location-picker-selection">
+        <div class="location-picker-point">
+          <span>Point sélectionné</span>
+          <strong id="locationPickerCoords">Appuie sur la carte</strong>
+          <small id="locationPickerMeta">Les coordonnées exactes seront utilisées pour la météo.</small>
+        </div>
+        <label class="location-picker-name">
+          <span>Nom du lieu</span>
+          <input id="locationPickerName" type="text" maxlength="60" placeholder="Ex. Mon spot, bivouac, sommet…" autocomplete="off" />
+          <small>Tu peux le renommer librement. Le nom ne change pas les coordonnées.</small>
+        </label>
+        <button id="locationPickerUse" class="primary-btn location-picker-use" type="button" disabled>Afficher la météo <span>→</span></button>
+      </div>
+    </article>
+  </div>
+
   <div id="hourModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="hourModalTitle">
     <article class="modal glass">
       <button id="closeHourModal" class="modal-close" aria-label="Fermer">×</button>
@@ -293,6 +323,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="./js/app.js?v=1.7.1"></script>
+  <script type="module" src="./js/app.js?v=1.7.2"></script>
 </body>
 </html>
