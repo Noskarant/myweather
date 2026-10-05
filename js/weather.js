@@ -11,7 +11,7 @@ export const HOURLY_VARS = [
   'temperature_2m','relative_humidity_2m','dew_point_2m','apparent_temperature','precipitation_probability',
   'precipitation','rain','showers','snowfall','snow_depth','weather_code','cloud_cover','cloud_cover_low','cloud_cover_mid',
   'cloud_cover_high','visibility','wind_speed_10m','wind_direction_10m','wind_gusts_10m','surface_pressure','pressure_msl',
-  'uv_index','cape','wet_bulb_temperature_2m','freezing_level_height'
+  'uv_index','cape','wet_bulb_temperature_2m','freezing_level_height','sunshine_duration'
 ];
 export const CURRENT_VARS = [
   'temperature_2m','relative_humidity_2m','apparent_temperature','is_day','precipitation','rain','showers','snowfall',
@@ -193,6 +193,97 @@ export async function reverseGeocodeApprox(lat, lon) {
   return { name:'Ma position', admin1:`${lat.toFixed(3)}, ${lon.toFixed(3)}`, country:'', lat, lon, elevation, timezone:'auto', type:'Position' };
 }
 
+
+function finiteWeatherNumber(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function clockMinutes(value) {
+  const match = String(value || '').match(/T(\d{2}):(\d{2})/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function sunshineConsistencyFactor(hour = {}) {
+  const clamp01 = value => Math.max(0, Math.min(1, value));
+  const total = finiteWeatherNumber(hour.cloud_cover);
+  const low = finiteWeatherNumber(hour.cloud_cover_low);
+  const mid = finiteWeatherNumber(hour.cloud_cover_mid);
+  const high = finiteWeatherNumber(hour.cloud_cover_high);
+  const blockers = [
+    total == null ? 0 : total * 0.72,
+    low == null ? 0 : low,
+    mid == null ? 0 : mid * 0.85,
+    high == null ? 0 : high * 0.45
+  ];
+  const effectiveCloud = Math.max(...blockers, 0);
+  let factor = 1 - Math.pow(clamp01(effectiveCloud / 100), 1.25);
+
+  const precipitation = Math.max(0, finiteWeatherNumber(hour.precipitation) ?? 0);
+  const code = finiteWeatherNumber(hour.weather_code);
+  if (precipitation >= 2) factor *= 0.05;
+  else if (precipitation >= 0.5) factor *= 0.18;
+  else if (precipitation >= 0.1) factor *= 0.35;
+  else if ([45,48].includes(code)) factor *= 0.18;
+  else if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) factor *= 0.45;
+  else if ([71,73,75,77,85,86].includes(code)) factor *= 0.3;
+  else if ([95,96,99].includes(code)) factor *= 0.12;
+
+  return clamp01(factor);
+}
+
+/**
+ * User-facing sunshine estimate.
+ * Starts from Open-Meteo hourly sunshine duration (WMO/DNI > 120 W/m²),
+ * clips every hourly amount to the astronomical sunrise/sunset window,
+ * and applies a consistency cap from clouds/precipitation/fog.
+ * This prevents a mostly overcast or rainy day from displaying implausibly
+ * high sunshine totals while preserving the scientific radiation signal.
+ */
+export function estimateEffectiveSunshineSeconds(day, hours = []) {
+  const sunrise = clockMinutes(day?.sunrise);
+  const sunset = clockMinutes(day?.sunset);
+  if (sunrise == null || sunset == null || sunset <= sunrise) {
+    const raw = finiteWeatherNumber(day?.sunshineDuration);
+    return raw == null ? null : Math.max(0, raw);
+  }
+
+  const daylightSeconds = (sunset - sunrise) * 60;
+  const sameDay = hours.filter(hour => String(hour?.time || '').startsWith(String(day?.time || '')));
+  if (!sameDay.length) {
+    const raw = finiteWeatherNumber(day?.sunshineDuration);
+    return raw == null ? null : Math.min(Math.max(0, raw), daylightSeconds);
+  }
+
+  let totalSeconds = 0;
+  let usableHours = 0;
+  for (const hour of sameDay) {
+    const endMinute = clockMinutes(hour.time);
+    if (endMinute == null) continue;
+    const startMinute = endMinute - 60;
+    const overlapMinutes = Math.max(0, Math.min(endMinute, sunset) - Math.max(startMinute, sunrise));
+    if (overlapMinutes <= 0) continue;
+
+    const overlapSeconds = overlapMinutes * 60;
+    const consistencyCap = overlapSeconds * sunshineConsistencyFactor(hour);
+    const rawHourly = finiteWeatherNumber(hour.sunshine_duration);
+    if (rawHourly != null) {
+      totalSeconds += Math.min(Math.max(0, rawHourly), overlapSeconds, consistencyCap);
+      usableHours++;
+    } else {
+      totalSeconds += consistencyCap;
+    }
+  }
+
+  if (!usableHours && totalSeconds === 0) {
+    const raw = finiteWeatherNumber(day?.sunshineDuration);
+    if (raw != null) return Math.min(Math.max(0, raw), daylightSeconds);
+  }
+  return Math.round(Math.min(Math.max(0, totalSeconds), daylightSeconds));
+}
+
 export async function getForecast(location) {
   const params = new URLSearchParams({
     latitude:String(location.lat), longitude:String(location.lon), timezone:'auto', forecast_days:'16',
@@ -250,8 +341,10 @@ export function normalizeForecast(data) {
     info:weatherCodeInfo(d.weather_code?.[i], 1)
   }));
   daily.forEach(day => {
+    const dayHours = hourly.filter(h => h.time.startsWith(day.time));
+    day.effectiveSunshineDuration = estimateEffectiveSunshineSeconds(day, dayHours);
     if (Number(day.snowfall ?? 0) > 0) return;
-    const snowyHours = hourly.filter(h => h.time.startsWith(day.time) && Number(h.snowfall) > 0);
+    const snowyHours = dayHours.filter(h => Number(h.snowfall) > 0);
     if (!snowyHours.length) return;
     day.snowfall = snowyHours.reduce((sum,h) => sum + Number(h.snowfall), 0);
     day.snowfallEstimated = snowyHours.some(h => h.snowfallEstimated);
