@@ -284,15 +284,274 @@ export function estimateEffectiveSunshineSeconds(day, hours = []) {
   return Math.round(Math.min(Math.max(0, totalSeconds), daylightSeconds));
 }
 
+
+const SHORT_RANGE_MODELS = ['best_match','ecmwf_ifs','icon_global','ukmo_global_deterministic_10km'];
+const WET_WEATHER_CODES = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99]);
+
+function isWetWeatherCode(code) {
+  return WET_WEATHER_CODES.has(Number(code));
+}
+
+function medianWeather(values = []) {
+  const sorted = values.map(finiteWeatherNumber).filter(value => value != null).sort((a,b)=>a-b);
+  if (!sorted.length) return null;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function ratioWeather(value) {
+  const n = finiteWeatherNumber(value);
+  return n == null ? null : Math.max(0, Math.min(1, n));
+}
+
+async function optionalWithTimeout(promise, timeoutMs = 1800, fallback = null) {
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise(resolve => { timer = setTimeout(() => resolve(fallback), timeoutMs); })
+    ]);
+  } catch {
+    return fallback;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export function precipitationSignal(data = {}) {
+  const code = finiteWeatherNumber(data.weather_code ?? data.code);
+  const precipitation = Math.max(0, finiteWeatherNumber(data.precipitation) ?? 0);
+  const probability = Math.max(0, finiteWeatherNumber(data.precipitation_probability ?? data.precipProb) ?? 0);
+  const local = data.localConsensus || {};
+  const modelWetRatio = ratioWeather(local.modelWetRatio);
+  const spatialWetRatio = ratioWeather(local.spatialWetRatio);
+  const ratios = [modelWetRatio, spatialWetRatio].filter(value => value != null);
+  const consensusSupport = ratios.length ? ratios.reduce((sum,value)=>sum+value,0) / ratios.length : null;
+  const wetCode = isWetWeatherCode(code);
+  const showerCode = [80,81,82].includes(code);
+  const strongCode = [63,65,67,81,82,95,96,99].includes(code);
+  const localized = local.localized === true ||
+    (spatialWetRatio != null && spatialWetRatio <= 0.4) ||
+    (modelWetRatio != null && modelWetRatio <= 0.4);
+  const meaningfulAmount = precipitation >= (showerCode ? 0.35 : 0.25);
+  const supportedProbability = probability >= 70 && (consensusSupport == null || consensusSupport >= 0.5);
+  const robust = wetCode && !localized &&
+    (meaningfulAmount || supportedProbability || (strongCode && precipitation >= 0.1)) &&
+    (consensusSupport == null || consensusSupport >= 0.5);
+  return {
+    code, wetCode, showerCode, strongCode, localized, robust,
+    possible:wetCode && !robust, precipitation, probability,
+    modelWetRatio, spatialWetRatio, consensusSupport
+  };
+}
+
+export function presentationWeatherCode(data = {}) {
+  const signal = precipitationSignal(data);
+  if (!data.localConsensus || !signal.wetCode || signal.robust || !signal.localized || signal.precipitation >= 0.4) {
+    return signal.code;
+  }
+  const cloud = finiteWeatherNumber(data.cloud_cover);
+  return cloud != null && cloud < 65 ? 2 : 3;
+}
+
+async function assessLocalTerrain(location) {
+  const lat = finiteWeatherNumber(location?.lat);
+  const lon = finiteWeatherNumber(location?.lon);
+  if (lat == null || lon == null) return null;
+
+  const rings = [6, 12, 25];
+  const bearings = [0,45,90,135,180,225,270,315];
+  const points = [{lat,lon}, ...rings.flatMap(distanceKm =>
+    bearings.map(bearing => destinationPoint(lat, lon, bearing, distanceKm))
+  )];
+  const elevations = await terrainElevations(points);
+  const valid = elevations.map(finiteWeatherNumber).filter(value => value != null);
+  if (valid.length < 8) return null;
+
+  const centerElevation = finiteWeatherNumber(elevations[0]) ?? finiteWeatherNumber(location.elevation);
+  const elevationRange = Math.max(...valid) - Math.min(...valid);
+  const outerElevations = elevations.slice(1 + bearings.length * 2).map(finiteWeatherNumber);
+  const nearSeaOuter = outerElevations.filter(value => value != null && value <= 5).length;
+  const allNearSea = elevations.slice(1).map(finiteWeatherNumber).filter(value => value != null && value <= 5).length;
+
+  const rugged = elevationRange >= 220;
+  const coastLike = allNearSea >= 2 || (allNearSea >= 1 && centerElevation != null && centerElevation <= 100);
+  const islandLike = nearSeaOuter >= 2;
+  const complex = coastLike || islandLike || (rugged && nearSeaOuter >= 1);
+
+  const localPoints = [
+    {lat,lon,elevation:centerElevation},
+    ...[0,90,180,270].map((bearing,index) => {
+      const point = destinationPoint(lat, lon, bearing, 6);
+      const elevationIndex = 1 + index * 2;
+      return {...point, elevation:finiteWeatherNumber(elevations[elevationIndex])};
+    })
+  ];
+
+  return {
+    complex, rugged, coastLike, islandLike,
+    elevationRange:Math.round(elevationRange), nearSeaOuter, localPoints
+  };
+}
+
+async function fetchShortRangeModelConsensus(location) {
+  const params = new URLSearchParams({
+    latitude:String(location.lat),
+    longitude:String(location.lon),
+    timezone:'auto',
+    forecast_days:'4',
+    hourly:'precipitation,showers,rain,weather_code,cloud_cover',
+    models:SHORT_RANGE_MODELS.join(','),
+    precipitation_unit:'mm'
+  });
+  const elevation = finiteWeatherNumber(location?.elevation);
+  if (elevation != null) params.set('elevation', String(Math.round(elevation)));
+
+  const response = await fetchWithRetry(`${FORECAST}?${params}`, {}, 1);
+  if (!response.ok) return null;
+  const data = await response.json();
+  const hourly = data.hourly || {};
+  const times = hourly.time || [];
+  const suffixes = [...new Set(Object.keys(hourly)
+    .filter(key => key.startsWith('weather_code_'))
+    .map(key => key.slice('weather_code_'.length))
+    .filter(Boolean))];
+  if (!times.length || suffixes.length < 2) return null;
+
+  const byTime = {};
+  times.forEach((time,i) => {
+    const rows = suffixes.map(suffix => {
+      const code = finiteWeatherNumber(hourly[`weather_code_${suffix}`]?.[i]);
+      const precipitation = finiteWeatherNumber(hourly[`precipitation_${suffix}`]?.[i]);
+      const showers = finiteWeatherNumber(hourly[`showers_${suffix}`]?.[i]);
+      const cloud = finiteWeatherNumber(hourly[`cloud_cover_${suffix}`]?.[i]);
+      if ([code,precipitation,showers,cloud].every(value => value == null)) return null;
+      const wet = isWetWeatherCode(code) ||
+        (precipitation != null && precipitation >= 0.1) ||
+        (showers != null && showers >= 0.1);
+      return {
+        suffix, code, wet,
+        precipitation:precipitation != null ? Math.max(0,precipitation) : 0,
+        showers:showers != null ? Math.max(0,showers) : 0,
+        cloud:cloud ?? null
+      };
+    }).filter(Boolean);
+    if (!rows.length) return;
+    byTime[time] = {
+      modelCount:rows.length,
+      modelWetRatio:rows.filter(row=>row.wet).length / rows.length,
+      modelMedianPrecip:medianWeather(rows.map(row=>row.precipitation)),
+      modelMedianCloud:medianWeather(rows.map(row=>row.cloud))
+    };
+  });
+  return {byTime, modelNames:suffixes};
+}
+
+async function fetchShortRangeSpatialConsensus(terrain) {
+  const points = terrain?.localPoints || [];
+  if (points.length < 3) return null;
+
+  const params = new URLSearchParams({
+    latitude:points.map(p=>Number(p.lat).toFixed(6)).join(','),
+    longitude:points.map(p=>Number(p.lon).toFixed(6)).join(','),
+    timezone:'auto',
+    forecast_days:'4',
+    hourly:'precipitation,showers,weather_code,cloud_cover',
+    precipitation_unit:'mm',
+    cell_selection:'nearest'
+  });
+  const elevations = points.map(point => finiteWeatherNumber(point.elevation));
+  if (elevations.every(value => value != null)) {
+    params.set('elevation', elevations.map(value=>Math.round(value)).join(','));
+  }
+
+  const response = await fetchWithRetry(`${FORECAST}?${params}`, {}, 1);
+  if (!response.ok) return null;
+  const payload = await response.json();
+  const locations = Array.isArray(payload) ? payload : [payload];
+  if (locations.length < 2) return null;
+
+  const centerTimes = locations[0]?.hourly?.time || [];
+  const byTime = {};
+  centerTimes.forEach((time,i) => {
+    const rows = locations.map(entry => {
+      const hourly = entry?.hourly || {};
+      const j = hourly.time?.[i] === time ? i : hourly.time?.indexOf(time);
+      if (j == null || j < 0) return null;
+      const code = finiteWeatherNumber(hourly.weather_code?.[j]);
+      const precipitation = finiteWeatherNumber(hourly.precipitation?.[j]);
+      const showers = finiteWeatherNumber(hourly.showers?.[j]);
+      if ([code,precipitation,showers].every(value => value == null)) return null;
+      const wet = isWetWeatherCode(code) ||
+        (precipitation != null && precipitation >= 0.1) ||
+        (showers != null && showers >= 0.1);
+      return {wet, precipitation:precipitation != null ? Math.max(0,precipitation) : 0};
+    }).filter(Boolean);
+    if (!rows.length) return;
+    const precipValues = rows.map(row=>row.precipitation);
+    byTime[time] = {
+      spatialPointCount:rows.length,
+      spatialWetRatio:rows.filter(row=>row.wet).length / rows.length,
+      spatialMedianPrecip:medianWeather(precipValues),
+      spatialPrecipSpread:precipValues.length ? Math.max(...precipValues)-Math.min(...precipValues) : null
+    };
+  });
+  return {byTime};
+}
+
+function mergeLocalConsensus(terrain, models, spatial) {
+  if (!terrain?.complex) return null;
+  const modelByTime = models?.byTime || {};
+  const spatialByTime = spatial?.byTime || {};
+  const times = new Set([...Object.keys(modelByTime), ...Object.keys(spatialByTime)]);
+  if (!times.size) return null;
+
+  const hourly = {};
+  for (const time of times) {
+    const m = modelByTime[time] || {};
+    const s = spatialByTime[time] || {};
+    const modelWetRatio = ratioWeather(m.modelWetRatio);
+    const spatialWetRatio = ratioWeather(s.spatialWetRatio);
+    const ratios = [modelWetRatio, spatialWetRatio].filter(value => value != null);
+    const localized = (spatialWetRatio != null && spatialWetRatio <= 0.4) ||
+      (modelWetRatio != null && modelWetRatio <= 0.4);
+    const disagreement = ratios.length >= 2 && Math.abs(ratios[0]-ratios[1]) >= 0.35;
+    hourly[time] = {...m,...s,modelWetRatio,spatialWetRatio,localized,disagreement};
+  }
+
+  return {
+    active:true,
+    terrain:{
+      rugged:terrain.rugged,
+      coastLike:terrain.coastLike,
+      islandLike:terrain.islandLike,
+      elevationRange:terrain.elevationRange
+    },
+    models:models?.modelNames || [],
+    hourly
+  };
+}
+
 export async function getForecast(location) {
   const params = new URLSearchParams({
     latitude:String(location.lat), longitude:String(location.lon), timezone:'auto', forecast_days:'16',
     current:CURRENT_VARS.join(','), hourly:HOURLY_VARS.join(','), daily:DAILY_VARS.join(','),
     wind_speed_unit:'kmh', temperature_unit:'celsius', precipitation_unit:'mm'
   });
-  const r = await fetchWithRetry(`${FORECAST}?${params}`, {}, 2);
-  if (!r.ok) throw new Error(`Prévisions indisponibles (${r.status})`);
-  const data = await r.json();
+
+  const response = await fetchWithRetry(`${FORECAST}?${params}`, {}, 2);
+  if (!response.ok) throw new Error(`Prévisions indisponibles (${response.status})`);
+  const data = await response.json();
+
+  const terrain = await optionalWithTimeout(assessLocalTerrain(location), 1400, null);
+  if (terrain?.complex) {
+    const [models, spatial] = await Promise.all([
+      optionalWithTimeout(fetchShortRangeModelConsensus(location), 1800, null),
+      optionalWithTimeout(fetchShortRangeSpatialConsensus(terrain), 1800, null)
+    ]);
+    data.localConsensus = mergeLocalConsensus(terrain, models, spatial);
+  }
+
   data.location = { ...location, elevation: data.elevation ?? location.elevation, timezone:data.timezone, timezoneAbbreviation:data.timezone_abbreviation };
   return normalizeForecast(data);
 }
@@ -321,7 +580,9 @@ export function normalizeForecast(data) {
     });
     const snow = snowfallFor(obj);
     if (snow.estimated) { obj.snowfall = snow.amount; obj.snowfallEstimated = true; }
-    obj.info = weatherCodeInfo(obj.weather_code, 1);
+    obj.localConsensus = data.localConsensus?.hourly?.[time] ?? null;
+    obj.display_weather_code = presentationWeatherCode(obj);
+    obj.info = weatherCodeInfo(obj.display_weather_code ?? obj.weather_code, 1);
     return obj;
   });
   const d = data.daily || {};
