@@ -1451,3 +1451,61 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 .location-picker-locate[aria-busy="true"]{pointer-events:none;opacity:.7}
 .location-picker-locate[aria-busy="true"]>span:first-child{animation:spin .8s linear infinite}
 @media(max-width:760px){.location-picker-locate{width:100%;height:40px;justify-content:center}}
+
+
+/* V1.7.8 — Android installed-PWA viewport / fullscreen hardening */
+html{
+  width:100%;
+  min-width:100%;
+  min-height:100%;
+  background:var(--bg);
+  overflow-x:hidden;
+  overscroll-behavior-y:none;
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+}
+body{
+  width:100%;
+  min-width:100%;
+  min-height:100vh;
+  min-height:100dvh;
+  overflow-x:hidden;
+  overscroll-behavior-y:none;
+}
+@supports (height:100dvh){
+  body{min-height:100dvh}
+  main{min-height:calc(100dvh - 70px)}
+}
+@media (display-mode:standalone),(display-mode:fullscreen){
+  html,body{
+    width:100%;
+    max-width:100%;
+    min-height:100%;
+  }
+  body{
+    min-height:100dvh;
+    background:var(--bg);
+  }
+}
+@media (max-width:760px){
+  .topbar{
+    min-height:calc(70px + env(safe-area-inset-top));
+    padding-top:calc(9px + env(safe-area-inset-top));
+    padding-left:max(9px,env(safe-area-inset-left));
+    padding-right:max(9px,env(safe-area-inset-right));
+  }
+  .favorite-quickbar{top:calc(70px + env(safe-area-inset-top))}
+  main{
+    min-height:calc(100dvh - 70px - env(safe-area-inset-top));
+    padding-bottom:calc(132px + env(safe-area-inset-bottom));
+  }
+  .bottom-nav{
+    left:max(10px,env(safe-area-inset-left));
+    right:max(10px,env(safe-area-inset-right));
+    width:auto;
+    transform:none;
+  }
+}
+@media (max-width:760px) and (display-mode:fullscreen){
+  body{min-height:100dvh}
+}
