@@ -1509,3 +1509,21 @@ body{
 @media (max-width:760px) and (display-mode:fullscreen){
   body{min-height:100dvh}
 }
+
+
+/* V1.7.9 — Android touch behavior: native scroll, no page pinch-zoom */
+html,body{
+  touch-action:pan-x pan-y;
+}
+html{
+  overflow-y:auto;
+  overscroll-behavior-y:auto;
+}
+body{
+  overflow-y:visible;
+  overscroll-behavior-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.leaflet-container{
+  touch-action:none;
+}
