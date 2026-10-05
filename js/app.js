@@ -1683,11 +1683,21 @@ function bindEvents(){
   refs.routeForm.addEventListener('submit',handleRoute);refs.swapRoute.addEventListener('click',()=>{const a=refs.routeFrom.value;refs.routeFrom.value=refs.routeTo.value;refs.routeTo.value=a});
 }
 
+function preventDocumentZoom() {
+  const isMapGesture = target => target instanceof Element && Boolean(target.closest('.leaflet-container'));
+  document.addEventListener('touchmove', event => {
+    if (event.touches?.length > 1 && !isMapGesture(event.target)) event.preventDefault();
+  }, {passive:false});
+  document.addEventListener('gesturestart', event => {
+    if (!isMapGesture(event.target)) event.preventDefault();
+  }, {passive:false});
+}
+
 async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.7.7', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.7.8', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -1710,6 +1720,7 @@ async function init(){
   state.expert = window.matchMedia('(min-width:1101px)').matches;
   refs.expertToggle?.setAttribute('aria-pressed', String(state.expert));
   refs.expertToggle?.classList.toggle('active', state.expert);
+  preventDocumentZoom();
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   setInterval(updateNowClock,30000);
   await loadLocation(state.location,{silent:true});
