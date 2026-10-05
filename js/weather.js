@@ -246,8 +246,8 @@ export function precipitationSignal(data = {}) {
 export function presentationWeatherCode(data = {}) {
   const signal = precipitationSignal(data);
   if (!signal.wetCode || signal.robust || !signal.localized || signal.precipitation >= 0.4) return signal.code;
-  const cloud = Number(data.cloud_cover);
-  return Number.isFinite(cloud) && cloud < 65 ? 2 : 3;
+  const cloud = finiteNumber(data.cloud_cover);
+  return cloud != null && cloud < 65 ? 2 : 3;
 }
 
 async function assessLocalTerrain(location) {
@@ -283,8 +283,8 @@ async function fetchShortRangeModelConsensus(location) {
     hourly:'precipitation,showers,rain,weather_code,cloud_cover',
     models:SHORT_RANGE_MODELS.join(','), precipitation_unit:'mm'
   });
-  const elevation = Number(location?.elevation);
-  if (Number.isFinite(elevation)) params.set('elevation', String(Math.round(elevation)));
+  const elevation = finiteNumber(location?.elevation);
+  if (elevation != null) params.set('elevation', String(Math.round(elevation)));
   const response = await fetchWithRetry(`${FORECAST}?${params}`, {}, 2);
   if (!response.ok) return null;
   const data = await response.json();
@@ -329,7 +329,7 @@ async function fetchShortRangeSpatialConsensus(terrain) {
     hourly:'precipitation,showers,weather_code,cloud_cover',
     precipitation_unit:'mm', cell_selection:'nearest'
   });
-  const elevations = points.map(p=>Number.isFinite(Number(p.elevation)) ? Math.round(Number(p.elevation)) : 'nan');
+  const elevations = points.map(p=>{ const elevation = finiteNumber(p.elevation); return elevation != null ? Math.round(elevation) : 'nan'; });
   params.set('elevation', elevations.join(','));
   const response = await fetchWithRetry(`${FORECAST}?${params}`, {}, 2);
   if (!response.ok) return null;
@@ -394,8 +394,8 @@ export async function getForecast(location) {
     current:CURRENT_VARS.join(','), hourly:HOURLY_VARS.join(','), daily:DAILY_VARS.join(','),
     wind_speed_unit:'kmh', temperature_unit:'celsius', precipitation_unit:'mm'
   });
-  const elevation = Number(location?.elevation);
-  if (Number.isFinite(elevation)) params.set('elevation', String(Math.round(elevation)));
+  const elevation = finiteNumber(location?.elevation);
+  if (elevation != null) params.set('elevation', String(Math.round(elevation)));
 
   const [response, terrain] = await Promise.all([
     fetchWithRetry(`${FORECAST}?${params}`, {}, 2),
