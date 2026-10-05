@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
-import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds } from './js/weather.js';
+import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
 assert.ok(HOURLY_VARS.length >= 20);
 assert.ok(CURRENT_VARS.includes('temperature_2m'));
@@ -30,6 +30,34 @@ assert.equal(
   estimateEffectiveSunshineSeconds({time:'2026-10-05', sunrise:'2026-10-05T08:00', sunset:'2026-10-05T18:00', sunshineDuration:12*3600}, []),
   10*3600,
   'Fallback daily sunshine must never exceed astronomical daylight'
+);
+
+const localizedShower = {
+  weather_code:80, precipitation:0.1, precipitation_probability:72, cloud_cover:35,
+  localConsensus:{modelWetRatio:.25, spatialWetRatio:.2, localized:true}
+};
+assert.equal(precipitationSignal(localizedShower).robust, false);
+assert.equal(presentationWeatherCode(localizedShower), 2, 'Localized weak shower should not look like continuous rain');
+
+const widespreadRain = {
+  weather_code:63, precipitation:1.2, precipitation_probability:85, cloud_cover:92,
+  localConsensus:{modelWetRatio:.75, spatialWetRatio:.8}
+};
+assert.equal(precipitationSignal(widespreadRain).robust, true);
+assert.equal(presentationWeatherCode(widespreadRain), 63, 'Widespread supported rain must remain rain');
+
+const missingModelRatio = {
+  weather_code:63, precipitation:1.1, precipitation_probability:85, cloud_cover:90,
+  localConsensus:{modelWetRatio:null, spatialWetRatio:.8}
+};
+assert.equal(precipitationSignal(missingModelRatio).localized, false);
+assert.equal(precipitationSignal(missingModelRatio).robust, true);
+
+const standardForecastShower = {weather_code:80, precipitation:0.1, precipitation_probability:30, cloud_cover:35};
+assert.equal(
+  presentationWeatherCode(standardForecastShower),
+  80,
+  'Without island/local consensus, standard forecast presentation must stay unchanged'
 );
 
 const lpn = estimateSnowLevel({freezingLevel:1600, wetBulb:0, precipitation:2, elevation:900});
@@ -70,6 +98,10 @@ for (const good of [
   assert.equal(appSource.includes(good), true, 'Expected collection selector missing: ' + good);
 }
 console.log('✓ selector helper regression checks passed');
+assert.equal(appSource.includes("precipitationSignal"), true, 'Microclimate precipitation helper import missing');
+assert.equal(appSource.includes("Averses localisées possibles"), true, 'Microclimate wording missing');
+assert.equal(appSource.includes("d.effectiveSunshineDuration ?? d.sunshineDuration"), true, 'Sunshine correction must remain active');
+console.log('✓ microclimate + sunshine regression checks passed');
 
 
 // map picker regression checks
@@ -121,13 +153,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.7.6', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.7.7', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.7.6'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.7.7'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
