@@ -1,4 +1,4 @@
-import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.7.5';
+import { createDemoForecast, geocode, getForecast, reverseGeocodeApprox } from './weather.js?v=1.7.1';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -441,8 +441,7 @@ function renderAll() {
   if (!f) return;
   const c = f.current || {};
   const hNow = currentHourly() || {};
-  const currentCode = Number(c.precipitation ?? 0) >= 0.1 ? c.weather_code : (hNow.display_weather_code ?? c.weather_code ?? hNow.weather_code);
-  const info = weatherCodeInfo(currentCode, c.is_day);
+  const info = weatherCodeInfo(c.weather_code, c.is_day);
   const loc = state.location;
 
   refs.locationName.textContent = loc.name || 'Lieu sélectionné';
@@ -456,8 +455,8 @@ function renderAll() {
   refs.currentCondition.textContent = Number.isFinite(uvNow) ? `${info.label} · UV ${round(uvNow,1)}` : info.label;
   refs.feelsLike.textContent = `Ressenti ${Math.round(c.apparent_temperature ?? hNow.apparent_temperature ?? 0)}°C`;
   refs.lastUpdated.textContent = formatUpdateAge(c.time || hNow.time);
-  refs.weatherGlyph.innerHTML = weatherIcon(currentCode, c.is_day);
-  try { renderHeroScene({...c, weather_code:currentCode},hNow); } catch (err) { console.warn('Scene météo actuelle',err); }
+  refs.weatherGlyph.innerHTML = weatherIcon(c.weather_code ?? hNow.weather_code, c.is_day);
+  try { renderHeroScene(c,hNow); } catch (err) { console.warn('Scene météo actuelle',err); }
   try { renderFutureWeather(); } catch (err) { console.warn('Scène météo future',err); }
 
   const today = f.daily?.[0];
@@ -738,7 +737,7 @@ function updateNowClock(){
   if(refs.futureClock) refs.futureClock.textContent=forecastNowLocal(new Date(Date.now()+state.futureOffset*3600000)).slice(11,16).replace(':','h');
 }
 function renderFutureWeather(){
-  const h=futureHourly(); if(!h||!refs.futureScene)return; const day=isDayAt(h.time), code=h.display_weather_code ?? h.weather_code, info=weatherCodeInfo(code,day); renderWeatherScene(refs.futureScene,{...h,weather_code:code,is_day:day});
+  const h=futureHourly(); if(!h||!refs.futureScene)return; const day=isDayAt(h.time), info=weatherCodeInfo(h.weather_code,day); renderWeatherScene(refs.futureScene,{...h,is_day:day});
   updateNowClock();
   refs.futureTemp.textContent=Math.round(h.temperature_2m ?? 0)+'°'; refs.futureCondition.textContent=info.label; const precip=Number(h.precipitation ?? 0), prob=Math.round(h.precipitation_probability ?? 0), gust=Math.round(h.wind_gusts_10m ?? 0);
   refs.futureMeta.textContent='Prévision '+formatHour(h.time)+' · '+(precip>0||isSnowForecast(h)?formatPrecipitation(h):prob+'% précip.')+' · raf. '+gust+' km/h'; $$('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
@@ -791,44 +790,20 @@ function windRangeForDate(date) {
 function daylightCondition(d) {
   const hours = dayHours(d.time).filter(h => isDayAt(h.time) && h.weather_code != null);
   if (!hours.length) return weatherCodeInfo(d.weather_code, 1).label;
-  const counts = { clear:0, partial:0, cloud:0, robustRain:0, possibleRain:0, showers:0, snow:0, storm:0, fog:0 };
+  const counts = { clear:0, partial:0, cloud:0, rain:0, snow:0, storm:0, fog:0 };
   for (const h of hours) {
-    const code = Number(h.display_weather_code ?? h.weather_code);
-    const rawCode = Number(h.weather_code);
-    const signal = precipitationSignal(h);
-    if ([71,73,75,77,85,86].includes(rawCode)) { counts.snow++; continue; }
-    if ([95,96,99].includes(rawCode) && signal.robust) { counts.storm++; continue; }
-    if (signal.wetCode) {
-      if (signal.robust) counts.robustRain++;
-      else counts.possibleRain++;
-      if (signal.showerCode) counts.showers++;
-      if (signal.possible) {
-        if (code <= 1) counts.clear++;
-        else if (code === 2) counts.partial++;
-        else counts.cloud++;
-      }
-      continue;
-    }
-    if (code <= 1) counts.clear++;
-    else if (code === 2) counts.partial++;
-    else if (code === 3) counts.cloud++;
-    else if (code === 45 || code === 48) counts.fog++;
+    const code = Number(h.weather_code);
+    const kind = code <= 1 ? 'clear' : code === 2 ? 'partial' : code === 3 ? 'cloud'
+      : code === 45 || code === 48 ? 'fog' : code >= 95 ? 'storm'
+      : [71,73,75,77,85,86].includes(code) ? 'snow' : 'rain';
+    counts[kind]++;
   }
-  const n = hours.length;
-  const robustWet = counts.robustRain + counts.snow + counts.storm;
-  const possibleWet = counts.possibleRain;
-  const bright = counts.clear + counts.partial;
-  if (robustWet / n >= .5) {
-    if (counts.snow > counts.robustRain) return 'Neige fréquente';
-    if (counts.storm > counts.robustRain) return 'Temps orageux';
-    return counts.showers >= counts.robustRain * .6 ? 'Averses fréquentes' : 'Pluie fréquente';
-  }
-  if (robustWet >= 2 && robustWet / n >= .18 && bright / n >= .3)
-    return counts.snow > counts.robustRain ? 'Éclaircies et neige possible' : 'Éclaircies et passages pluvieux';
-  if (possibleWet >= 2) return bright / n >= .3 ? 'Éclaircies, averses localisées possibles' : 'Averses localisées possibles';
-  if (possibleWet === 1) return 'Risque d’averse localisée';
+  const n = hours.length, wet = counts.rain + counts.snow + counts.storm;
+  if (wet / n >= .5) return counts.snow > counts.rain ? 'Neige fréquente' : counts.storm > counts.rain ? 'Temps orageux' : 'Pluie fréquente';
+  if (wet >= 2 && wet / n >= .18 && (counts.clear + counts.partial) / n >= .3)
+    return counts.snow > counts.rain ? 'Éclaircies et neige possible' : 'Éclaircies et passages pluvieux';
   if (counts.clear / n >= .6) return 'Ciel généralement dégagé';
-  if (bright / n >= .6) return 'Alternance de soleil et de nuages';
+  if ((counts.clear + counts.partial) / n >= .6) return 'Alternance de soleil et de nuages';
   if ((counts.cloud + counts.partial) / n >= .6) return 'Ciel souvent nuageux';
   if (counts.fog / n >= .5) return 'Brouillard persistant';
   return 'Conditions variables';
@@ -842,8 +817,6 @@ function daylightHours(d) {
 
 function weatherInsight(c,h,loc) {
   const bits=[];
-  if (h.localConsensus?.localized) bits.push(`<strong>Microclimat</strong> · risque d’averses localisées, modèles/secteurs voisins dispersés`);
-  else if (h.localConsensus?.disagreement) bits.push(`<strong>Prévision locale incertaine</strong> · modèles en désaccord sur les précipitations`);
   if ((c.wind_gusts_10m ?? 0) >= 60) bits.push(`<strong>Rafales marquées</strong> jusqu’à ${Math.round(c.wind_gusts_10m)} km/h`);
   if ((c.precipitation ?? 0) > 0 && h.snowLevel != null && Number(loc.elevation ?? 0) >= h.snowLevel - 150) bits.push(`<strong>Neige plausible</strong> à cette altitude · LPN estimée ~${Math.round(h.snowLevel)} m`);
   if ((h.cape ?? 0) >= 700) bits.push(`<strong>Atmosphère instable</strong> · CAPE ${Math.round(h.cape)} J/kg`);
@@ -921,7 +894,7 @@ function renderHourly(dateStr) {
     const isPast=h.time.slice(0,13)<now;
     return `<button class="hour-card ${isPast?'past':''}" data-hour="${escapeHtml(h.time)}">
       <span class="hour-time">${formatHour(h.time)}</span>
-      <span class="hour-glyph">${weatherIcon(h.display_weather_code ?? h.weather_code, isDayAt(h.time))}</span>
+      <span class="hour-glyph">${weatherIcon(h.weather_code, isDayAt(h.time))}</span>
       <strong>${Math.round(h.temperature_2m)}°</strong>
       <span class="hour-meta"><small class="precip">${Math.round(h.precipitation_probability ?? 0)}%</small>${hourlyPrecipitation(h)?`<small class="hour-amount" title="Cumul prévu pendant cette heure">${hourlyPrecipitation(h)}</small>`:''}<small>raf. ${Math.round(h.wind_gusts_10m ?? 0)}</small></span>
     </button>`;
@@ -1032,7 +1005,7 @@ function openDayDetail(date) {
 
   view.querySelector('#dayDetailOverview').innerHTML = `
     <div class="day-overview-main">
-      <div class="day-overview-icon">${weatherIcon(midday?.display_weather_code ?? midday?.weather_code ?? d.weather_code, 1)}</div>
+      <div class="day-overview-icon">${weatherIcon(midday?.weather_code ?? d.weather_code, 1)}</div>
       <div class="day-overview-copy">
         <span class="eyebrow">${escapeHtml(state.location.type || 'PRÉVISION LOCALE')} · ${Math.round(state.location.elevation ?? state.forecast.elevation ?? 0)} m</span>
         <h1>${escapeHtml(daylightCondition(d))}</h1>
@@ -1072,7 +1045,7 @@ function renderDayDetailRows() {
 
   rows.innerHTML = hours.map(h=>{
     const day = isDayAt(h.time);
-    const info = weatherCodeInfo(h.display_weather_code ?? h.weather_code, day);
+    const info = weatherCodeInfo(h.weather_code, day);
     const vis = Number(h.visibility);
     const cloud = Number(h.cloud_cover);
     const pressure = Number(h.pressure_msl);
@@ -1081,7 +1054,7 @@ function renderDayDetailRows() {
     const cape = Number(h.cape);
     return `<div class="day-hour-entry"><button type="button" class="day-hour-row" data-day-hour="${escapeHtml(h.time)}" aria-expanded="false" aria-controls="science-${escapeHtml(h.time)}">
       <span class="day-hour-time"><strong>${formatHour(h.time)}</strong><small>${day?'jour':'nuit'}</small></span>
-      <span class="day-hour-weather">${weatherIcon(h.display_weather_code ?? h.weather_code, day)}<small>${escapeHtml(info.label)}</small></span>
+      <span class="day-hour-weather">${weatherIcon(h.weather_code, day)}<small>${escapeHtml(info.label)}</small></span>
       <span class="day-hour-temp"><strong>${Math.round(h.temperature_2m)}°</strong><small>ress. ${Math.round(h.apparent_temperature ?? h.temperature_2m)}°</small></span>
       <span class="day-hour-wind"><strong><i class="wind-arrow" style="--wind-dir:${Number(h.wind_direction_10m ?? 0)}deg">↑</i> ${Math.round(h.wind_speed_10m ?? 0)} km/h</strong><small>raf. ${Math.round(h.wind_gusts_10m ?? 0)} · ${cardinal(h.wind_direction_10m)}</small>${hourlyPrecipitation(h)?`<small class="day-hour-amount" title="Cumul prévu pendant cette heure">${hourlyPrecipitation(h)}</small>`:''}</span>
       <span class="day-hour-chevron">⌄</span>
@@ -1123,7 +1096,7 @@ function renderDaily() {
     const uvText = d.uv != null && Number.isFinite(uvValue) ? round(uvValue,1) : '—';
     return `<button class="forecast-row ${active?'selected':''}" data-day="${d.time}">
       <span class="forecast-date"><strong>${i===0?'Aujourd’hui':formatDay(d.time).split(' ')[0]}</strong><small>${new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit'}).format(new Date(`${d.time}T12:00:00`))}</small></span>
-      <span class="forecast-weather"><span class="forecast-icons">${weatherIcon(dayHour?.display_weather_code ?? dayHour?.weather_code ?? d.weather_code,1)}${weatherIcon(nightHour?.display_weather_code ?? nightHour?.weather_code ?? d.weather_code,0)}</span><small>${escapeHtml(daylightCondition(d))}</small></span>
+      <span class="forecast-weather"><span class="forecast-icons">${weatherIcon(dayHour?.weather_code ?? d.weather_code,1)}${weatherIcon(nightHour?.weather_code ?? d.weather_code,0)}</span><small>${escapeHtml(daylightCondition(d))}</small></span>
       <span class="forecast-temps"><strong>${Math.round(d.max)}°</strong><em>${Math.round(d.min)}°</em></span>
       <span class="forecast-metrics">
         <span><i class="wind-arrow" style="--wind-dir:${Number(d.windDir ?? 0)}deg">↑</i> ${windText} km/h <small>raf. ${Math.round(d.gustMax ?? 0)}</small></span>
@@ -1296,10 +1269,10 @@ function renderMountain(fallbackHour = null) {
 
 function openHour(time) {
   const h=state.forecast.hourly.find(x=>x.time===time); if (!h) return;
-  const info=weatherCodeInfo(h.display_weather_code ?? h.weather_code,1);
+  const info=weatherCodeInfo(h.weather_code,1);
   refs.modalTitle.textContent=formatDateTime(h.time);
   refs.modalSub.textContent=`${state.location.name} · ${info.label}`;
-  refs.modalGlyph.innerHTML=weatherIcon(h.display_weather_code ?? h.weather_code, isDayAt(h.time));
+  refs.modalGlyph.innerHTML=weatherIcon(h.weather_code, isDayAt(h.time));
   refs.modalMain.innerHTML=`<div><span>Température</span><strong>${round(h.temperature_2m,1)}°C</strong><small>Ressenti ${round(h.apparent_temperature,1)}°C</small></div><div><span>${precipitationLabel(h)}</span><strong>${formatPrecipitation(h,{rate:true})}</strong><small>${Math.round(h.precipitation_probability??0)}% de probabilité</small></div><div><span>Vent / rafales</span><strong>${Math.round(h.wind_speed_10m??0)} / ${Math.round(h.wind_gusts_10m??0)}</strong><small>km/h · ${cardinal(h.wind_direction_10m)}</small></div>`;
   const items=[
     ['Pluie',h.snowfallEstimated?'— (phase neige estimée)':`${round(h.rain,1)} mm`],['Averses',`${round(h.showers,1)} mm`],['Neige',`${h.snowfallEstimated?'≈':''}${round(h.snowfall,1)} cm`],['LPN estimée',h.snowLevel!=null?`~${Math.round(h.snowLevel)} m`:'—'],
