@@ -201,16 +201,22 @@ function isWetWeatherCode(code) {
   return WET_WEATHER_CODES.has(Number(code));
 }
 
+function finiteNumber(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function median(values = []) {
-  const sorted = values.map(Number).filter(Number.isFinite).sort((x,y)=>x-y);
+  const sorted = values.map(finiteNumber).filter(value => value != null).sort((x,y)=>x-y);
   if (!sorted.length) return null;
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 function numericRatio(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : null;
+  const n = finiteNumber(value);
+  return n == null ? null : Math.max(0, Math.min(1, n));
 }
 
 export function precipitationSignal(data = {}) {
@@ -252,11 +258,11 @@ async function assessLocalTerrain(location) {
   const bearings = [0,45,90,135,180,225,270,315];
   const points = [center, ...rings.flatMap(distanceKm => bearings.map(bearing => destinationPoint(lat, lon, bearing, distanceKm)))];
   const elevations = await terrainElevations(points);
-  const valid = elevations.map(Number).filter(Number.isFinite);
+  const valid = elevations.map(finiteNumber).filter(value => value != null);
   if (valid.length < 5) return null;
-  const centerElevation = Number.isFinite(Number(elevations[0])) ? Number(elevations[0]) : Number(location.elevation);
+  const centerElevation = finiteNumber(elevations[0]) ?? finiteNumber(location.elevation);
   const elevationRange = Math.max(...valid) - Math.min(...valid);
-  const nearSea = elevations.slice(1).filter(value => Number.isFinite(Number(value)) && Number(value) <= 5).length;
+  const nearSea = elevations.slice(1).map(finiteNumber).filter(value => value != null && value <= 5).length;
   const rugged = elevationRange >= 220;
   const coastLike = nearSea >= 2 || (nearSea >= 1 && Number.isFinite(centerElevation) && centerElevation <= 80);
   const complex = rugged || coastLike;
@@ -265,7 +271,7 @@ async function assessLocalTerrain(location) {
     ...[0,90,180,270].map((bearing,index) => {
       const point = destinationPoint(lat, lon, bearing, 6);
       const elevationIndex = 1 + index * 2;
-      return { ...point, elevation:Number.isFinite(Number(elevations[elevationIndex])) ? Number(elevations[elevationIndex]) : null };
+      return { ...point, elevation:finiteNumber(elevations[elevationIndex]) };
     })
   ];
   return { complex, rugged, coastLike, elevationRange:Math.round(elevationRange), nearSea, localPoints };
@@ -292,15 +298,15 @@ async function fetchShortRangeModelConsensus(location) {
   const byTime = {};
   times.forEach((time,i) => {
     const rows = suffixes.map(suffix => {
-      const code = Number(hourly[`weather_code_${suffix}`]?.[i]);
-      const precipitation = Number(hourly[`precipitation_${suffix}`]?.[i]);
-      const showers = Number(hourly[`showers_${suffix}`]?.[i]);
-      const cloud = Number(hourly[`cloud_cover_${suffix}`]?.[i]);
-      if (![code, precipitation, showers, cloud].some(Number.isFinite)) return null;
-      const wet = isWetWeatherCode(code) || (Number.isFinite(precipitation) && precipitation >= 0.1) ||
-        (Number.isFinite(showers) && showers >= 0.1);
-      return {suffix, code, precipitation:Number.isFinite(precipitation)?Math.max(0,precipitation):0,
-        showers:Number.isFinite(showers)?Math.max(0,showers):0, cloud:Number.isFinite(cloud)?cloud:null, wet};
+      const code = finiteNumber(hourly[`weather_code_${suffix}`]?.[i]);
+      const precipitation = finiteNumber(hourly[`precipitation_${suffix}`]?.[i]);
+      const showers = finiteNumber(hourly[`showers_${suffix}`]?.[i]);
+      const cloud = finiteNumber(hourly[`cloud_cover_${suffix}`]?.[i]);
+      if (![code, precipitation, showers, cloud].some(value => value != null)) return null;
+      const wet = isWetWeatherCode(code) || (precipitation != null && precipitation >= 0.1) ||
+        (showers != null && showers >= 0.1);
+      return {suffix, code, precipitation:precipitation != null ? Math.max(0,precipitation) : 0,
+        showers:showers != null ? Math.max(0,showers) : 0, cloud:cloud ?? null, wet};
     }).filter(Boolean);
     if (!rows.length) return;
     byTime[time] = {
@@ -337,13 +343,13 @@ async function fetchShortRangeSpatialConsensus(terrain) {
       const hourly = entry?.hourly || {};
       const j = hourly.time?.[i] === time ? i : hourly.time?.indexOf(time);
       if (j == null || j < 0) return null;
-      const code = Number(hourly.weather_code?.[j]);
-      const precipitation = Number(hourly.precipitation?.[j]);
-      const showers = Number(hourly.showers?.[j]);
-      if (![code, precipitation, showers].some(Number.isFinite)) return null;
-      const wet = isWetWeatherCode(code) || (Number.isFinite(precipitation) && precipitation >= 0.1) ||
-        (Number.isFinite(showers) && showers >= 0.1);
-      return {wet, precipitation:Number.isFinite(precipitation)?Math.max(0,precipitation):0};
+      const code = finiteNumber(hourly.weather_code?.[j]);
+      const precipitation = finiteNumber(hourly.precipitation?.[j]);
+      const showers = finiteNumber(hourly.showers?.[j]);
+      if (![code, precipitation, showers].some(value => value != null)) return null;
+      const wet = isWetWeatherCode(code) || (precipitation != null && precipitation >= 0.1) ||
+        (showers != null && showers >= 0.1);
+      return {wet, precipitation:precipitation != null ? Math.max(0,precipitation) : 0};
     }).filter(Boolean);
     if (!rows.length) return;
     const precipValues = rows.map(row=>row.precipitation);

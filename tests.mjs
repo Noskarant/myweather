@@ -16,6 +16,9 @@ assert.equal(presentationWeatherCode(localizedShower), 2);
 const widespreadRain = {weather_code:63, precipitation:1.2, precipitation_probability:85, cloud_cover:92, localConsensus:{modelWetRatio:.75, spatialWetRatio:.8}};
 assert.equal(precipitationSignal(widespreadRain).robust, true);
 assert.equal(presentationWeatherCode(widespreadRain), 63);
+const missingModelRatio = {weather_code:63, precipitation:1.1, precipitation_probability:85, cloud_cover:90, localConsensus:{modelWetRatio:null, spatialWetRatio:.8}};
+assert.equal(precipitationSignal(missingModelRatio).localized, false);
+assert.equal(precipitationSignal(missingModelRatio).robust, true);
 
 const lpn = estimateSnowLevel({freezingLevel:1600, wetBulb:0, precipitation:2, elevation:900});
 assert.ok(lpn >= 1100 && lpn <= 1400, `LPN plausible attendue, reçu ${lpn}`);
