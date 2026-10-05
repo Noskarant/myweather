@@ -2,13 +2,35 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
-import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS } from './js/weather.js';
+import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds } from './js/weather.js';
 
 assert.ok(HOURLY_VARS.length >= 20);
 assert.ok(CURRENT_VARS.includes('temperature_2m'));
 assert.ok(DAILY_VARS.includes('temperature_2m_max'));
 assert.ok(DAILY_VARS.includes('sunshine_duration'));
 assert.ok(HOURLY_VARS.includes('freezing_level_height'));
+assert.ok(HOURLY_VARS.includes('sunshine_duration'));
+
+
+const clearHours = Array.from({length:10}, (_,i) => ({
+  time:`2026-10-05T${String(i+9).padStart(2,'0')}:00`,
+  sunshine_duration:3600, cloud_cover:0, cloud_cover_low:0, cloud_cover_mid:0, cloud_cover_high:0,
+  precipitation:0, weather_code:0
+}));
+const clearDay = {time:'2026-10-05', sunrise:'2026-10-05T08:30', sunset:'2026-10-05T17:30', sunshineDuration:36000};
+assert.equal(estimateEffectiveSunshineSeconds(clearDay, clearHours), 9*3600, 'Clear-day sunshine must be clipped to sunrise/sunset');
+
+const overcastHours = clearHours.map(h => ({...h, cloud_cover:100, cloud_cover_low:100, weather_code:3}));
+assert.equal(estimateEffectiveSunshineSeconds(clearDay, overcastHours), 0, 'Fully overcast day must not show many sunshine hours');
+
+const rainyHours = clearHours.map(h => ({...h, cloud_cover:85, cloud_cover_low:80, precipitation:1.2, weather_code:63}));
+assert.ok(estimateEffectiveSunshineSeconds(clearDay, rainyHours) < 3600, 'Rainy overcast day should show very little effective sunshine');
+
+assert.equal(
+  estimateEffectiveSunshineSeconds({time:'2026-10-05', sunrise:'2026-10-05T08:00', sunset:'2026-10-05T18:00', sunshineDuration:12*3600}, []),
+  10*3600,
+  'Fallback daily sunshine must never exceed astronomical daylight'
+);
 
 const lpn = estimateSnowLevel({freezingLevel:1600, wetBulb:0, precipitation:2, elevation:900});
 assert.ok(lpn >= 1100 && lpn <= 1400, `LPN plausible attendue, reçu ${lpn}`);
@@ -99,13 +121,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.7.4', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.7.6', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.7.4'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.7.6'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
