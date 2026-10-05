@@ -153,13 +153,29 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.7.7', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.7.8', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.7.7'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.7.8'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
+
+const manifestSource = fs.readFileSync(new URL('./manifest.webmanifest', import.meta.url), 'utf8');
+const manifest = JSON.parse(manifestSource);
+assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
+assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
+assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
+assert.equal(indexSource.includes('./styles.css?v=1.7.8'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.7.8'), true, 'Fullscreen app cache-bust missing');
+assert.equal(appSource.includes('function preventDocumentZoom()'), true, 'Document zoom guard missing');
+assert.equal(appSource.includes("closest('.leaflet-container')"), true, 'Map gestures must stay exempt from document zoom guard');
+const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
+assert.equal(stylesSource.includes('env(safe-area-inset-top)'), true, 'Top safe-area handling missing');
+assert.equal(stylesSource.includes('env(safe-area-inset-bottom)'), true, 'Bottom safe-area handling missing');
+console.log('✓ Android installed-PWA fullscreen regression checks passed');
+
