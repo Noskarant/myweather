@@ -121,6 +121,28 @@ assert.equal(appSource.includes("Averses localisées possibles"), true, 'Microcl
 assert.equal(appSource.includes("d.effectiveSunshineDuration ?? d.sunshineDuration"), true, 'Sunshine correction must remain active');
 console.log('✓ microclimate + sunshine regression checks passed');
 
+for (const required of [
+  'weatherVisualProfile(data)',
+  "kind==='mixed'",
+  "kind==='ice'",
+  'scene-hail',
+  'scene-lightning-secondary',
+  'container.dataset.sceneIntensity'
+]) {
+  assert.equal(appSource.includes(required), true, 'Intensity-aware hero scene logic missing: ' + required);
+}
+const stylesSceneSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+for (const required of [
+  '.hero-scene.mixed .scene-rain,.hero-scene.mixed .scene-snow',
+  '.hero-scene.ice .scene-rain,.hero-scene.ice .scene-hail',
+  '.hero-scene.storm.hail .scene-hail',
+  '@keyframes mwHailFall',
+  '.hero-scene.intensity-3 .scene-rain'
+]) {
+  assert.equal(stylesSceneSource.includes(required), true, 'Intensity-aware hero scene CSS missing: ' + required);
+}
+console.log('✓ intensity-aware hero scene regression checks passed');
+
 
 // map picker regression checks
 const indexSource = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
