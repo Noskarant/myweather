@@ -387,7 +387,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   overflow:hidden;
   border-radius:inherit;
 }
-.scene-glow,.scene-stars,.scene-sun,.scene-moon,.scene-cloud,.scene-rain,.scene-snow,.scene-hail,.scene-snow-haze,.scene-fog,.scene-lightning{position:absolute}
+.scene-glow,.scene-stars,.scene-sun,.scene-moon,.scene-cloud,.scene-rain,.scene-snow,.scene-hail,.scene-snow-haze,.scene-rain-curtain,.scene-fog,.scene-lightning{position:absolute}
 .scene-glow{inset:0;opacity:.75;transition:background .5s ease,opacity .5s ease}
 .hero-scene.sunny .scene-glow{background:radial-gradient(circle at 13% 48%,rgba(255,199,78,.20),transparent 25%)}
 .hero-scene.partly-cloudy .scene-glow{background:radial-gradient(circle at 14% 45%,rgba(255,207,92,.14),transparent 26%)}
@@ -474,6 +474,15 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 .scene-snow-haze i:nth-child(1){top:10%}.scene-snow-haze i:nth-child(2){top:39%;animation-delay:-1.2s;opacity:.75}.scene-snow-haze i:nth-child(3){top:68%;animation-delay:-2.1s;opacity:.58}
 .hero-scene.snow-haze .scene-snow-haze{opacity:var(--snow-haze-alpha,.38)}
 .hero-scene.snow-haze .scene-horizon{filter:blur(1.3px);opacity:.72}
+.scene-rain-curtain{inset:18% -12% 0 -12%;opacity:0;overflow:hidden;pointer-events:none;transform:rotate(var(--rain-slant,-9deg));transform-origin:center}
+.scene-rain-curtain i{position:absolute;left:-8%;width:116%;height:38%;background:repeating-linear-gradient(90deg,rgba(166,220,244,0) 0 8px,rgba(166,220,244,.16) 9px 11px,rgba(218,241,251,.28) 12px 14px,rgba(166,220,244,0) 15px 23px);filter:blur(1.2px);animation:mwRainCurtain var(--rain-curtain-speed,1.05s) linear infinite}
+.scene-rain-curtain i:nth-child(1){top:0}.scene-rain-curtain i:nth-child(2){top:29%;animation-delay:-.31s;opacity:.82}.scene-rain-curtain i:nth-child(3){top:58%;animation-delay:-.57s;opacity:.68}
+.hero-scene.rain-curtain .scene-rain-curtain{opacity:var(--rain-curtain-alpha,.46)}
+.hero-scene.rain-curtain .scene-horizon{filter:blur(1.7px);opacity:.58}
+.hero-scene.rain-curtain-1 .scene-glow{background:linear-gradient(120deg,rgba(84,143,177,.15),rgba(12,31,49,.09) 66%)}
+.hero-scene.rain-curtain-2 .scene-horizon{filter:blur(3px);opacity:.34}
+.hero-scene.rain-curtain-2 .scene-cloud{filter:brightness(.73)}
+.hero-scene.rain-curtain-2 .scene-glow{background:linear-gradient(120deg,rgba(69,122,156,.24),rgba(6,20,34,.22) 68%)}
 .hero-scene.blizzard-1 .scene-cloud{filter:brightness(.86)}
 .hero-scene.blizzard-1 .scene-horizon{filter:blur(2px);opacity:.55}
 .hero-scene.blizzard-2 .scene-cloud{filter:brightness(.76)}
@@ -527,6 +536,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 @keyframes mwRainFall{0%{transform:translate3d(0,-24px,0) rotate(10deg);opacity:0}15%{opacity:.95}100%{transform:translate3d(-12px,170px,0) rotate(10deg);opacity:0}}
 @keyframes mwSnowFall{0%{transform:translate3d(0,-18px,0) scale(.8);opacity:0}15%{opacity:.95}55%{transform:translate3d(calc(-7px + var(--snow-drift-half,0px)),80px,0) scale(1)}100%{transform:translate3d(calc(18px + var(--snow-drift,0px)),176px,0) scale(1.15);opacity:0}}
 @keyframes mwSnowHaze{0%{transform:translate3d(-7%,0,0);opacity:.35}50%{opacity:.8}100%{transform:translate3d(8%,0,0);opacity:.4}}
+@keyframes mwRainCurtain{0%{transform:translate3d(0,-34%,0)}100%{transform:translate3d(-3%,72%,0)}}
 @keyframes mwHailFall{0%{transform:translate3d(0,-18px,0);opacity:0}10%{opacity:.98}88%{opacity:.98}100%{transform:translate3d(-7px,180px,0);opacity:0}}
 @keyframes mwFogMove{from{translate:-3% 0}to{translate:5% 0}}
 @keyframes mwTwinkle{from{opacity:.2;transform:scale(.7)}to{opacity:.9;transform:scale(1.25)}}
@@ -645,7 +655,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 }
 
 @media(prefers-reduced-motion:reduce){
-  .scene-sun,.scene-sun span,.scene-cloud,.scene-rain i,.scene-snow i,.scene-hail i,.scene-snow-haze i,.scene-fog i,.scene-stars i,.scene-lightning{animation:none!important}
+  .scene-sun,.scene-sun span,.scene-cloud,.scene-rain i,.scene-snow i,.scene-hail i,.scene-snow-haze i,.scene-rain-curtain i,.scene-fog i,.scene-stars i,.scene-lightning{animation:none!important}
 }
 
 
@@ -925,7 +935,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
   background:linear-gradient(135deg,transparent 0 22%,rgba(3,28,44,.21) 22% 29%,transparent 29% 55%,rgba(3,28,44,.26) 55% 64%,transparent 64%);
   opacity:.75;
 }
-.hero-scene .scene-cloud,.hero-scene .scene-rain,.hero-scene .scene-snow,.hero-scene .scene-hail,.hero-scene .scene-snow-haze,.hero-scene .scene-fog,.hero-scene .scene-lightning{z-index:4}
+.hero-scene .scene-cloud,.hero-scene .scene-rain,.hero-scene .scene-snow,.hero-scene .scene-hail,.hero-scene .scene-snow-haze,.hero-scene .scene-rain-curtain,.hero-scene .scene-fog,.hero-scene .scene-lightning{z-index:4}
 .hero-scene .scene-stars{z-index:1}
 @media(max-width:760px){
   .hero-now .hero-scene .scene-sun,.hero-now .hero-scene .scene-moon{width:52px!important;height:52px!important}
