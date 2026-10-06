@@ -143,6 +143,26 @@ for (const required of [
 }
 console.log('✓ intensity-aware hero scene regression checks passed');
 
+for (const required of [
+  "const snowHaze=kind==='snow'&&intensity===3",
+  "blizzardLevel=snowHaze",
+  "scene-snow-haze",
+  "--snow-drift-half",
+  "--snow-haze-alpha"
+]) {
+  assert.equal(appSource.includes(required), true, 'Heavy snow/blizzard scene logic missing: ' + required);
+}
+for (const required of [
+  '.hero-scene.snow-haze .scene-snow-haze',
+  '.hero-scene.blizzard-1 .scene-horizon',
+  '.hero-scene.blizzard-2 .scene-horizon',
+  '@keyframes mwSnowHaze',
+  'var(--snow-drift-half,0px)'
+]) {
+  assert.equal(stylesSceneSource.includes(required), true, 'Heavy snow/blizzard CSS missing: ' + required);
+}
+console.log('✓ heavy snow visibility + blizzard regression checks passed');
+
 
 // map picker regression checks
 const indexSource = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
