@@ -713,7 +713,11 @@ function renderWeatherScene(container,data={}){
   const astro=pos.astro||sceneAstronomy(time),moon=sceneMoonState(time,astro,pos);
   const profile=weatherVisualProfile(data),kind=heroSceneKind(data,pos.isDay),intensity=sceneIntensity(data,kind);
   const clouds=sceneClamp(Number(data.cloud_cover ?? (['rain','snow','storm','fog','mixed','ice'].includes(kind)?88:kind.includes('cloudy')?55:6)),0,100);
-  const wind=Math.max(0,Number(data.wind_speed_10m ?? 0)),uv=Math.max(0,Number(data.uv_index ?? 0));
+  const wind=Math.max(0,Number(data.wind_speed_10m ?? 0)),gust=Math.max(0,Number(data.wind_gusts_10m ?? 0)),uv=Math.max(0,Number(data.uv_index ?? 0));
+  const visibility=Number(data.visibility);
+  const snowHaze=kind==='snow'&&intensity===3;
+  const blizzardLevel=snowHaze&&(gust>=70||(Number.isFinite(visibility)&&visibility<1000))?2
+    :snowHaze&&(gust>=45||(Number.isFinite(visibility)&&visibility<3000))?1:0;
   const cloudLevel=sceneClamp(Math.ceil(clouds/34),0,3);
   const rainCount=kind==='storm'?[0,10,22,38][intensity]
     :kind==='mixed'?[0,5,10,16][intensity]
@@ -731,7 +735,8 @@ function renderWeatherScene(container,data={}){
   }).join('');
   const flakes=Array.from({length:snowCount},(_,i)=>{
     const size=intensity===3?5+(i%4):intensity===2?4+(i%3):3+(i%2);
-    return '<i style="left:'+(2+((i*23)%95))+'%;width:'+size+'px;height:'+size+'px;animation-delay:'+(-i*.19).toFixed(2)+'s;animation-duration:'+(snowSpeed+(i%6)*.22).toFixed(2)+'s"></i>';
+    const drift=blizzardLevel===2?22+(i%5)*5:blizzardLevel===1?12+(i%4)*4:0;
+    return '<i style="left:'+(2+((i*23)%95))+'%;width:'+size+'px;height:'+size+'px;--snow-drift:'+drift+'px;animation-delay:'+(-i*.19).toFixed(2)+'s;animation-duration:'+(snowSpeed+(i%6)*.22).toFixed(2)+'s"></i>';
   }).join('');
   const pellets=Array.from({length:hailCount},(_,i)=>{
     const size=profile.hail?(intensity===3?5+(i%3):4+(i%2)):3+(i%2);
@@ -740,7 +745,7 @@ function renderWeatherScene(container,data={}){
   const stars=Array.from({length:13},(_,i)=>'<i style="left:'+(4+((i*23)%88))+'%;top:'+(10+((i*13)%55))+'%;animation-delay:'+(-i*.18).toFixed(2)+'s"></i>').join('');
   const role=container.classList.contains('future-scene')?'future-scene':'current-scene';
   const moonVisible=moon.visible&&moon.illumination>.008;
-  container.className='hero-scene '+role+' '+kind+' '+(pos.isDay?'phase-day':'phase-night')+' intensity-'+intensity+' cloud-'+cloudLevel+(moonVisible?' moon-visible':'')+(profile.hail?' hail':'')+(profile.freezing?' freezing':'');
+  container.className='hero-scene '+role+' '+kind+' '+(pos.isDay?'phase-day':'phase-night')+' intensity-'+intensity+' cloud-'+cloudLevel+(moonVisible?' moon-visible':'')+(profile.hail?' hail':'')+(profile.freezing?' freezing':'')+(snowHaze?' snow-haze':'')+(blizzardLevel?' blizzard-'+blizzardLevel:'');
   container.dataset.sceneKind=kind;
   container.dataset.sceneIntensity=String(intensity);
   container.style.setProperty('--sun-x',pos.x+'%');container.style.setProperty('--sun-y',pos.y+'%');container.style.setProperty('--sun-brightness',String(pos.brightness));
@@ -751,9 +756,11 @@ function renderWeatherScene(container,data={}){
   container.style.setProperty('--moon-day-alpha',String(sceneClamp((1-clouds/130)*(.06+.24*Math.sqrt(moon.illumination)),.03,.28)));
   container.style.setProperty('--twilight-alpha',String(pos.twilight*(1-clouds/150)));
   container.style.setProperty('--cloud-speed',sceneClamp(18-wind*.16,7,18)+'s');
+  container.style.setProperty('--snow-haze-alpha',snowHaze?String(blizzardLevel===2?.72:blizzardLevel===1?.55:.38):'0');
+  container.style.setProperty('--snow-haze-speed',(blizzardLevel===2?2.4:blizzardLevel===1?3.8:6.5)+'s');
   container.style.setProperty('--flash-duration',(intensity===3?2.35:intensity===2?4.4:7.8)+'s');
   container.style.setProperty('--storm-flash-alpha',intensity===3?'1':intensity===2?'.72':'.48');
-  container.innerHTML='<div class="scene-glow"></div><div class="scene-twilight"></div><div class="scene-stars">'+stars+'</div><div class="scene-sun"><span></span></div><div class="scene-moon">'+sceneMoonSvg(moon)+'</div><div class="scene-horizon"></div><div class="scene-cloud scene-cloud-a"><b></b><em></em></div><div class="scene-cloud scene-cloud-b"><b></b><em></em></div><div class="scene-cloud scene-cloud-c"><b></b><em></em></div><div class="scene-rain">'+drops+'</div><div class="scene-snow">'+flakes+'</div><div class="scene-hail">'+pellets+'</div><div class="scene-fog"><i></i><i></i><i></i></div>'+(kind==='storm'?'<div class="scene-lightning"></div>'+(intensity===3?'<div class="scene-lightning scene-lightning-secondary"></div>':''):'');
+  container.innerHTML='<div class="scene-glow"></div><div class="scene-twilight"></div><div class="scene-stars">'+stars+'</div><div class="scene-sun"><span></span></div><div class="scene-moon">'+sceneMoonSvg(moon)+'</div><div class="scene-horizon"></div><div class="scene-cloud scene-cloud-a"><b></b><em></em></div><div class="scene-cloud scene-cloud-b"><b></b><em></em></div><div class="scene-cloud scene-cloud-c"><b></b><em></em></div><div class="scene-rain">'+drops+'</div><div class="scene-snow">'+flakes+'</div><div class="scene-hail">'+pellets+'</div><div class="scene-snow-haze"><i></i><i></i><i></i></div><div class="scene-fog"><i></i><i></i><i></i></div>'+(kind==='storm'?'<div class="scene-lightning"></div>'+(intensity===3?'<div class="scene-lightning scene-lightning-secondary"></div>':''):'');
 }
 function renderHeroScene(current={},hourly={}){
   renderWeatherScene(refs.heroScene,{...hourly,...current,time:forecastNowLocal(),weather_code:current.weather_code ?? hourly.display_weather_code ?? hourly.weather_code,is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),uv_index:hourly.uv_index,cape:hourly.cape,cloud_cover:current.cloud_cover ?? hourly.cloud_cover});
