@@ -736,7 +736,7 @@ function renderWeatherScene(container,data={}){
   const flakes=Array.from({length:snowCount},(_,i)=>{
     const size=intensity===3?5+(i%4):intensity===2?4+(i%3):3+(i%2);
     const drift=blizzardLevel===2?22+(i%5)*5:blizzardLevel===1?12+(i%4)*4:0;
-    return '<i style="left:'+(2+((i*23)%95))+'%;width:'+size+'px;height:'+size+'px;--snow-drift:'+drift+'px;animation-delay:'+(-i*.19).toFixed(2)+'s;animation-duration:'+(snowSpeed+(i%6)*.22).toFixed(2)+'s"></i>';
+    return '<i style="left:'+(2+((i*23)%95))+'%;width:'+size+'px;height:'+size+'px;--snow-drift:'+drift+'px;--snow-drift-half:'+(drift*.45).toFixed(1)+'px;animation-delay:'+(-i*.19).toFixed(2)+'s;animation-duration:'+(snowSpeed+(i%6)*.22).toFixed(2)+'s"></i>';
   }).join('');
   const pellets=Array.from({length:hailCount},(_,i)=>{
     const size=profile.hail?(intensity===3?5+(i%3):4+(i%2)):3+(i%2);
