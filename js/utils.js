@@ -79,6 +79,45 @@ export function confidenceForHorizon(hoursAhead) {
   return 52;
 }
 
+export function weatherVisualProfile(data = {}) {
+  const source = data && typeof data === 'object' ? data : { weather_code:data };
+  const codeValue = source.display_weather_code ?? source.weather_code ?? source.code ?? 0;
+  const code = Number.isFinite(Number(codeValue)) ? Number(codeValue) : 0;
+  const positive = value => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const rain = positive(source.rain) + positive(source.showers);
+  const snowfall = positive(source.snowfall);
+  const precipitation = positive(source.precipitation);
+  const cape = positive(source.cape);
+  const freezing = [56,57,66,67].includes(code);
+  const hail = [96,99].includes(code);
+  const mixed = !freezing && rain > 0 && snowfall > 0;
+
+  let kind = 'cloud';
+  if ([0,1].includes(code)) kind = 'clear';
+  else if ([2,3].includes(code)) kind = 'cloud';
+  else if ([45,48].includes(code)) kind = 'fog';
+  else if ([95,96,99].includes(code)) kind = 'storm';
+  else if ([71,73,75,77,85,86].includes(code)) kind = mixed ? 'mixed' : 'snow';
+  else if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) kind = mixed ? 'mixed' : (freezing ? 'ice' : 'rain');
+
+  let intensity = 'moderate';
+  if ([51,56,61,66,71,80,85].includes(code)) intensity = 'light';
+  else if ([55,57,65,67,75,82,86,99].includes(code)) intensity = 'heavy';
+  else if (code === 77) intensity = 'light';
+  else if (code === 95) {
+    if (precipitation >= 7.5 || cape >= 1500) intensity = 'heavy';
+    else if (precipitation < 2.5 && cape < 700) intensity = 'light';
+    else intensity = 'moderate';
+  } else if (code === 96) {
+    intensity = precipitation >= 7.5 || cape >= 1500 ? 'heavy' : 'moderate';
+  }
+
+  return { code, kind, intensity, mixed, freezing, hail, rain, snowfall, precipitation, cape };
+}
+
 export function weatherCodeInfo(code = 0, isDay = 1) {
   const day = isDay !== 0;
   const map = {
