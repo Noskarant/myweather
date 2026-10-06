@@ -1,4 +1,4 @@
-import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.8.1';
+import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.8.2';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE = 'https://geocoding-api.open-meteo.com/v1/search';
