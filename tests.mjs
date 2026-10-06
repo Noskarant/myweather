@@ -163,6 +163,25 @@ for (const required of [
 }
 console.log('✓ heavy snow visibility + blizzard regression checks passed');
 
+for (const required of [
+  "const rainCurtain=(kind==='rain'||kind==='storm')&&intensity===3",
+  "rainCurtainLevel=rainCurtain",
+  "scene-rain-curtain",
+  "--rain-curtain-alpha",
+  "--rain-slant"
+]) {
+  assert.equal(appSource.includes(required), true, 'Torrential rain curtain logic missing: ' + required);
+}
+for (const required of [
+  '.hero-scene.rain-curtain .scene-rain-curtain',
+  '.hero-scene.rain-curtain-1 .scene-glow',
+  '.hero-scene.rain-curtain-2 .scene-horizon',
+  '@keyframes mwRainCurtain'
+]) {
+  assert.equal(stylesSceneSource.includes(required), true, 'Torrential rain curtain CSS missing: ' + required);
+}
+console.log('✓ torrential rain curtain regression checks passed');
+
 
 // map picker regression checks
 const indexSource = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
