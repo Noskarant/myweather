@@ -525,7 +525,7 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 @keyframes mwSunRotate{to{transform:rotate(360deg)}}
 @keyframes mwCloudDrift{0%,100%{margin-left:0;margin-top:0}50%{margin-left:10px;margin-top:-3px}}
 @keyframes mwRainFall{0%{transform:translate3d(0,-24px,0) rotate(10deg);opacity:0}15%{opacity:.95}100%{transform:translate3d(-12px,170px,0) rotate(10deg);opacity:0}}
-@keyframes mwSnowFall{0%{transform:translate3d(0,-18px,0) scale(.8);opacity:0}15%{opacity:.95}55%{transform:translate3d(calc(-7px + var(--snow-drift,0px) * .45),80px,0) scale(1)}100%{transform:translate3d(calc(18px + var(--snow-drift,0px)),176px,0) scale(1.15);opacity:0}}
+@keyframes mwSnowFall{0%{transform:translate3d(0,-18px,0) scale(.8);opacity:0}15%{opacity:.95}55%{transform:translate3d(calc(-7px + var(--snow-drift-half,0px)),80px,0) scale(1)}100%{transform:translate3d(calc(18px + var(--snow-drift,0px)),176px,0) scale(1.15);opacity:0}}
 @keyframes mwSnowHaze{0%{transform:translate3d(-7%,0,0);opacity:.35}50%{opacity:.8}100%{transform:translate3d(8%,0,0);opacity:.4}}
 @keyframes mwHailFall{0%{transform:translate3d(0,-18px,0);opacity:0}10%{opacity:.98}88%{opacity:.98}100%{transform:translate3d(-7px,180px,0);opacity:0}}
 @keyframes mwFogMove{from{translate:-3% 0}to{translate:5% 0}}
