@@ -2,7 +2,7 @@ import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseG
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
-  formatHour, formatPrecipitation, isSnowForecast, nearestIndex, precipitationLabel, round, seasonFor, svgPath, weatherCodeInfo
+  formatHour, formatPrecipitation, isSnowForecast, nearestIndex, precipitationLabel, round, seasonFor, svgPath, weatherCodeInfo, weatherVisualProfile
 } from './utils.js?v=1.6.11';
 
 const $ = s => document.querySelector(s);
@@ -456,7 +456,7 @@ function renderAll() {
   refs.currentCondition.textContent = Number.isFinite(uvNow) ? `${info.label} · UV ${round(uvNow,1)}` : info.label;
   refs.feelsLike.textContent = `Ressenti ${Math.round(c.apparent_temperature ?? hNow.apparent_temperature ?? 0)}°C`;
   refs.lastUpdated.textContent = formatUpdateAge(c.time || hNow.time);
-  refs.weatherGlyph.innerHTML = weatherIcon(currentCode, c.is_day);
+  refs.weatherGlyph.innerHTML = weatherIcon({...hNow,...c,display_weather_code:currentCode,weather_code:currentCode}, c.is_day);
   try { renderHeroScene({...c, weather_code:currentCode},hNow); } catch (err) { console.warn('Scene météo actuelle',err); }
   try { renderFutureWeather(); } catch (err) { console.warn('Scène météo future',err); }
 
@@ -744,22 +744,57 @@ function renderFutureWeather(){
   refs.futureMeta.textContent='Prévision '+formatHour(h.time)+' · '+(precip>0||isSnowForecast(h)?formatPrecipitation(h):prob+'% précip.')+' · raf. '+gust+' km/h'; $$('[data-future-offset]').forEach(b=>b.classList.toggle('active',Number(b.dataset.futureOffset)===state.futureOffset));
 }
 
-function weatherIcon(code = 0, isDay = 1) {
+function weatherIcon(weather = 0, isDay = 1) {
   const day = isDay !== 0;
+  const profile = weatherVisualProfile(weather);
+  const {code, kind, intensity, hail} = profile;
   const cloud = '<path class="wx-cloud" d="M21 43h27a9 9 0 0 0 .8-18 14 14 0 0 0-26-4A11 11 0 0 0 21 43Z"/>';
   const sun = '<circle class="wx-sun" cx="24" cy="23" r="8"/><g class="wx-rays"><path d="M24 7v5M24 34v5M8 23h5M35 23h5M13 12l4 4M31 30l4 4M35 12l-4 4M17 30l-4 4"/></g>';
   const moon = '<path class="wx-moon" d="M31 10a15 15 0 1 0 14 22A13 13 0 0 1 31 10Z"/>';
+
+  const rainArt = (level = 'moderate', xs = null) => {
+    const positions = xs || (level === 'light' ? [36] : level === 'heavy' ? [18,27,36,45,54] : [24,36,48]);
+    const length = level === 'heavy' ? 9 : level === 'light' ? 6 : 7;
+    return `<g class="wx-rain">${positions.map((x,i)=>`<path d="m${x} ${49 + (i%2)}-3 ${length}"/>`).join('')}</g>`;
+  };
+  const snowflake = (x, y, r = 4) => {
+    const d = r * .87;
+    return `<path d="M${x} ${y-r}v${r*2}M${x-d} ${y-r/2}l${d*2} ${r}M${x+d} ${y-r/2}l-${d*2} ${r}"/>`;
+  };
+  const snowArt = (level = 'moderate') => {
+    const flakes = level === 'light'
+      ? [[36,54,4]]
+      : level === 'heavy'
+        ? [[22,52,3.5],[34,57,3.5],[46,51,3.5],[53,59,2.8]]
+        : [[28,53,4],[44,57,4]];
+    return `<g class="wx-snow">${flakes.map(([x,y,r])=>snowflake(x,y,r)).join('')}</g>`;
+  };
+  const iceArt = (level = 'moderate') =>
+    `${rainArt(level, level === 'heavy' ? [20,32,44,54] : level === 'light' ? [30] : [24,38,50])}<g class="wx-ice"><path d="M48 52l3 3-3 3-3-3Z"/></g>`;
+  const hailArt = (heavy = false) => {
+    const stones = heavy ? [[19,54,2.1],[30,59,2],[43,53,2.2],[53,59,2]] : [[25,56,2],[46,56,2]];
+    return `<g class="wx-hail">${stones.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}"/>`).join('')}</g>`;
+  };
+  const mixedArt = () => `<g class="wx-rain"><path d="m25 49-3 7"/></g><g class="wx-snow">${snowflake(45,55,4)}</g>`;
+  const bolt = '<path class="wx-bolt" d="m35 46-7 10h7l-3 8 11-13h-7l4-5Z"/>';
+  const smallBolt = '<path class="wx-bolt wx-bolt-secondary" d="m48 45-4 6h4l-2 5 7-8h-4l3-3Z"/>';
+
   let art = '';
   if ([0,1].includes(code)) art = day ? sun : moon;
   else if ([2,3].includes(code)) art = `${day ? sun : moon}${cloud}`;
   else if ([45,48].includes(code)) art = `${cloud}<g class="wx-precip"><path d="M17 50h32M14 56h28"/></g>`;
-  else if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) art = `${cloud}<g class="wx-rain"><path d="m24 49-3 7M36 49l-3 7M48 49l-3 7"/></g>`;
-  else if ([71,73,75,77,85,86].includes(code)) art = `${cloud}<g class="wx-snow"><path d="M25 49v9M20.5 51.5l9 4M29.5 51.5l-9 4M43 49v9M38.5 51.5l9 4M47.5 51.5l-9 4"/></g>`;
-  else if ([95,96,99].includes(code)) art = `${cloud}<path class="wx-bolt" d="m35 47-7 10h7l-3 8 11-13h-7l4-5Z"/>`;
-  else art = cloud;
-  return `<span class="wx-icon" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false">${art}</svg></span>`;
+  else if (kind === 'mixed') art = `${cloud}${mixedArt()}`;
+  else if (kind === 'ice') art = `${cloud}${iceArt(intensity)}`;
+  else if (kind === 'rain') art = `${cloud}${rainArt(intensity)}`;
+  else if (kind === 'snow') {
+    if (code === 77) art = `${cloud}<g class="wx-hail wx-snow-grains"><circle cx="27" cy="53" r="1.4"/><circle cx="38" cy="57" r="1.4"/><circle cx="49" cy="52" r="1.4"/></g>`;
+    else art = `${cloud}${snowArt(intensity)}`;
+  } else if (kind === 'storm') {
+    const stormRain = rainArt(intensity === 'light' ? 'light' : intensity, intensity === 'heavy' ? [18,50] : [20,49]);
+    art = `${cloud}${stormRain}${bolt}${intensity === 'heavy' ? smallBolt : ''}${hail ? hailArt(code === 99 || intensity === 'heavy') : ''}`;
+  } else art = cloud;
+  return `<span class="wx-icon wx-${kind} wx-${intensity}" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false">${art}</svg></span>`;
 }
-
 
 function isDayAt(time) {
   const date = String(time).slice(0,10);
@@ -943,7 +978,7 @@ function renderHourly(dateStr) {
     const isPast=h.time.slice(0,13)<now;
     return `<button class="hour-card ${isPast?'past':''}" data-hour="${escapeHtml(h.time)}">
       <span class="hour-time">${formatHour(h.time)}</span>
-      <span class="hour-glyph">${weatherIcon(h.display_weather_code ?? h.weather_code, isDayAt(h.time))}</span>
+      <span class="hour-glyph">${weatherIcon(h, isDayAt(h.time))}</span>
       <strong>${Math.round(h.temperature_2m)}°</strong>
       <span class="hour-meta"><small class="precip">${Math.round(h.precipitation_probability ?? 0)}%</small>${hourlyPrecipitation(h)?`<small class="hour-amount" title="Cumul prévu pendant cette heure">${hourlyPrecipitation(h)}</small>`:''}<small>raf. ${Math.round(h.wind_gusts_10m ?? 0)}</small></span>
     </button>`;
@@ -1054,7 +1089,7 @@ function openDayDetail(date) {
 
   view.querySelector('#dayDetailOverview').innerHTML = `
     <div class="day-overview-main">
-      <div class="day-overview-icon">${weatherIcon(midday?.display_weather_code ?? midday?.weather_code ?? d.weather_code, 1)}</div>
+      <div class="day-overview-icon">${weatherIcon(midday || d, 1)}</div>
       <div class="day-overview-copy">
         <span class="eyebrow">${escapeHtml(state.location.type || 'PRÉVISION LOCALE')} · ${Math.round(state.location.elevation ?? state.forecast.elevation ?? 0)} m</span>
         <h1>${escapeHtml(daylightCondition(d))}</h1>
@@ -1103,7 +1138,7 @@ function renderDayDetailRows() {
     const cape = Number(h.cape);
     return `<div class="day-hour-entry"><button type="button" class="day-hour-row" data-day-hour="${escapeHtml(h.time)}" aria-expanded="false" aria-controls="science-${escapeHtml(h.time)}">
       <span class="day-hour-time"><strong>${formatHour(h.time)}</strong><small>${day?'jour':'nuit'}</small></span>
-      <span class="day-hour-weather">${weatherIcon(h.display_weather_code ?? h.weather_code, day)}<small>${escapeHtml(info.label)}</small></span>
+      <span class="day-hour-weather">${weatherIcon(h, day)}<small>${escapeHtml(info.label)}</small></span>
       <span class="day-hour-temp"><strong>${Math.round(h.temperature_2m)}°</strong><small>ress. ${Math.round(h.apparent_temperature ?? h.temperature_2m)}°</small></span>
       <span class="day-hour-wind"><strong><i class="wind-arrow" style="--wind-dir:${Number(h.wind_direction_10m ?? 0)}deg">↑</i> ${Math.round(h.wind_speed_10m ?? 0)} km/h</strong><small>raf. ${Math.round(h.wind_gusts_10m ?? 0)} · ${cardinal(h.wind_direction_10m)}</small>${hourlyPrecipitation(h)?`<small class="day-hour-amount" title="Cumul prévu pendant cette heure">${hourlyPrecipitation(h)}</small>`:''}</span>
       <span class="day-hour-chevron">⌄</span>
@@ -1146,7 +1181,7 @@ function renderDaily() {
     const uvText = d.uv != null && Number.isFinite(uvValue) ? round(uvValue,1) : '—';
     return `<button class="forecast-row ${active?'selected':''}" data-day="${d.time}">
       <span class="forecast-date"><strong>${i===0?'Aujourd’hui':formatDay(d.time).split(' ')[0]}</strong><small>${new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit'}).format(new Date(`${d.time}T12:00:00`))}</small></span>
-      <span class="forecast-weather"><span class="forecast-icons">${weatherIcon(dayHour?.display_weather_code ?? dayHour?.weather_code ?? d.weather_code,1)}${weatherIcon(nightHour?.display_weather_code ?? nightHour?.weather_code ?? d.weather_code,0)}</span><small>${escapeHtml(daylightCondition(d))}</small></span>
+      <span class="forecast-weather"><span class="forecast-icons">${weatherIcon(dayHour || d,1)}${weatherIcon(nightHour || d,0)}</span><small>${escapeHtml(daylightCondition(d))}</small></span>
       <span class="forecast-temps"><strong>${Math.round(d.max)}°</strong><em>${Math.round(d.min)}°</em></span>
       <span class="forecast-metrics">
         <span><i class="wind-arrow" style="--wind-dir:${Number(d.windDir ?? 0)}deg">↑</i> ${windText} km/h <small>raf. ${Math.round(d.gustMax ?? 0)}</small></span>
@@ -1322,7 +1357,7 @@ function openHour(time) {
   const info=weatherCodeInfo(h.display_weather_code ?? h.weather_code,1);
   refs.modalTitle.textContent=formatDateTime(h.time);
   refs.modalSub.textContent=`${state.location.name} · ${info.label}`;
-  refs.modalGlyph.innerHTML=weatherIcon(h.display_weather_code ?? h.weather_code, isDayAt(h.time));
+  refs.modalGlyph.innerHTML=weatherIcon(h, isDayAt(h.time));
   refs.modalMain.innerHTML=`<div><span>Température</span><strong>${round(h.temperature_2m,1)}°C</strong><small>Ressenti ${round(h.apparent_temperature,1)}°C</small></div><div><span>${precipitationLabel(h)}</span><strong>${formatPrecipitation(h,{rate:true})}</strong><small>${Math.round(h.precipitation_probability??0)}% de probabilité</small></div><div><span>Vent / rafales</span><strong>${Math.round(h.wind_speed_10m??0)} / ${Math.round(h.wind_gusts_10m??0)}</strong><small>km/h · ${cardinal(h.wind_direction_10m)}</small></div>`;
   const items=[
     ['Pluie',h.snowfallEstimated?'— (phase neige estimée)':`${round(h.rain,1)} mm`],['Averses',`${round(h.showers,1)} mm`],['Neige',`${h.snowfallEstimated?'≈':''}${round(h.snowfall,1)} cm`],['LPN estimée',h.snowLevel!=null?`~${Math.round(h.snowLevel)} m`:'—'],
