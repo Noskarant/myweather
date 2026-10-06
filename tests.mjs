@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, haversineKm, nearestIndex } from './js/utils.js';
+import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
@@ -65,6 +65,23 @@ assert.ok(lpn >= 1100 && lpn <= 1400, `LPN plausible attendue, reçu ${lpn}`);
 assert.equal(confidenceForHorizon(6), 94);
 assert.ok(confidenceForHorizon(300) < confidenceForHorizon(24));
 assert.equal(weatherCodeInfo(73).theme, 'snow');
+assert.deepEqual(
+  [weatherVisualProfile(61).intensity, weatherVisualProfile(63).intensity, weatherVisualProfile(65).intensity],
+  ['light','moderate','heavy'],
+  'Rain icon intensity must follow WMO rain codes'
+);
+assert.deepEqual(
+  [weatherVisualProfile(71).intensity, weatherVisualProfile(73).intensity, weatherVisualProfile(75).intensity],
+  ['light','moderate','heavy'],
+  'Snow icon intensity must follow WMO snow codes'
+);
+assert.equal(weatherVisualProfile({weather_code:66,rain:.4}).kind, 'ice', 'Freezing rain must have a dedicated icon kind');
+assert.equal(weatherVisualProfile({weather_code:96,precipitation:4,cape:900}).hail, true, 'Hail thunderstorm must expose hail');
+assert.equal(weatherVisualProfile({weather_code:99,precipitation:8,cape:1600}).intensity, 'heavy', 'Violent hail thunderstorm must be visually heavy');
+assert.equal(weatherVisualProfile({weather_code:95,precipitation:.8,cape:300}).intensity, 'light', 'Weak thunderstorm signal must stay visually light');
+assert.equal(weatherVisualProfile({weather_code:95,precipitation:4,cape:900}).intensity, 'moderate', 'Moderate thunderstorm signal must be visually moderate');
+assert.equal(weatherVisualProfile({weather_code:95,precipitation:8,cape:1600}).intensity, 'heavy', 'Strong thunderstorm signal must be visually heavy');
+assert.equal(weatherVisualProfile({weather_code:61,rain:.5,snowfall:.2}).kind, 'mixed', 'Simultaneous rain and snow must use a mixed icon');
 assert.ok(haversineKm({lat:45.75,lon:4.85},{lat:45.9,lon:6.1}) > 90);
 assert.equal(nearestIndex(['2026-09-22T10:00','2026-09-22T11:00'], new Date('2026-09-22T10:40')), 1);
 
