@@ -1064,16 +1064,31 @@ function ensureDayDetailView() {
       <main class="day-detail-content">
         <section class="day-detail-panel">
           <div class="day-detail-panel-head">
-            <div><span class="eyebrow">PRÉVISION HORAIRE</span><h2>Heure par heure</h2></div>
-            <div class="day-step-toggle" aria-label="Pas horaire">
-              <button type="button" data-day-step="1" class="active">1 h</button>
-              <button type="button" data-day-step="3">3 h</button>
+            <div class="day-detail-title"><span class="eyebrow">PRÉVISION HORAIRE</span><h2>Heure par heure</h2></div>
+            <div class="day-detail-controls">
+              <div class="day-date-nav" aria-label="Changer de jour">
+                <button type="button" data-day-shift="-1">‹ <span>Jour précédent</span></button>
+                <button type="button" data-day-shift="1"><span>Jour suivant</span> ›</button>
+              </div>
+              <div class="day-step-toggle" aria-label="Pas horaire">
+                <button type="button" data-day-step="1" class="active">1 h</button>
+                <button type="button" data-day-step="3">3 h</button>
+              </div>
             </div>
           </div>
           <div class="day-detail-columns" aria-hidden="true">
             <span>Heure</span><span>Temps</span><span>Temp.</span><span>Vent</span><span>Détails</span>
           </div>
           <div id="dayDetailRows" class="day-detail-rows"></div>
+        </section>
+
+        <section class="day-webcam-card" aria-labelledby="dayWebcamTitle">
+          <div class="day-webcam-copy">
+            <span class="eyebrow">WEBCAM</span>
+            <h2 id="dayWebcamTitle">Voir les conditions sur place</h2>
+            <p id="dayWebcamText">Recherche des webcams disponibles autour du lieu sélectionné.</p>
+          </div>
+          <a id="dayWebcamLink" class="day-webcam-link" href="https://www.windy.com/webcams" target="_blank" rel="noopener noreferrer">Voir les webcams proches <span aria-hidden="true">↗</span></a>
         </section>
 
         <details id="dayDetailSummary" class="day-science-details">
@@ -1093,27 +1108,86 @@ function ensureDayDetailView() {
     view.querySelectorAll('[data-day-step]').forEach(x=>x.classList.toggle('active', x===b));
     renderDayDetailRows();
   }));
+  view.querySelectorAll('[data-day-shift]').forEach(b=>b.addEventListener('click',()=>shiftDayDetail(Number(b.dataset.dayShift) || 0)));
+
+  let swipeStartX = 0, swipeStartY = 0, swipeTracking = false;
+  view.addEventListener('touchstart', event => {
+    if (event.touches.length !== 1) { swipeTracking = false; return; }
+    swipeStartX = event.touches[0].clientX;
+    swipeStartY = event.touches[0].clientY;
+    swipeTracking = true;
+  }, {passive:true});
+  view.addEventListener('touchend', event => {
+    if (!swipeTracking || !event.changedTouches.length) return;
+    const dx = event.changedTouches[0].clientX - swipeStartX;
+    const dy = event.changedTouches[0].clientY - swipeStartY;
+    swipeTracking = false;
+    if (dx > 85 && Math.abs(dx) > Math.abs(dy) * 1.35) closeDayDetail();
+  }, {passive:true});
+  view.addEventListener('touchcancel', () => { swipeTracking = false; }, {passive:true});
   return view;
 }
 
-function openDayDetail(date) {
+function shiftDayDetail(delta) {
+  if (!delta || !state.dayDetailDate) return;
+  const days = state.forecast?.daily || [];
+  const currentIndex = days.findIndex(day => day.time === state.dayDetailDate);
+  const target = days[currentIndex + delta];
+  if (!target) return;
+  openDayDetail(target.time, {preserveStep:true});
+}
+
+function updateDayDetailNavigation(view, dayIndex) {
+  const days = state.forecast?.daily || [];
+  view.querySelectorAll('[data-day-shift]').forEach(button => {
+    const delta = Number(button.dataset.dayShift) || 0;
+    const target = days[dayIndex + delta];
+    button.disabled = !target;
+    if (target) {
+      const label = formatDetailDate(target.time);
+      button.title = (delta < 0 ? 'Jour précédent : ' : 'Jour suivant : ') + label;
+      button.setAttribute('aria-label', button.title);
+    } else {
+      button.removeAttribute('title');
+    }
+  });
+}
+
+function updateDayWebcam(view) {
+  const link = view.querySelector('#dayWebcamLink');
+  const textNode = view.querySelector('#dayWebcamText');
+  if (!link) return;
+  const lat = Number(state.location?.lat);
+  const lon = Number(state.location?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    link.href = 'https://www.windy.com/webcams';
+    if (textNode) textNode.textContent = 'Ouvre la carte des webcams pour rechercher une vue proche.';
+    return;
+  }
+  link.href = 'https://www.windy.com/-Webcams-webcams?webcams,' + lat.toFixed(4) + ',' + lon.toFixed(4) + ',11';
+  if (textNode) textNode.textContent = 'Webcams disponibles autour de ' + (state.location.name || 'ce lieu') + ', centrées sur les coordonnées exactes sélectionnées.';
+}
+
+function openDayDetail(date, {preserveStep=false}={}) {
   const d = state.forecast?.daily?.find(x=>x.time===date);
   if (!d) return;
   state.dayDetailDate = date;
-  state.dayDetailStep = 1;
+  state.dayDetailStep = preserveStep ? (state.dayDetailStep || 1) : 1;
   state.selectedDate = date;
   renderDaily();
 
   const view = ensureDayDetailView();
   view.querySelector('#dayDetailPlace').textContent = state.location.name;
   view.querySelector('#dayDetailDate').textContent = formatDetailDate(date);
-  view.querySelectorAll('[data-day-step]').forEach(b=>b.classList.toggle('active',b.dataset.dayStep==='1'));
+  view.querySelectorAll('[data-day-step]').forEach(b=>b.classList.toggle('active',Number(b.dataset.dayStep)===state.dayDetailStep));
   const scienceDetails = view.querySelector('#dayDetailSummary');
   if (scienceDetails) scienceDetails.open = false;
 
   const hours = dayHours(date);
   const midday = representativeHour(date, 14) || hours[0];
   const dayIndex = Math.max(0, state.forecast.daily.findIndex(x=>x.time===date));
+  updateDayDetailNavigation(view, dayIndex);
+  updateDayWebcam(view);
   const conf = confidenceForHorizon(dayIndex*24+12);
   const visibility = hours.map(h=>Number(h.visibility)).filter(Number.isFinite);
   const pressure = hours.map(h=>Number(h.pressure_msl)).filter(Number.isFinite);
@@ -1764,7 +1838,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.2', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.3', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
