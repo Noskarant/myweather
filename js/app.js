@@ -1012,15 +1012,9 @@ function renderHourly(dateStr) {
   const previousLocation=refs.hourlyRail.dataset.location;
   const previousScroll=refs.hourlyRail.scrollLeft;
   const locationKey=favoriteKey(state.location);
-  let renderedDate='';
 
   refs.hourlyRail.innerHTML=items.map(h=>{
-    const hourDate=h.time.slice(0,10);
-    const divider=hourDate!==renderedDate
-      ? `<div class="hour-day-divider" aria-label="${escapeHtml(formatDetailDate(hourDate))}"><strong>${escapeHtml(new Intl.DateTimeFormat('fr-FR',{weekday:'short'}).format(new Date(hourDate+'T12:00:00')))}</strong><small>${escapeHtml(new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short'}).format(new Date(hourDate+'T12:00:00')))}</small></div>`
-      : '';
-    renderedDate=hourDate;
-    return `${divider}<button class="hour-card" data-hour="${escapeHtml(h.time)}">
+    return `<button class="hour-card" data-hour="${escapeHtml(h.time)}">
       <span class="hour-time">${formatHour(h.time)}</span>
       <span class="hour-glyph">${weatherIcon(h, isDayAt(h.time))}</span>
       <strong>${Math.round(h.temperature_2m)}°</strong>
@@ -1815,7 +1809,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.5', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.6', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
