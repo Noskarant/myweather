@@ -1004,21 +1004,23 @@ function hourlyPrecipitation(h) {
 }
 
 function renderHourly(dateStr) {
-  const f=state.forecast; if (!f) return;
-  let items, currentIndex = 0;
-  if (dateStr === f.daily[0]?.time) {
-    const idx = nearestIndex(f.hourly.map(x=>x.time), forecastNowLocal());
-    const start = f.hourly.findIndex(x=>x.time.slice(0,10)===dateStr);
-    items = f.hourly.slice(Math.max(0,start), Math.min(f.hourly.length,idx+24));
-    currentIndex = Math.max(0,idx-Math.max(0,start));
-  } else {
-    items = f.hourly.filter(x=>x.time.slice(0,10)===dateStr);
-  }
-  const previousDate=refs.hourlyRail.dataset.date, previousScroll=refs.hourlyRail.scrollLeft;
-  const now=forecastNowLocal().slice(0,13);
-  refs.hourlyRail.innerHTML = items.map(h=>{
-    const isPast=h.time.slice(0,13)<now;
-    return `<button class="hour-card ${isPast?'past':''}" data-hour="${escapeHtml(h.time)}">
+  const f=state.forecast; if (!f?.hourly?.length) return;
+  const now=forecastNowLocal();
+  let startIndex=nearestIndex(f.hourly.map(x=>x.time),now);
+  while(startIndex < f.hourly.length-1 && f.hourly[startIndex].time < now) startIndex++;
+  const items=f.hourly.slice(Math.max(0,startIndex));
+  const previousLocation=refs.hourlyRail.dataset.location;
+  const previousScroll=refs.hourlyRail.scrollLeft;
+  const locationKey=favoriteKey(state.location);
+  let renderedDate='';
+
+  refs.hourlyRail.innerHTML=items.map(h=>{
+    const hourDate=h.time.slice(0,10);
+    const divider=hourDate!==renderedDate
+      ? `<div class="hour-day-divider" aria-label="${escapeHtml(formatDetailDate(hourDate))}"><strong>${escapeHtml(new Intl.DateTimeFormat('fr-FR',{weekday:'short'}).format(new Date(hourDate+'T12:00:00')))}</strong><small>${escapeHtml(new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short'}).format(new Date(hourDate+'T12:00:00')))}</small></div>`
+      : '';
+    renderedDate=hourDate;
+    return `${divider}<button class="hour-card" data-hour="${escapeHtml(h.time)}">
       <span class="hour-time">${formatHour(h.time)}</span>
       <span class="hour-glyph">${weatherIcon(h, isDayAt(h.time))}</span>
       <strong>${Math.round(h.temperature_2m)}°</strong>
@@ -1027,13 +1029,9 @@ function renderHourly(dateStr) {
   }).join('');
   refs.hourlyRail.querySelectorAll('[data-hour]').forEach(btn=>btn.addEventListener('click',()=>openHour(btn.dataset.hour)));
   refs.hourlyRail.dataset.date=dateStr || '';
-  if (previousDate===dateStr) refs.hourlyRail.scrollLeft=previousScroll;
-  else if (dateStr===f.daily[0]?.time) {
-    const first=refs.hourlyRail.firstElementChild, selected=refs.hourlyRail.children[currentIndex];
-    refs.hourlyRail.scrollLeft=selected&&first?selected.offsetLeft-first.offsetLeft:0;
-  } else refs.hourlyRail.scrollLeft=0;
+  refs.hourlyRail.dataset.location=locationKey;
+  refs.hourlyRail.scrollLeft=previousLocation===locationKey ? previousScroll : 0;
 }
-
 
 function dayHours(date) {
   return (state.forecast?.hourly || []).filter(h => h.time.slice(0,10) === date);
@@ -1092,6 +1090,7 @@ function ensureDayDetailView() {
     state.dayDetailStep = Number(b.dataset.dayStep) || 1;
     view.querySelectorAll('[data-day-step]').forEach(x=>x.classList.toggle('active', x===b));
     renderDayDetailRows();
+    requestAnimationFrame(()=>view.syncVisibleDayHeader?.());
   }));
   let swipeStartX = 0, swipeStartY = 0, swipeTracking = false;
   view.addEventListener('touchstart', event => {
@@ -1108,6 +1107,31 @@ function ensureDayDetailView() {
     if (dx > 85 && Math.abs(dx) > Math.abs(dy) * 1.35) closeDayDetail();
   }, {passive:true});
   view.addEventListener('touchcancel', () => { swipeTracking = false; }, {passive:true});
+
+  let dayHeaderFrame = 0;
+  const syncVisibleDayHeader = () => {
+    dayHeaderFrame = 0;
+    if (view.classList.contains('hidden')) return;
+    const header = view.querySelector('.day-detail-bar');
+    const dateLabel = view.querySelector('#dayDetailDate');
+    const rows = [...view.querySelectorAll('[data-day-hour]')];
+    if (!header || !dateLabel || !rows.length) return;
+    const viewTop = view.getBoundingClientRect().top;
+    const targetY = viewTop + header.getBoundingClientRect().height + 10;
+    let activeRow = rows[0];
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      if (rect.top <= targetY) activeRow = row;
+      if (rect.top > targetY) break;
+    }
+    const visibleDate = activeRow.dataset.dayHour?.slice(0,10);
+    if (visibleDate) dateLabel.textContent = formatDetailDate(visibleDate);
+  };
+  view.addEventListener('scroll', () => {
+    if (dayHeaderFrame) return;
+    dayHeaderFrame = requestAnimationFrame(syncVisibleDayHeader);
+  }, {passive:true});
+  view.syncVisibleDayHeader = syncVisibleDayHeader;
   return view;
 }
 
@@ -1175,6 +1199,7 @@ function openDayDetail(date) {
   view.scrollTop = 0;
   const start = [...view.querySelectorAll('.day-hour-row')].find(row=>Number(row.dataset.dayHour.slice(11,13))>=8);
   if (start) view.scrollTop = start.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop - view.querySelector('.day-detail-bar').offsetHeight - 8;
+  requestAnimationFrame(()=>view.syncVisibleDayHeader?.());
 }
 
 function renderDayDetailRows() {
@@ -1790,7 +1815,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.4', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.5', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
