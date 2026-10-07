@@ -232,13 +232,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.3', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.4', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.3'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.4'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -248,8 +248,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.3'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.3'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.4'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.4'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -260,18 +260,25 @@ assert.equal(stylesSource.includes('.leaflet-container{\n  touch-action:none;'),
 assert.equal(stylesSource.includes('overflow-y:auto'), true, 'Document vertical scrolling must be explicitly enabled');
 
 for (const required of [
-  'data-day-shift="-1"',
-  'data-day-shift="1"',
-  'function shiftDayDetail(delta)',
   "view.addEventListener('touchstart'",
   'dx > 85',
+  'const availableDates = new Set',
+  'date >= state.dayDetailDate',
+  'hour % step === 0',
+  'day-detail-date-divider'
+]) assert.equal(appSource.includes(required), true, 'Continuous day-detail scrolling feature missing: ' + required);
+for (const forbidden of [
+  'data-day-shift=',
+  'function shiftDayDetail(delta)',
   'id="dayWebcamLink"',
-  'function updateDayWebcam(view)'
-]) assert.equal(appSource.includes(required), true, 'Day-detail navigation/webcam feature missing: ' + required);
-assert.equal(stylesSource.includes('.day-date-nav'), true, 'Day-to-day navigation styles missing');
-assert.equal(stylesSource.includes('.day-webcam-card'), true, 'Webcam card styles missing');
+  'function updateDayWebcam(view)',
+  'day-webcam-card'
+]) assert.equal(appSource.includes(forbidden), false, 'Removed day navigation/webcam feature still present: ' + forbidden);
+assert.equal(stylesSource.includes('.day-detail-date-divider'), true, 'Continuous-day separator styles missing');
+assert.equal(stylesSource.includes('.day-date-nav'), false, 'Removed day navigation styles still present');
+assert.equal(stylesSource.includes('.day-webcam-card'), false, 'Removed webcam styles still present');
 assert.equal(stylesSource.includes('touch-action:pan-y'), true, 'Day-detail swipe touch policy missing');
-console.log('✓ day-to-day navigation, swipe return and webcam access regression checks passed');
+console.log('✓ continuous hourly day scrolling, webcam removal and swipe return regression checks passed');
 
 console.log('✓ Android installed-PWA fullscreen regression checks passed');
 
