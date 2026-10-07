@@ -232,13 +232,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.4', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.5', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.4'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.5'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -248,8 +248,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.4'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.4'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.5'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.5'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -278,6 +278,17 @@ assert.equal(stylesSource.includes('.day-detail-date-divider'), true, 'Continuou
 assert.equal(stylesSource.includes('.day-date-nav'), false, 'Removed day navigation styles still present');
 assert.equal(stylesSource.includes('.day-webcam-card'), false, 'Removed webcam styles still present');
 assert.equal(stylesSource.includes('touch-action:pan-y'), true, 'Day-detail swipe touch policy missing');
+for (const required of [
+  'const items=f.hourly.slice',
+  'hour-day-divider',
+  'syncVisibleDayHeader',
+  "view.addEventListener('scroll'",
+  'dateLabel.textContent = formatDetailDate(visibleDate)'
+]) assert.equal(appSource.includes(required), true, 'Multi-day hourly rail/sticky date feature missing: ' + required);
+assert.equal(stylesSource.includes('.hour-day-divider'), true, 'Horizontal hourly day-divider styles missing');
+assert.equal(stylesSource.includes('.day-detail-place small{\n  font-size:14px'), true, 'Larger sticky day/date text missing');
+console.log('✓ multi-day horizontal hours and sticky visible date regression checks passed');
+
 console.log('✓ continuous hourly day scrolling, webcam removal and swipe return regression checks passed');
 
 console.log('✓ Android installed-PWA fullscreen regression checks passed');
