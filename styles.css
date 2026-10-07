@@ -1571,3 +1571,32 @@ body{
 .leaflet-container{
   touch-action:none;
 }
+
+
+/* V1.8.3 — navigation journée, swipe retour et accès webcam */
+.day-detail-view{overscroll-behavior-x:none;touch-action:pan-y}
+.day-detail-controls{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.day-date-nav{display:flex;align-items:center;gap:5px}
+.day-date-nav button{min-height:34px;border:1px solid rgba(190,220,236,.13);border-radius:9px;background:#0b3554;color:#cbe5f0;padding:7px 10px;cursor:pointer;font-size:10px;font-weight:650;white-space:nowrap}
+.day-date-nav button:hover:not(:disabled){background:#205d83;border-color:rgba(190,220,236,.24)}
+.day-date-nav button:disabled{opacity:.32;cursor:default}
+.day-webcam-card{margin-top:20px;padding:18px 20px;border:1px solid rgba(190,220,236,.11);border-radius:18px;background:linear-gradient(120deg,#0a2f4c,#0c3959);display:flex;align-items:center;justify-content:space-between;gap:18px}
+.day-webcam-copy h2{margin:3px 0 5px;font-size:19px}
+.day-webcam-copy p{margin:0;color:#86a8b9;font-size:10px;line-height:1.5}
+.day-webcam-link{flex:none;min-height:42px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid rgba(105,232,255,.28);border-radius:11px;background:rgba(74,190,232,.11);color:#d8f8ff;text-decoration:none;padding:0 15px;font-size:11px;font-weight:700}
+.day-webcam-link:hover{background:rgba(74,190,232,.18);border-color:rgba(105,232,255,.42)}
+@media(max-width:900px){
+  .day-detail-panel-head{align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .day-detail-title{min-width:120px}
+  .day-detail-controls{width:100%;justify-content:space-between;gap:8px}
+  .day-date-nav button{padding:7px 8px;font-size:9px}
+  .day-webcam-card{padding:15px;gap:12px}
+}
+@media(max-width:520px){
+  .day-detail-controls{align-items:stretch}
+  .day-date-nav{flex:1 1 100%;display:grid;grid-template-columns:1fr 1fr}
+  .day-date-nav button{width:100%;font-size:10px}
+  .day-step-toggle{margin-left:auto}
+  .day-webcam-card{align-items:stretch;flex-direction:column}
+  .day-webcam-link{width:100%}
+}
