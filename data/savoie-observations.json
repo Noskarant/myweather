@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "region": "savoie",
+  "generatedAt": null,
+  "stations": [],
+  "sources": {
+    "meteofranceV2": 0,
+    "meteofrancePackage": 0,
+    "uniqueOfficial": 0,
+    "validated": 0
+  },
+  "checks": {
+    "v2": "not_yet_collected",
+    "package": "not_yet_collected",
+    "department": "73"
+  },
+  "note": "La collecte Savoie est générée lors du déploiement GitHub Pages. Aucune mesure avant le premier relevé."
+}
