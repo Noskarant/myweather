@@ -23,8 +23,8 @@ export function isFrance(location) {
 
 function modelWeight(name, horizon) {
   if (horizon < 52) return ({
-    meteofrance_arome_france_hd:0.34, meteofrance_arome_france:0.18,
-    icon_eu:0.20, ecmwf_ifs:0.18, meteofrance_arpege_europe:0.10
+    meteofrance_arome_france_hd:0.46, meteofrance_arome_france:0.46,
+    icon_eu:0.28, ecmwf_ifs:0.18, meteofrance_arpege_europe:0.08
   })[name] || 0;
   if (horizon < 102) return ({
     icon_eu:0.35, ecmwf_ifs:0.40, meteofrance_arpege_europe:0.25
@@ -40,9 +40,14 @@ function weighted(values) {
 }
 
 function modelColumns(hourly, variable, index, horizon) {
-  return SNOWFUSION_MODELS.map(name => ({
+  const candidates=SNOWFUSION_MODELS.map(name => ({
     name, value:finite(hourly[variable + '_' + name]?.[index]), weight:modelWeight(name,horizon)
   })).filter(entry=>entry.value !== null && entry.weight > 0);
+  // HD and standard AROME are related runs, not independent evidence.
+  // Use the HD one if available rather than counting AROME twice.
+  if (candidates.some(row=>row.name==='meteofrance_arome_france_hd'))
+    return candidates.filter(row=>row.name!=='meteofrance_arome_france');
+  return candidates;
 }
 
 function skyIsDark(hour, day) {
