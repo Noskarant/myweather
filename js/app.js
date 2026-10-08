@@ -1303,7 +1303,7 @@ function renderSnowFusion() {
   const first=days[0];
   const todaySnow=first?.snowfall!=null?round(Math.max(0,Number(first.snowfall)),1)+' cm':'—';
   const firstDepth=first?.snowFusion?.snowpack?.depth ??
-    f.hourly?.filter(h=>h.time.startsWith(first?.time||'') && Number.isFinite(Number(h.snow_depth))).at(-1)?.snow_depth*100;
+    f.hourly?.filter(h=>h.time.startsWith(first?.time||'') && h.snow_depth != null && Number.isFinite(Number(h.snow_depth))).at(-1)?.snow_depth*100;
   const totalDepth=firstDepth!=null && Number.isFinite(Number(firstDepth))?round(Number(firstDepth),1)+' cm':'—';
   const chance=first?.snowFusion?.ensemble?.probability;
   refs.snowFusionHighlights.innerHTML=[
