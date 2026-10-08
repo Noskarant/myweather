@@ -35,6 +35,9 @@ jobs:
           METEOFRANCE_PACKAGE_API_KEY: ${{ secrets.METEOFRANCE_PACKAGE_API_KEY }}
         run: node scripts/update-rhone-observations.mjs
         timeout-minutes: 3
+      - name: Resolve verified household addresses from BAN
+        run: node scripts/resolve-custom-places.mjs
+        timeout-minutes: 1
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static site

@@ -1,6 +1,7 @@
 import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.8.2';
 import { applySnowFusion, isFrance, SNOWFUSION_MODELS, SNOWFUSION_ENSEMBLE } from './snowfusion.js?v=1.8.7';
 import { inRhoneArea, inSavoieArea, loadRhoneObservations, loadSavoieObservations, applyRhoneObservations, applySavoieObservations } from './rhone-observations.js?v=1.8.11';
+import {searchCustomPlaces} from './custom-places.js?v=1.8.12';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const ENSEMBLE = 'https://ensemble-api.open-meteo.com/v1/ensemble';
@@ -136,6 +137,15 @@ export async function geocode(name, count = 8) {
   const cacheKey = `${query.toLocaleLowerCase('fr')}:${count}`;
   const cached = geocodeCache.get(cacheKey);
   if (cached && Date.now() - cached.time < 10 * 60_000) return cached.items;
+
+  // Exact household aliases are resolved from vetted BAN housenumber positions.
+  // Unrelated queries still use the unchanged worldwide Nominatim/Open-Meteo search.
+  const special=await searchCustomPlaces(query);
+  if(special!==null){
+    const items=special.slice(0,count);
+    if(items.length)geocodeCache.set(cacheKey,{time:Date.now(),items});
+    return items;
+  }
 
   let osm = [];
   try {

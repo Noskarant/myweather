@@ -6,6 +6,8 @@ import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations, inSavoieAre
 import { parseSenseBoxes, parseGrandLyon, parseMetars, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
 import { parseMeteoFranceStationList, selectMeteoFranceStations, parseMeteoFranceObservation, collectMeteoFranceStations } from './scripts/meteo-france-observations.mjs';
 import {parsePackageObservations, collectMeteoFrancePackage} from './scripts/meteo-france-package.mjs';
+import {CUSTOM_ADDRESSES,parseOfficialAddressCandidates,resolveCustomAddresses} from './scripts/resolve-custom-places.mjs';
+import {matchCustomPlaceAliases,searchCustomPlaces,loadCustomPlaces} from './js/custom-places.js';
 import {collectSavoieObservations,mergeOfficialStations} from './scripts/savoie-observations.mjs';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
@@ -238,13 +240,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.11', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.12', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.11'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.12'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -254,8 +256,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.11'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.11'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.12'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.12'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -734,7 +736,85 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.11'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.12'));
 assert.ok(pagesSavoie.includes('Fetch Rhône and Savoie station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
+
+
+// Custom geocodes: alias search must pin verified numbered addresses only.
+const customNoe=CUSTOM_ADDRESSES[0],customKelian=CUSTOM_ADDRESSES[1];
+assert.equal(customNoe.name,'Maison Noé');
+assert.equal(customKelian.name,'Maison Kélian');
+for(const [query,id] of [
+  ['Maison Noé','maison-noe'],['maison noe','maison-noe'],
+  ['29 rue tupin Oullins','maison-noe'],
+  ['Maison Kélian','maison-kelian'],['Maison Kelian','maison-kelian'],
+  ['maison kélian','maison-kelian'],['Kelian','maison-kelian'],
+  ['40 rue de la roche Saint Maurice sur Dargoire','maison-kelian']
+]){
+  assert.deepEqual(matchCustomPlaceAliases(query),[id],
+    'Search alias missing or accent/case mismatch: '+query);
+}
+assert.deepEqual(matchCustomPlaceAliases('Oullins'),[]);
+assert.deepEqual(matchCustomPlaceAliases('Planchamp'),[]);
+assert.deepEqual(matchCustomPlaceAliases('maison'),['maison-noe','maison-kelian']);
+assert.deepEqual(matchCustomPlaceAliases(''),[]);
+const fakeBAN=(item,longitude,latitude,overrides={})=>({
+  type:'Feature',geometry:{type:'Point',coordinates:[longitude,latitude]},
+  properties:{
+    type:'housenumber',housenumber:item.houseNumber,
+    street:item.streetTail==='tupin'?'Rue Tupin':'Route de la Roche',
+    postcode:item.postcode,citycode:item.cityCodes[0],label:item.address,score:0.96,...overrides
+  }
+});
+const banNoe=fakeBAN(customNoe,4.80370,45.71414);
+const banKelian=fakeBAN(customKelian,4.635,45.585);
+assert.equal(parseOfficialAddressCandidates({features:[banNoe]},customNoe).length,1);
+assert.equal(parseOfficialAddressCandidates({features:[banKelian]},customKelian).length,1);
+for(const mutation of [
+  {housenumber:'28'},{type:'street'},{postcode:'69002'},
+  {citycode:'69299'},{street:'Rue de Verdun'}
+]){
+  assert.deepEqual(parseOfficialAddressCandidates(
+    {features:[fakeBAN(customNoe,4.8037,45.71414,mutation)]},customNoe),[],
+    'Wrong street, city or number must never masquerade as a home address');
+}
+assert.deepEqual(parseOfficialAddressCandidates(
+  {features:[fakeBAN(customKelian,4.635,45.585,{housenumber:'41'})]},customKelian),[]);
+assert.deepEqual(parseOfficialAddressCandidates(
+  {features:[fakeBAN(customKelian,5.1,45.58)]},customKelian),[]);
+const mockAddressFetch=async(url,options)=>{
+  assert.ok(url.startsWith('https://data.geopf.fr/geocodage/search/'));
+  assert.equal(options.headers.accept,'application/json');
+  const q=new URL(url).searchParams;
+  assert.equal(q.get('type'),'housenumber');
+  assert.equal(q.get('autocomplete'),'0');
+  return {ok:true,json:async()=>({
+    features:[q.get('q').includes('Tupin')?banNoe:banKelian]})};
+};
+const exactHomes=await resolveCustomAddresses(mockAddressFetch);
+assert.deepEqual(exactHomes.places.map(x=>x.id),['maison-noe','maison-kelian']);
+assert.equal(exactHomes.places[0].name,'Maison Noé');
+assert.equal(exactHomes.places[1].name,'Maison Kélian');
+assert.equal(exactHomes.places[0].lat,45.71414);
+assert.equal(exactHomes.places[1].lon,4.635);
+const fakeSnapshot=async()=>({ok:true,json:async()=>exactHomes});
+assert.deepEqual((await searchCustomPlaces('Maison Kélian',fakeSnapshot)).map(x=>x.name),['Maison Kélian']);
+assert.deepEqual((await searchCustomPlaces('Maison Kelian',fakeSnapshot)).map(x=>x.name),['Maison Kélian']);
+assert.deepEqual((await searchCustomPlaces('Maison Noe',fakeSnapshot)).map(x=>x.name),['Maison Noé']);
+assert.equal(await searchCustomPlaces('Paris',fakeSnapshot),null,'Normal worldwide search must not be overridden');
+assert.deepEqual(await loadCustomPlaces(async()=>({ok:false})),[],'Temporary snapshot failure must be safe');
+assert.deepEqual(await resolveCustomAddresses(async()=>({ok:true,json:async()=>({
+  features:[{...banNoe,properties:{...banNoe.properties,type:'street'}}]
+})})),{version:1,places:[]},'Unverified street centroid must not generate false house coordinates');
+const sourceWeatherNamed=fs.readFileSync(new URL('./js/weather.js',import.meta.url),'utf8');
+const sourcePagesNamed=fs.readFileSync(new URL('./.github/workflows/pages.yml',import.meta.url),'utf8');
+const sourceSWNamed=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
+assert.ok(sourceWeatherNamed.includes('await searchCustomPlaces(query)'),
+  'Named houses must be part of the existing geocode search');
+assert.ok(sourceWeatherNamed.includes('const special=await searchCustomPlaces(query)'));
+assert.ok(sourcePagesNamed.includes('node scripts/resolve-custom-places.mjs'));
+assert.ok(sourceSWNamed.includes("'./data/custom-places.json'"));
+assert.ok(sourceSWNamed.includes("'./js/custom-places.js'"));
+console.log('✓ Exact home search: accents, strict BAN housenumbers, search integration and safe fallback passed');
