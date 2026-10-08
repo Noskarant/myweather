@@ -31,7 +31,7 @@ const state = {
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), mapPickerBtn:$('#mapPickerBtn'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
-  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), localObservationStatus:$('#localObservationStatus'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'),
+  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), localObservationIndicator:$('#localObservationIndicator'), localObservationInfo:$('#localObservationInfo'), localObservationTooltip:$('#localObservationTooltip'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   snowFusionToggle:$('#snowFusionToggle'), snowFusionPanel:$('#snowFusionPanel'), snowFusionClose:$('#snowFusionClose'), snowFusionSource:$('#snowFusionSource'), snowFusionHighlights:$('#snowFusionHighlights'), snowFusionTable:$('#snowFusionTable'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
@@ -459,16 +459,23 @@ function renderAll() {
   refs.feelsLike.textContent = `Ressenti ${Math.round(c.apparent_temperature ?? hNow.apparent_temperature ?? 0)}°C`;
   refs.lastUpdated.textContent = formatUpdateAge(c.time || hNow.time);
 
+  // Tiny provenance antenna on the current-temperature card; no permanent caption.
   const local=f.localObservation;
-  if (refs.localObservationStatus) {
-    refs.localObservationStatus.hidden=!local?.applied;
-    if (local?.applied) {
-      const age=Math.max(0,Math.floor((Date.now()-Date.parse(local.measuredAt))/60000));
-      const status=local.direct?'Température mesurée à la station':'Température corrigée grâce aux stations';
-      refs.localObservationStatus.textContent='🌡 '+status+' · '+local.station+
-        ' · '+local.nearestKm+' km · mesure de '+age+' min';
-      refs.localObservationStatus.title=local.note||'';
-    } else refs.localObservationStatus.textContent='';
+  if (refs.localObservationIndicator) {
+    const active=Boolean(local?.applied);
+    refs.localObservationIndicator.hidden=!active;
+    if (active) {
+      const source=local.stationSource ? ' Source : '+local.stationSource+'.' : '';
+      const explanation=local.direct
+        ? 'Température mesurée par la station '+local.station+'.'
+        : 'Température estimée pour ce lieu à partir des stations proches, dont '+
+          local.station+' ('+local.nearestKm+' km).';
+      refs.localObservationTooltip.textContent=explanation+source;
+    } else {
+      refs.localObservationIndicator.classList.remove('is-open');
+      refs.localObservationInfo.setAttribute('aria-expanded','false');
+      refs.localObservationTooltip.textContent='';
+    }
   }
 
   refs.weatherGlyph.innerHTML = weatherIcon({...hNow,...c,display_weather_code:currentCode,weather_code:currentCode}, c.is_day);
@@ -1870,6 +1877,26 @@ function bindEvents(){
   $$('[data-future-offset]').forEach(b=>b.addEventListener('click',()=>{state.futureOffset=Number(b.dataset.futureOffset)||3;renderFutureWeather()}));
   refs.bulletinBtn?.addEventListener('click',openBulletin); refs.closeBulletin?.addEventListener('click',closeBulletin); refs.bulletinModal?.addEventListener('click',e=>{if(e.target===refs.bulletinModal)closeBulletin()});
   $$('[data-bulletin-period]').forEach(b=>b.addEventListener('click',()=>{state.bulletinPeriod=b.dataset.bulletinPeriod;renderWeatherBulletin()}));
+  // Show the methodology on tap/click; hover and keyboard focus are handled by CSS.
+  refs.localObservationInfo?.addEventListener('click',event=>{
+    event.stopPropagation();
+    const open=!refs.localObservationIndicator.classList.contains('is-open');
+    refs.localObservationIndicator.classList.toggle('is-open',open);
+    refs.localObservationInfo.setAttribute('aria-expanded',String(open));
+  });
+  const closeObservationInfo=()=>{
+    refs.localObservationIndicator?.classList.remove('is-open');
+    refs.localObservationInfo?.setAttribute('aria-expanded','false');
+  };
+  document.addEventListener('click',event=>{
+    if(!refs.localObservationIndicator?.contains(event.target))closeObservationInfo();
+  });
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){
+      closeObservationInfo();
+      if(document.activeElement===refs.localObservationInfo)refs.localObservationInfo.blur();
+    }
+  });
   refs.snowFusionToggle?.addEventListener('click',()=>toggleSnowFusion(!state.snowPanelOpen));
   refs.snowFusionClose?.addEventListener('click',()=>toggleSnowFusion(false));
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
@@ -1883,7 +1910,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.8', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.9', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
