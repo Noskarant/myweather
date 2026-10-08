@@ -644,9 +644,10 @@ const alpineStations={region:'savoie',stations:[
     measuredAt:obsAt}
 ]};
 const alpineEligible=eligibleSavoieStations(alpineStations,savoiePlace,observationNow);
-assert.equal(alpineEligible.length,2);
-assert.ok(alpineEligible[0].weight>alpineEligible[1].weight*10,
-  'Elevation difference must outweigh nearly identical mountain station distances');
+assert.equal(alpineEligible.length,1,
+  'A station 980 m below the searched Alpine locality must be rejected as unrepresentative');
+assert.equal(alpineEligible[0].id,'mf-73001001',
+  'Only the comparable high-altitude station should drive the mountain correction');
 const alpineForecast=baseObs();
 const alpineMeta=applySavoieObservations(alpineForecast,savoiePlace,alpineStations,observationNow);
 assert.equal(alpineMeta?.applied,true);
