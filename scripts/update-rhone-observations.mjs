@@ -241,7 +241,10 @@ export async function collectRhoneObservations(now=Date.now(),fetcher=fetch) {
     source:officialStGenis?'Météo-France':saintGenis.status.source,
     available:Boolean(officialStGenis)||saintGenis.status.available,
     assimilable:Boolean(officialStGenis||stGenisValidated),
-    measuredAt:officialStGenis?.measuredAt||saintGenis.status.measuredAt
+    measuredAt:officialStGenis?.measuredAt||saintGenis.status.measuredAt,
+    note:officialStGenis
+      ? 'Observation Météo-France récente, authentifiée et validée avec la référence Open-Meteo.'
+      : saintGenis.status.note
   };
   console.log('Météo-France API status:',JSON.stringify({
     state:meteoFrance.status,listed:meteoFrance.available,
