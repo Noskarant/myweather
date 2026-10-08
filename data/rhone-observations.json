@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "generatedAt": null,
+  "stations": [],
+  "sources": {
+    "grandlyon": 0,
+    "opensensemap": 0,
+    "validated": 0
+  },
+  "note": "Aucune station chargée avant le premier déploiement automatique."
+}
