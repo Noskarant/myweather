@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
+import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations } from './js/rhone-observations.js';
+import { parseSenseBoxes, parseGrandLyon, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
@@ -233,13 +235,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.7', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.8', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.7'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.8'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -249,8 +251,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.7'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.7'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.8'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.8'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -365,3 +367,71 @@ assert.ok(newApp.includes('renderSnowFusion();'),'The classic UI must render Sno
 assert.ok(newIndex.includes('id="snowFusionToggle"')&&newIndex.includes('id="snowFusionPanel"'));
 assert.ok(newSw.includes("'./js/snowfusion.js'"),'SnowFusion must work with PWA asset caching');
 console.log('✓ SnowFusion fusion/fallback/ensemble/terrain/snowpack/UI tests passed');
+
+
+// Rhône / Métropole of Lyon local temperature assimilation regressions.
+const observationNow=Date.parse('2026-10-08T08:00:00Z');
+const obsAt='2026-10-08T07:48:00Z';
+const lyon={lat:45.714,lon:4.807,elevation:190};
+const saintGenis={name:'Saint-Genis-Laval',source:'Grand Lyon / Météo-France',
+  lat:45.6946666667,lon:4.7823333333,elevation:290,
+  temperature:15,modelTemperature:13,measuredAt:obsAt};
+const localSnapshot={version:1,stations:[saintGenis]};
+assert.equal(inRhoneArea(lyon),true);
+assert.equal(inRhoneArea({lat:46.8,lon:6.1}),false,'Rhône processing is geographic and limited');
+assert.equal(eligibleRhoneStations(localSnapshot,lyon,observationNow).length,1);
+assert.equal(eligibleRhoneStations(localSnapshot,lyon,observationNow+110*60*1000).length,0,'Old observations must be rejected');
+assert.equal(eligibleRhoneStations({stations:[{...saintGenis,temperature:45,modelTemperature:12}]},lyon,observationNow).length,0,
+  'Extreme sensor-model disagreement must be rejected');
+const baseObs=()=>{
+  const times=Array.from({length:6},(_,i)=>'2026-10-08T'+String(i+10).padStart(2,'0')+':00');
+  return {utc_offset_seconds:7200,
+    hourly:{time:times,temperature_2m:Array(6).fill(13),apparent_temperature:Array(6).fill(12),
+      wet_bulb_temperature_2m:Array(6).fill(10),freezing_level_height:Array(6).fill(2400),
+      snowfall:Array(6).fill(.5),precipitation:Array(6).fill(1)},
+    current:{time:times[0],temperature_2m:13,apparent_temperature:12},
+    daily:{time:['2026-10-08'],temperature_2m_max:[13],temperature_2m_min:[13],
+      apparent_temperature_max:[12],apparent_temperature_min:[12],snowfall_sum:[3]}};
+};
+const corrected=baseObs();
+const meta=applyRhoneObservations(corrected,lyon,localSnapshot,observationNow);
+assert.ok(meta?.applied && !meta.direct,'A neighbouring station should correct the forecast, not impersonate a direct measurement');
+assert.ok(corrected.current.temperature_2m>13,'Local Rhône station residual should correct current temperature');
+assert.ok(corrected.hourly.temperature_2m[0]>13,'Correction must feed classic hourly forecast');
+assert.ok(corrected.daily.temperature_2m_max[0]>13,'Daily display must share corrected hourly temperatures');
+assert.equal(corrected.daily.snowfall_sum[0],3,'Temperature correction must not invent new snowfall amounts');
+assert.ok(corrected.hourly.temperature_2m[5]-13<corrected.hourly.temperature_2m[0]-13,
+  'Correction must decay with forecast horizon');
+const directForecast=baseObs();
+const directStation={...saintGenis,lat:lyon.lat,lon:lyon.lon,elevation:lyon.elevation};
+assert.equal(applyRhoneObservations(directForecast,lyon,{stations:[directStation]},observationNow).direct,true);
+assert.equal(directForecast.current.temperature_2m,15,'Co-located fresh station should report observed current temperature');
+const stale=baseObs();
+assert.equal(applyRhoneObservations(stale,lyon,localSnapshot,observationNow+110*60*1000),null);
+assert.equal(stale.current.temperature_2m,13,'Stale snapshots must preserve Best Match/SnowFusion data');
+const thirdParty=baseObs();
+assert.equal(applyRhoneObservations(thirdParty,{lat:43.6,lon:1.4,elevation:140},localSnapshot,observationNow),null);
+const sampleGrandLyon={results:[
+  {identifiant:'69204002',date:obsAt,T:14.8},
+  {identifiant:'69204002',date:'2020-01-01T00:00:00Z',T:0}]};
+const parsedOfficial=parseGrandLyon(sampleGrandLyon,observationNow);
+assert.equal(parsedOfficial.length,1);
+assert.equal(parsedOfficial[0].temperature,14.8);
+const sensed=parseSenseBoxes([{_id:'aaaaaaaaaaaaaaaaaaaaaaaa',name:'Station test Rhône',
+  exposure:'outdoor',currentLocation:{coordinates:[4.807,45.714,185]},
+  sensors:[{title:'Temperatur',unit:'°C',
+    lastMeasurement:{createdAt:obsAt,value:'14.1'}}]}],observationNow);
+assert.equal(sensed.length,1,'OpenSenseMap German-language temperature labels must be parsed');
+assert.equal(sensed[0].temperature,14.1);
+const appSourceObs=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
+const weatherSourceObs=fs.readFileSync(new URL('./js/weather.js',import.meta.url),'utf8');
+const indexSourceObs=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
+const pagesSourceObs=fs.readFileSync(new URL('./.github/workflows/pages.yml',import.meta.url),'utf8');
+const swSourceObs=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
+assert.ok(weatherSourceObs.includes('applyRhoneObservations(data,location,observations)'));
+assert.ok(indexSourceObs.includes('id="localObservationStatus"'));
+assert.ok(appSourceObs.includes("local.stationSource")===false && appSourceObs.includes("local.station"));
+assert.ok(pagesSourceObs.includes('schedule:')&&pagesSourceObs.includes('node scripts/update-rhone-observations.mjs'));
+assert.ok(swSourceObs.includes("'./js/rhone-observations.js'"));
+assert.ok(swSourceObs.includes("'./data/rhone-observations.json'"));
+console.log('✓ Rhône station parsing, freshness, observation assimilation, hourly/daily UI and fail-safe tests passed');

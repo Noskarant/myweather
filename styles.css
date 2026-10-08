@@ -1651,3 +1651,12 @@ body{
  .snowfusion-highlight:last-child{grid-column:1/-1;}
  .snowfusion-panel{scroll-margin-top:60px;}
 }
+
+/* Local station-corrected temperature: unobtrusive provenance under current conditions. */
+.local-observation-status{
+  display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-top:10px;
+  padding:6px 10px;border-radius:10px;border:1px solid rgba(126,211,244,.23);
+  background:rgba(19,116,161,.16);color:inherit;font-size:12px;line-height:1.45;
+  overflow-wrap:anywhere;
+}
+.local-observation-status[hidden]{display:none!important;}
