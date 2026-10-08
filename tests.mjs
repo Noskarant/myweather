@@ -473,7 +473,9 @@ const weatherSourceObs=fs.readFileSync(new URL('./js/weather.js',import.meta.url
 const indexSourceObs=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const pagesSourceObs=fs.readFileSync(new URL('./.github/workflows/pages.yml',import.meta.url),'utf8');
 const swSourceObs=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
-assert.ok(weatherSourceObs.includes('applyRhoneObservations(data,location,observations)'));
+assert.ok(weatherSourceObs.includes('applyRhoneObservations(data,stationLocation,observations)') &&
+  weatherSourceObs.includes('applySavoieObservations(data,stationLocation,observations)'),
+  'The existing Rhône correction and the new Savoie correction must share the main model forecast');
 assert.ok(indexSourceObs.includes('id="localObservationIndicator"') &&
   indexSourceObs.includes('id="localObservationInfo"') &&
   indexSourceObs.includes('id="localObservationTooltip"'),
