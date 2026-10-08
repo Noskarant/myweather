@@ -23,6 +23,37 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
+## SnowFusion France (moteur principal)
+
+Sur les coordonnées de France métropolitaine et leurs abords alpins, le flux de prévisions principal tente
+de fusionner les modèles AROME France HD / AROME France, ICON Europe, ECMWF IFS et ARPEGE Europe
+via Open-Meteo. La pondération **heuristique** change selon la portée. Les données fusionnées
+alimentent directement la vue actuelle (température), les heures, les prévisions quotidiennes
+et le panneau accessible via « ❄️ Neige ». **Il ne s'agit pas d'un nouveau modèle de physique atmosphérique
+ni d'une prévision validée comme meilleure que Météo-France ou ECMWF.**
+
+- Les cumuls de neige (cm) quotidiens sont calculés à partir des heures fusionnées.
+- Si disponible, un ensemble ECMWF indépendant fournit une fréquence des scénarios qui
+  dépassent les seuils 0,1 / 1 / 5 / 10 / 20 cm (ce n'est pas une probabilité calibrée).
+  Sans membres suffisants, les probabilités affichent « — ».
+- La neige **au sol** utilise le niveau initial du modèle en mètres, puis une simulation
+  simplifiée de tassement, d'ensoleillement, de températures, de pluie et de vent.
+  La fraction « ancienne/tassée » n'est **pas** une mesure de dureté. Si le niveau initial est
+  inconnu, le panneau n'invente pas une épaisseur initiale de zéro.
+- Le relief est d'abord pris en compte dans les modèles haute résolution et l'altitude
+  transmise à l'API. Un ajustement nocturne plafonné à 0,65 °C est possible dans des
+  vallées détectées approximativement sur le terrain environnant, sous ciel clair et
+  faible vent. La pente, l'orientation et l'ombrage réel ne sont **pas** résolus.
+- Si les appels supplémentaires échouent, le flux Best Match original reste
+  affiché. En dehors de la zone couverte, il demeure l'unique source.
+- La météo sur trajet conserve son fonctionnement initial. Les probabilités et hauteurs
+  de manteau neigeux ne constituent pas un bulletin local de risque d'avalanches.
+
+**Avant toute diffusion commerciale** : vérifier les licences et quotas Open-Meteo
+(multi-modèles et ensemble), prévoir une infrastructure autorisée pour le volume réel,
+et évaluer la qualité sur des observations de stations météo/nivologiques.
+L'affichage de pourcentages n'est pas une validation scientifique.
+
 ## Important
 
 La LPN affichée est une estimation calculée à partir du niveau 0 °C, de la température humide et de l'intensité des précipitations. Elle ne doit pas être interprétée comme une altitude garantie au mètre près.
