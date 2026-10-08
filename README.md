@@ -23,6 +23,29 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
+## Observations locales du Rhône (météo générale)
+
+Sans clé API : collecte des stations openSenseMap extérieures et des mesures
+horaires ouvertes Grand Lyon / Météo-France. Pendant le déploiement GitHub
+Pages (planifié toutes les 30 minutes), un fichier JSON de mesures fraîches est créé.
+Le moteur météo principal utilise ces mesures pour les villes et lieux du Rhône.
+
+- Les stations âgées de plus de 100 minutes, les capteurs aberrants et
+  les observations sans modèle co-localisé sont rejetés.
+- Le moteur corrige les températures via les **anomalies station - modèle**
+  pondérées par distance, différence d'altitude et fraîcheur.
+- Pour une commune sans station, on interpole les anomalies voisines. Une
+  station très proche et d'altitude comparable permet une mesure directe.
+- Les corrections s'atténuent sous 30 heures. Les cumuls neige/pluie restent
+  fournis par les modèles : on ne les déduit pas artificiellement des capteurs.
+- Si les flux échouent ou ne fournissent aucune station fiable, MyWeather
+  conserve les prévisions habituelles et n'invente pas de mesure.
+- Les archives SYNOP ouvertes ne sont pas un flux temps réel utilisable ici ;
+  l'API Météo-France temps réel exige un compte.
+
+**Sources et licences :** Métropole de Lyon / Météo-France (Licence Ouverte 2.0),
+openSenseMap (PDDL 1.0). La disponibilité réelle des flux et des déploiements
+reste à vérifier, et les gains de précision doivent être évalués sur observations.
 ## SnowFusion France (moteur principal)
 
 Sur les coordonnées de France métropolitaine et leurs abords alpins, le flux de prévisions principal tente
