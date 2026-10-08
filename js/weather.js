@@ -1,6 +1,8 @@
 import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.8.2';
+import { applySnowFusion, isFrance, SNOWFUSION_MODELS, SNOWFUSION_ENSEMBLE } from './snowfusion.js?v=1.8.7';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
+const ENSEMBLE = 'https://ensemble-api.open-meteo.com/v1/ensemble';
 const GEOCODE = 'https://geocoding-api.open-meteo.com/v1/search';
 const ELEVATION = 'https://api.open-meteo.com/v1/elevation';
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
@@ -11,7 +13,7 @@ export const HOURLY_VARS = [
   'temperature_2m','relative_humidity_2m','dew_point_2m','apparent_temperature','precipitation_probability',
   'precipitation','rain','showers','snowfall','snow_depth','weather_code','cloud_cover','cloud_cover_low','cloud_cover_mid',
   'cloud_cover_high','visibility','wind_speed_10m','wind_direction_10m','wind_gusts_10m','surface_pressure','pressure_msl',
-  'uv_index','cape','wet_bulb_temperature_2m','freezing_level_height','sunshine_duration'
+  'uv_index','cape','wet_bulb_temperature_2m','freezing_level_height','sunshine_duration','shortwave_radiation'
 ];
 export const CURRENT_VARS = [
   'temperature_2m','relative_humidity_2m','apparent_temperature','is_day','precipitation','rain','showers','snowfall',
@@ -374,6 +376,9 @@ async function assessLocalTerrain(location) {
   const nearSeaOuter = outerElevations.filter(value => value != null && value <= 5).length;
   const allNearSea = elevations.slice(1).map(finiteWeatherNumber).filter(value => value != null && value <= 5).length;
 
+  const near = elevations.slice(1,9).map(finiteWeatherNumber).filter(v=>v!=null).sort((a,b)=>a-b);
+  const neighborMedian = near.length ? medianWeather(near) : null;
+  const valleyDepth = neighborMedian == null || centerElevation == null ? null : Math.max(0, Math.round(neighborMedian-centerElevation));
   const rugged = elevationRange >= 220;
   const coastLike = allNearSea >= 2 || (allNearSea >= 1 && centerElevation != null && centerElevation <= 100);
   const islandLike = nearSeaOuter >= 2;
@@ -389,7 +394,7 @@ async function assessLocalTerrain(location) {
   ];
 
   return {
-    complex, rugged, coastLike, islandLike,
+    complex, rugged, coastLike, islandLike, valleyDepth,
     elevationRange:Math.round(elevationRange), nearSeaOuter, localPoints
   };
 }
@@ -532,6 +537,31 @@ function mergeLocalConsensus(terrain, models, spatial) {
   };
 }
 
+// Full deterministic fusion is optional; outages never prevent the base forecast.
+async function fetchSnowFusionModels(location) {
+  const params = new URLSearchParams({
+    latitude:String(location.lat), longitude:String(location.lon), timezone:'auto', forecast_days:'16',
+    hourly:'temperature_2m,precipitation,snowfall,rain',
+    models:SNOWFUSION_MODELS.join(','), precipitation_unit:'mm',temperature_unit:'celsius'
+  });
+  if (finiteWeatherNumber(location.elevation)!=null) params.set('elevation',String(Math.round(location.elevation)));
+  const response=await fetchWithRetry(FORECAST+'?'+params,{},1);
+  if (!response.ok) return null;
+  return response.json();
+}
+
+// ECMWF 50+ ensemble members: daily exceedance frequencies, not calibrated probabilities.
+async function fetchSnowFusionEnsemble(location) {
+  const params = new URLSearchParams({
+    latitude:String(location.lat),longitude:String(location.lon),timezone:'auto',forecast_days:'16',
+    hourly:'snowfall',models:SNOWFUSION_ENSEMBLE
+  });
+  if (finiteWeatherNumber(location.elevation)!=null) params.set('elevation',String(Math.round(location.elevation)));
+  const response=await fetchWithRetry(ENSEMBLE+'?'+params,{},1);
+  if (!response.ok) return null;
+  return response.json();
+}
+
 export async function getForecast(location) {
   const params = new URLSearchParams({
     latitude:String(location.lat), longitude:String(location.lon), timezone:'auto', forecast_days:'16',
@@ -539,11 +569,30 @@ export async function getForecast(location) {
     wind_speed_unit:'kmh', temperature_unit:'celsius', precipitation_unit:'mm'
   });
 
+  if (isFrance(location) && finiteWeatherNumber(location.elevation)!=null)
+    params.set('elevation',String(Math.round(location.elevation)));
   const response = await fetchWithRetry(`${FORECAST}?${params}`, {}, 2);
   if (!response.ok) throw new Error(`Prévisions indisponibles (${response.status})`);
   const data = await response.json();
 
-  const terrain = await optionalWithTimeout(assessLocalTerrain(location), 1400, null);
+  const local=isFrance(location);
+  const terrainPromise=optionalWithTimeout(assessLocalTerrain(location), 1500, null);
+  // Parallel, time-bounded extras keep the old Best Match forecast usable.
+  const modelsPromise=local?optionalWithTimeout(fetchSnowFusionModels(location), 3800, null):Promise.resolve(null);
+  const ensemblePromise=local?optionalWithTimeout(fetchSnowFusionEnsemble(location), 3800, null):Promise.resolve(null);
+  const [terrain, models, ensemble]=await Promise.all([terrainPromise,modelsPromise,ensemblePromise]);
+  if (local) {
+    try {
+      if (!applySnowFusion(data,models,ensemble,terrain)) {
+        data.snowFusion={active:false,probabilistic:false,days:{},
+          explanation:'Prévision Open-Meteo Best Match : fusion momentanément indisponible.'};
+      }
+    } catch (err) {
+      console.warn('SnowFusion indisponible : prévision de secours conservée',err);
+      data.snowFusion={active:false,probabilistic:false,days:{},
+        explanation:'Prévision Open-Meteo Best Match : calcul SnowFusion indisponible.'};
+    }
+  }
   if (terrain?.complex) {
     const [models, spatial] = await Promise.all([
       optionalWithTimeout(fetchShortRangeModelConsensus(location), 1800, null),
@@ -581,6 +630,7 @@ export function normalizeForecast(data) {
     const snow = snowfallFor(obj);
     if (snow.estimated) { obj.snowfall = snow.amount; obj.snowfallEstimated = true; }
     obj.localConsensus = data.localConsensus?.hourly?.[time] ?? null;
+    obj.snowpack = data._snowFusionHourly?.[i] ?? null;
     obj.display_weather_code = presentationWeatherCode(obj);
     obj.info = weatherCodeInfo(obj.display_weather_code ?? obj.weather_code, 1);
     return obj;
@@ -604,6 +654,7 @@ export function normalizeForecast(data) {
   daily.forEach(day => {
     const dayHours = hourly.filter(h => h.time.startsWith(day.time));
     day.effectiveSunshineDuration = estimateEffectiveSunshineSeconds(day, dayHours);
+    day.snowFusion = data.snowFusion?.days?.[day.time] ?? null;
     if (Number(day.snowfall ?? 0) > 0) return;
     const snowyHours = dayHours.filter(h => Number(h.snowfall) > 0);
     if (!snowyHours.length) return;

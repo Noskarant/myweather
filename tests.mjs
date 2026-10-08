@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
+import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
 assert.ok(HOURLY_VARS.length >= 20);
@@ -232,13 +233,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.6', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.7', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.6'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.7'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -248,8 +249,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.6'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.6'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.7'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.7'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -293,3 +294,74 @@ console.log('✓ continuous hourly day scrolling, webcam removal and swipe retur
 
 console.log('✓ Android installed-PWA fullscreen regression checks passed');
 
+
+
+// SnowFusion science / consistency / fallback regressions.
+assert.equal(isFrance({lat:45.714,lon:4.807}),true,'Oullins must be eligible');
+assert.equal(isFrance({lat:45.4,lon:6.6}),true,'French Alps must be eligible');
+assert.equal(isFrance({lat:40.4,lon:-3.7}),false,'Outside the France region, use provider forecast');
+const makeSnowFixture=()=>{
+  const times=Array.from({length:48},(_,i)=>'2026-01-03T'+String(i%24).padStart(2,'0')+':00')
+    .map((t,i)=>i>=24?'2026-01-04'+t.slice(10):t);
+  const h={
+    time:times,temperature_2m:Array(48).fill(-1),precipitation:Array(48).fill(0),
+    snowfall:Array(48).fill(0),rain:Array(48).fill(0),
+    weather_code:Array(48).fill(3),snow_depth:Array(48).fill(.5),
+    wind_speed_10m:Array(48).fill(3),cloud_cover:Array(48).fill(10),
+    apparent_temperature:Array(48).fill(-2),wet_bulb_temperature_2m:Array(48).fill(-1),
+    shortwave_radiation:Array(48).fill(0)
+  };
+  const model={
+    time:times,
+    temperature_2m_meteofrance_arome_france_hd:Array(48).fill(-2),
+    temperature_2m_meteofrance_arome_france:Array(48).fill(-1.8),
+    temperature_2m_icon_eu:Array(48).fill(-2.5),
+    temperature_2m_ecmwf_ifs:Array(48).fill(-1),
+    precipitation_meteofrance_arome_france_hd:Array(48).fill(.7),
+    precipitation_icon_eu:Array(48).fill(.7),
+    snowfall_meteofrance_arome_france_hd:Array(48).fill(.5),
+    snowfall_icon_eu:Array(48).fill(.5),
+    rain_meteofrance_arome_france_hd:Array(48).fill(0),
+    rain_icon_eu:Array(48).fill(0)
+  };
+  const members={time:times};
+  for(let m=0;m<20;m++)members['snowfall_member'+String(m).padStart(2,'0')]=
+    Array.from({length:48},(_,i)=>i>=24 && i<28 && m<10? .5:0);
+  const daily={time:['2026-01-03','2026-01-04'],
+    sunrise:['2026-01-03T08:00','2026-01-04T08:00'],
+    sunset:['2026-01-03T17:00','2026-01-04T17:00'],
+    temperature_2m_max:[-1,-1],temperature_2m_min:[-1,-1],
+    precipitation_sum:[0,0],snowfall_sum:[0,0],rain_sum:[0,0],weather_code:[3,3]};
+  return {base:{hourly:h,daily,current:{time:times[0],temperature_2m:-1,apparent_temperature:-2,weather_code:3}},
+    models:{hourly:model},ensemble:{hourly:members}};
+};
+const fixture=makeSnowFixture();
+const untouched=structuredClone(fixture.base);
+assert.equal(applySnowFusion(fixture.base,null,null),false,'Missing model feed must be a no-op');
+assert.deepEqual(fixture.base,untouched,'A failed fusion must not damage provider data');
+const terrain={valleyDepth:300,rugged:true,elevationRange:800};
+assert.equal(applySnowFusion(fixture.base,fixture.models,fixture.ensemble,terrain),true);
+assert.equal(fixture.base.snowFusion.active,true);
+assert.ok(fixture.base.hourly.temperature_2m[0] < -1,'Multi-model/cold valley guidance must affect UI temperature');
+assert.ok(fixture.base.hourly.snowfall[0] > 0,'Multi-model snow should replace fallback snow');
+assert.ok(fixture.base.daily.snowfall_sum[0] > 0,'Daily snow accumulation must sum fused hourly snow');
+assert.ok(fixture.base._snowFusionHourly[23].depth > 0,'Snowpack must use known baseline depth');
+assert.ok(fixture.base.snowFusion.days['2026-01-03'].snowpack,'15-day table must have snowpack');
+assert.equal(fixture.base.snowFusion.days['2026-01-04'].ensemble.probability,50);
+assert.equal(fixture.base.snowFusion.days['2026-01-04'].ensemble.p1,50);
+assert.equal(fixture.base.snowFusion.days['2026-01-04'].ensemble.p5,0);
+assert.ok(fixture.base.current.temperature_2m < -1,'Current temperature must use the same fused hourly forecast');
+const noDepth=makeSnowFixture();
+noDepth.base.hourly.snow_depth=Array(48).fill(null);
+assert.equal(applySnowFusion(noDepth.base,noDepth.models,noDepth.ensemble,null),true);
+assert.equal(noDepth.base.snowFusion.days['2026-01-03'].snowpack,null,
+  'Unknown starting depth must not be misrepresented as 0 cm');
+const badEnsemble=ensembleSnowDaily({hourly:{time:['2026-01-03T00:00'],snowfall_member00:[5]}});
+assert.deepEqual(badEnsemble,{},'Insufficient ensemble members must produce no probability');
+const newApp=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
+const newIndex=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
+const newSw=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
+assert.ok(newApp.includes('renderSnowFusion();'),'The classic UI must render SnowFusion details');
+assert.ok(newIndex.includes('id="snowFusionToggle"')&&newIndex.includes('id="snowFusionPanel"'));
+assert.ok(newSw.includes("'./js/snowfusion.js'"),'SnowFusion must work with PWA asset caching');
+console.log('✓ SnowFusion fusion/fallback/ensemble/terrain/snowpack/UI tests passed');

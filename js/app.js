@@ -25,13 +25,15 @@ const state = {
   searchHistory:loadSearchHistory(),
   loading:false,
   demo:false,
-  mountainPeriod:'today'
+  mountainPeriod:'today',
+  snowPanelOpen:false
 };
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), mapPickerBtn:$('#mapPickerBtn'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
   locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
+  snowFusionToggle:$('#snowFusionToggle'), snowFusionPanel:$('#snowFusionPanel'), snowFusionClose:$('#snowFusionClose'), snowFusionSource:$('#snowFusionSource'), snowFusionHighlights:$('#snowFusionHighlights'), snowFusionTable:$('#snowFusionTable'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
   zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mountainPeriodTabs:$('#mountainPeriodTabs'), mountainVisual:$('#mountainVisual'),
   mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
@@ -492,6 +494,7 @@ function renderAll() {
   renderTempChart();
   renderHourly(state.selectedDate);
   renderDaily();
+  renderSnowFusion();
   renderMountain(hNow);
   updateFavoriteButton();
   updateMap();
@@ -976,7 +979,7 @@ function renderCockpit(c,h) {
     ['Couverture nuageuse', `${Math.round(h.cloud_cover ?? c.cloud_cover ?? 0)} %`, 'cloud'],
     ['Nuages bas / moy. / hauts', `${Math.round(h.cloud_cover_low ?? 0)} / ${Math.round(h.cloud_cover_mid ?? 0)} / ${Math.round(h.cloud_cover_high ?? 0)} %`, 'cloud'],
     ['UV', `${round(h.uv_index,1) ?? '—'}`, 'uv'],
-    ['Neige au sol', h.snow_depth != null ? `${round(h.snow_depth*100,1)} cm` : '—', 'snow']
+    ['Neige au sol', h.snowpack?.depth != null ? `${round(h.snowpack.depth,1)} cm` : h.snow_depth != null ? `${round(h.snow_depth*100,1)} cm` : '—', 'snow']
   ];
   const data = desktop ? [...rows,...expert,...scientific] : (state.expert ? [...rows,...expert] : rows);
   refs.cockpitGrid.innerHTML = data.map(([label,value,kind])=>`<div class="cockpit-cell" data-kind="${kind}"><span>${label}</span><strong>${value}</strong></div>`).join('');
@@ -1286,6 +1289,61 @@ function renderDaily() {
 
 
 
+function renderSnowFusion() {
+  if (!refs.snowFusionPanel || !state.forecast) return;
+  refs.snowFusionPanel.hidden = !state.snowPanelOpen;
+  refs.snowFusionToggle?.setAttribute('aria-expanded',String(state.snowPanelOpen));
+  if (!state.snowPanelOpen) return;
+  const f=state.forecast;
+  const active=f.snowFusion?.active===true;
+  const days=f.daily?.slice(0,15)||[];
+  refs.snowFusionSource.textContent=active
+    ? 'Prévisions AROME / ICON / ECMWF combinées · probabilités issues des membres ECMWF si disponibles.'
+    : 'Prévisions de secours Open-Meteo Best Match · SnowFusion indisponible ou hors de France métropolitaine.';
+  const first=days[0];
+  const todaySnow=first?.snowfall!=null?round(Math.max(0,Number(first.snowfall)),1)+' cm':'—';
+  const firstDepth=first?.snowFusion?.snowpack?.depth ??
+    f.hourly?.filter(h=>h.time.startsWith(first?.time||'') && h.snow_depth != null && Number.isFinite(Number(h.snow_depth))).at(-1)?.snow_depth*100;
+  const totalDepth=firstDepth!=null && Number.isFinite(Number(firstDepth))?round(Number(firstDepth),1)+' cm':'—';
+  const chance=first?.snowFusion?.ensemble?.probability;
+  refs.snowFusionHighlights.innerHTML=[
+    ['❄','Neige fraîche aujourd’hui',todaySnow],
+    ['▰','Neige au sol ce soir',totalDepth],
+    ['◌','Risque de neige (ensemble)',chance!=null?chance+' %':'—']
+  ].map(([icon,label,value])=>'<div class="snowfusion-highlight"><span>'+icon+' '+label+'</span><strong>'+escapeHtml(value)+'</strong></div>').join('');
+  const rows=days.map(d=>{
+    const sf=d.snowFusion, ensemble=sf?.ensemble;
+    const ending=f.hourly?.filter(h=>h.time.startsWith(d.time)).at(-1);
+    const depth=sf?.snowpack?.depth ?? (ending?.snow_depth!=null?Number(ending.snow_depth)*100:null);
+    const old=sf?.snowpack?.old;
+    const fresh=sf?.snowpack?.fresh;
+    const showCm=n=>n!=null && Number.isFinite(Number(n)) ? round(Number(n),1)+' cm' : '—';
+    const showPercent=n=>n!=null ? Math.round(Number(n))+' %' : '—';
+    const range=ensemble?.low!=null && ensemble?.high!=null
+      ? showCm(ensemble.low)+' – '+showCm(ensemble.high) : '—';
+    return '<tr><th scope="row">'+escapeHtml(formatDay(d.time))+'</th>'+
+      '<td><strong>'+showCm(d.snowfall)+'</strong></td>'+
+      '<td>'+showCm(depth)+'</td>'+
+      '<td>'+showCm(fresh)+' / '+showCm(old)+'</td>'+
+      '<td>'+showPercent(ensemble?.probability)+'</td>'+
+      '<td>'+showPercent(ensemble?.p5)+'</td>'+
+      '<td>'+showPercent(ensemble?.p10)+'</td>'+
+      '<td>'+range+'</td></tr>';
+  }).join('');
+  refs.snowFusionTable.innerHTML='<table class="snowfusion-table"><thead><tr>'+
+    '<th>Jour</th><th>Neige fraîche</th><th>Au sol</th><th>Fraîche / ancienne</th>'+
+    '<th>Neige ≥ 0,1 cm</th><th>≥ 5 cm</th><th>≥ 10 cm</th><th>Fourchette 10–90 %</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<p class="snowfusion-table-help">Neige fraîche : cumul prévu sur la journée. Au sol : hauteur estimée en fin de journée. Un tiret signifie donnée non disponible, jamais zéro neige supposé.</p>';
+}
+
+function toggleSnowFusion(open) {
+  state.snowPanelOpen=Boolean(open);
+  renderSnowFusion();
+  if (state.snowPanelOpen) refs.snowFusionPanel?.scrollIntoView({behavior:'smooth',block:'start'});
+  else refs.snowFusionToggle?.focus();
+}
+
 function mountainHourForPeriod(fallback = null) {
   const hours = state.forecast?.hourly || [];
   if (!hours.length) return fallback;
@@ -1405,7 +1463,8 @@ function renderMountain(fallbackHour = null) {
   if (refs.mountainStatusIcon) refs.mountainStatusIcon.textContent = snowHere ? '❄' : precip > 0 ? '☂' : '☀';
   if (refs.mountainStatus) refs.mountainStatus.dataset.level = snowHere ? 'snow' : precip > 0 ? 'wet' : 'calm';
 
-  const snowDepth = h.snow_depth != null && Number.isFinite(Number(h.snow_depth))
+  const snowDepth = h.snowpack?.depth != null ? Math.max(0,Number(h.snowpack.depth))
+    : h.snow_depth != null && Number.isFinite(Number(h.snow_depth))
     ? Math.max(0, Number(h.snow_depth) * 100)
     : null;
   const feels = Number(h.apparent_temperature);
@@ -1798,6 +1857,8 @@ function bindEvents(){
   $$('[data-future-offset]').forEach(b=>b.addEventListener('click',()=>{state.futureOffset=Number(b.dataset.futureOffset)||3;renderFutureWeather()}));
   refs.bulletinBtn?.addEventListener('click',openBulletin); refs.closeBulletin?.addEventListener('click',closeBulletin); refs.bulletinModal?.addEventListener('click',e=>{if(e.target===refs.bulletinModal)closeBulletin()});
   $$('[data-bulletin-period]').forEach(b=>b.addEventListener('click',()=>{state.bulletinPeriod=b.dataset.bulletinPeriod;renderWeatherBulletin()}));
+  refs.snowFusionToggle?.addEventListener('click',()=>toggleSnowFusion(!state.snowPanelOpen));
+  refs.snowFusionClose?.addEventListener('click',()=>toggleSnowFusion(false));
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
   $$('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
   $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
@@ -1809,7 +1870,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.6', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.7', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
