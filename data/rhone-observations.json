@@ -4,6 +4,7 @@
   "stations": [],
   "sources": {
     "grandlyon": 0,
+    "metar": 0,
     "opensensemap": 0,
     "validated": 0
   },
