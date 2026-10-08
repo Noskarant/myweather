@@ -5,6 +5,7 @@ import { sampleRoute } from './js/route.js';
 import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations } from './js/rhone-observations.js';
 import { parseSenseBoxes, parseGrandLyon, parseMetars, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
 import { parseMeteoFranceStationList, selectMeteoFranceStations, parseMeteoFranceObservation, collectMeteoFranceStations } from './scripts/meteo-france-observations.mjs';
+import {parsePackageObservations, collectMeteoFrancePackage} from './scripts/meteo-france-package.mjs';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
@@ -512,3 +513,70 @@ assert.ok(workflowMF.includes('METEOFRANCE_API_KEY:')&&workflowMF.includes('secr
 assert.ok(scriptMF.includes('collectMeteoFranceStations(process.env.METEOFRANCE_API_KEY'));
 assert.ok(!fs.readFileSync(new URL('./index.html',import.meta.url),'utf8').includes('METEOFRANCE_API_KEY'));
 console.log('✓ Météo-France DPObs v2 parsing, Kelvin conversion, station selection and secret boundaries passed');
+
+
+// Rhône department-wide authenticated observations must be safe and consistent.
+const pkgAt1='2026-10-08T07:00:00Z';
+const pkgAt2='2026-10-08T07:50:00Z';
+const pkgFrame=[
+  {geo_id_insee:'69204002',lat:45.694667,lon:4.782333,t:283.15,
+    validity_time:pkgAt1,u:79},
+  {geo_id_insee:'69204002',lat:45.694667,lon:4.782333,t:284.15,
+    validity_time:pkgAt2,u:80,rr1:0.5},
+  {geo_id_insee:'69029001',lat:45.721333,lon:4.949167,t:282.15,
+    validity_time:pkgAt2},
+  {geo_id_insee:'69204002',lat:45.694667,lon:4.782333,t:298.15,
+    validity_time:'2020-01-01T00:00:00Z'},
+  {geo_id_insee:'69204003',lat:45.694667,lon:4.782333,t:null,
+    validity_time:pkgAt2},
+  {geo_id_insee:'75106001',lat:48.84,lon:2.33,t:280,
+    validity_time:pkgAt2}
+];
+const pkgParsed=parsePackageObservations(pkgFrame,observationNow,
+  [{id:'mf-69204002',name:'Saint-Genis-Laval',lat:45.694667,lon:4.782333,elevation:290}]);
+assert.equal(pkgParsed.length,2,'One fresh Rhône reading per official station; reject old/foreign/null records');
+const pkgSaintGenis=pkgParsed.find(s=>s.id==='mf-69204002');
+assert.equal(pkgSaintGenis.temperature,11,'Kelvin to Celsius must be accurate');
+assert.equal(pkgSaintGenis.name,'Saint-Genis-Laval');
+assert.equal(pkgSaintGenis.elevation,290);
+assert.equal(pkgSaintGenis.measuredAt,pkgAt2,'Use the most recent valid hourly observation');
+assert.equal(pkgSaintGenis.source,'Météo-France');
+assert.equal(pkgSaintGenis.rainMm,0.5);
+assert.deepEqual(parsePackageObservations(pkgFrame,observationNow+3*60*60000),[],
+  'Expired package must not change temperature');
+assert.equal((await collectMeteoFrancePackage('',observationNow)).status,
+  'not_configured','Missing package secret must preserve existing station sources');
+let packageCalls=0;
+const mockPkg=async (url,options)=>{
+  packageCalls++;
+  assert.equal(options.headers.apikey,'FAKE_PACKAGE_KEY_NOT_A_SECRET');
+  const actual=new URL(url);
+  assert.equal(actual.pathname,'/public/DPPaquetObs/v1/paquet/horaire');
+  assert.equal(actual.searchParams.get('id-departement'),'69');
+  assert.equal(actual.searchParams.get('format'),'json');
+  return {ok:true,headers:{get:()=>null},text:async()=>JSON.stringify(pkgFrame)};
+};
+const pkgResult=await collectMeteoFrancePackage('FAKE_PACKAGE_KEY_NOT_A_SECRET',
+  observationNow,mockPkg,mfSites);
+assert.equal(pkgResult.status,'ready');
+assert.equal(pkgResult.stations.length,2);
+assert.equal(packageCalls,1,'One API request should collect the entire Rhône hourly package');
+assert.ok(!JSON.stringify(pkgResult).includes('FAKE_PACKAGE_KEY_NOT_A_SECRET'),
+  'No Package Observations key must reach the public snapshot');
+const authFail=await collectMeteoFrancePackage('FAKE',observationNow,async()=>({
+  ok:false,status:401,headers:{get:()=>null}
+}));
+assert.equal(authFail.status,'authentication_failed');
+assert.equal(authFail.stations.length,0);
+const emptyPkg=await collectMeteoFrancePackage('FAKE',observationNow,async()=>({
+  ok:true,headers:{get:()=>null},text:async()=>JSON.stringify(pkgFrame.slice(3))
+}));
+assert.equal(emptyPkg.status,'no_fresh_readings','Do not invent a station from empty or stale data');
+const packageWorkflow=fs.readFileSync(new URL('./.github/workflows/pages.yml',import.meta.url),'utf8');
+const packageCollector=fs.readFileSync(new URL('./scripts/update-rhone-observations.mjs',import.meta.url),'utf8');
+assert.ok(packageWorkflow.includes('METEOFRANCE_PACKAGE_API_KEY:')&&
+  packageWorkflow.includes('secrets.METEOFRANCE_PACKAGE_API_KEY'));
+assert.ok(packageCollector.includes('process.env.METEOFRANCE_PACKAGE_API_KEY'));
+assert.ok(packageCollector.includes('officialById.set(reading.id,reading)'),
+  'Package and v2 observations must be deduplicated by station');
+console.log('✓ DPPaquetObs package/hourly: department 69, freshness, units, dedup, fallback, secret isolation passed');
