@@ -5,6 +5,7 @@
 import {mkdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {collectMeteoFranceStations} from './meteo-france-observations.mjs';
+import {collectMeteoFrancePackage} from './meteo-france-package.mjs';
 
 const AREA={west:4.24,south:45.38,east:5.24,north:46.35};
 const MAX_AGE_MS=100*60*1000;
@@ -224,12 +225,24 @@ export async function collectRhoneObservations(now=Date.now(),fetcher=fetch) {
   const official=[...new Map([...parseGrandLyon(grandlyon,now),...saintGenis.stations]
     .map(entry=>[entry.id,entry])).values()];
   const airport=parseMetars(metar,now);
+  // The department-wide package complements DPObs v2 without double counting stations.
+  // Choose the freshest valid sample per station (preserving 6-minute Saint-Genis data).
+  const packageObs=await collectMeteoFrancePackage(
+    process.env.METEOFRANCE_PACKAGE_API_KEY,now,fetcher,meteoFrance.stations);
+  const officialById=new Map(meteoFrance.stations.map(st=>[st.id,st]));
+  for(const reading of packageObs.stations){
+    const current=officialById.get(reading.id);
+    if(!current||Date.parse(reading.measuredAt)>Date.parse(current.measuredAt)){
+      officialById.set(reading.id,reading);
+    }
+  }
+  const officialMeteo=[...officialById.values()];
   console.log('Source responses:',JSON.stringify({
     grandlyon:grandlyon==null?'none':Array.isArray(grandlyon)?grandlyon.length:Object.keys(grandlyon),
     opensensemap:senseboxes.length,
     metar:metar==null?'none':Array.isArray(metar)?metar.length:Object.keys(metar)
   }));
-  const collected=[...meteoFrance.stations,...official.filter(st=>!meteoFrance.stations.some(m=>m.id==='mf-'+st.id.replace('grandlyon-',''))),...airport,...senseboxes]
+  const collected=[...officialMeteo,...official.filter(st=>!officialById.has('mf-'+st.id.replace('grandlyon-',''))),...airport,...senseboxes]
     .filter(s=>ageValid(s.measuredAt,now))
     .sort((a,b)=>(a.source==='Grand Lyon / Météo-France'?0:1)-(b.source==='Grand Lyon / Météo-France'?0:1))
     .slice(0,110);
@@ -246,15 +259,22 @@ export async function collectRhoneObservations(now=Date.now(),fetcher=fetch) {
       ? 'Observation Météo-France récente, authentifiée et validée avec la référence Open-Meteo.'
       : saintGenis.status.note
   };
+  console.log('Météo-France package API status:',JSON.stringify({
+    state:packageObs.status,department:packageObs.department,
+    recent:packageObs.stations.length,combinedOfficial:officialMeteo.length
+  }));
   console.log('Météo-France API status:',JSON.stringify({
     state:meteoFrance.status,listed:meteoFrance.available,
     sampled:meteoFrance.selected,recent:meteoFrance.stations.length
   }));
   console.log('Saint-Genis-Laval official feed:',JSON.stringify(saintGenisStatus));
   return {version:1,generatedAt:new Date(now).toISOString(),stations,
-    sources:{meteofrance:meteoFrance.stations.length,grandlyon:official.length,metar:airport.length,opensensemap:senseboxes.length,
+    sources:{meteofrance:officialMeteo.length,meteofranceV2:meteoFrance.stations.length,
+      meteofrancePackage:packageObs.stations.length,
+      grandlyon:official.length,metar:airport.length,opensensemap:senseboxes.length,
       validated:stations.length},
-    stationChecks:{saintGenisLaval:saintGenisStatus,meteoFranceApi:meteoFrance.status},
+    stationChecks:{saintGenisLaval:saintGenisStatus,meteoFranceApi:meteoFrance.status,
+      meteoFrancePackageApi:packageObs.status},
     note:'Observations météorologiques publiques ; températures locales corrigées uniquement si stations récentes et modèle de référence disponibles.'};
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
