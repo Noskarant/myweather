@@ -1,6 +1,6 @@
 import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.8.2';
 import { applySnowFusion, isFrance, SNOWFUSION_MODELS, SNOWFUSION_ENSEMBLE } from './snowfusion.js?v=1.8.7';
-import { inRhoneArea, loadRhoneObservations, applyRhoneObservations } from './rhone-observations.js?v=1.8.8';
+import { inRhoneArea, inSavoieArea, loadRhoneObservations, loadSavoieObservations, applyRhoneObservations, applySavoieObservations } from './rhone-observations.js?v=1.8.11';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const ENSEMBLE = 'https://ensemble-api.open-meteo.com/v1/ensemble';
@@ -577,7 +577,9 @@ export async function getForecast(location) {
   const data = await response.json();
 
   const local=isFrance(location);
-  const observationPromise=inRhoneArea(location) ? loadRhoneObservations() : Promise.resolve(null);
+  const rhone=inRhoneArea(location),savoie=!rhone&&inSavoieArea(location);
+  const observationPromise=rhone?loadRhoneObservations():
+    savoie?loadSavoieObservations():Promise.resolve(null);
   const terrainPromise=optionalWithTimeout(assessLocalTerrain(location), 1500, null);
   // Parallel, time-bounded extras keep the old Best Match forecast usable.
   const modelsPromise=local?optionalWithTimeout(fetchSnowFusionModels(location), 3800, null):Promise.resolve(null);
@@ -603,11 +605,15 @@ export async function getForecast(location) {
     data.localConsensus = mergeLocalConsensus(terrain, models, spatial);
   }
 
-  if (inRhoneArea(location)) {
+  if (rhone||savoie) {
     try {
       const observations=await observationPromise;
-      applyRhoneObservations(data,location,observations);
-    } catch (err) { console.warn('Observations Rhône indisponibles, modèle standard conservé',err); }
+      const stationLocation={...location,elevation:location.elevation??data.elevation};
+      if(rhone)applyRhoneObservations(data,stationLocation,observations);
+      else applySavoieObservations(data,stationLocation,observations);
+    } catch (err) {
+      console.warn('Observations locales indisponibles, modèle standard conservé',err);
+    }
   }
   data.location = { ...location, elevation: data.elevation ?? location.elevation, timezone:data.timezone, timezoneAbbreviation:data.timezone_abbreviation };
   return normalizeForecast(data);
