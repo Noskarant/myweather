@@ -414,6 +414,12 @@ assert.equal(applyRhoneObservations(thirdParty,{lat:43.6,lon:1.4,elevation:140},
 const sampleGrandLyon={results:[
   {identifiant:'69204002',date:obsAt,T:14.8},
   {identifiant:'69204002',date:'2020-01-01T00:00:00Z',T:0}]};
+const grandlyonArray={
+  fields:['identifiant','date','T'],
+  values:[['69204002',obsAt,14.8],['69029001','2020-01-01T00:00:00Z',1]]
+};
+assert.equal(parseGrandLyon(grandlyonArray,observationNow).length,1,
+  'Grand Lyon timeseries column-array response must be supported');
 const parsedOfficial=parseGrandLyon(sampleGrandLyon,observationNow);
 assert.equal(parsedOfficial.length,1);
 assert.equal(parsedOfficial[0].temperature,14.8);
