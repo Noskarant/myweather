@@ -31,7 +31,11 @@ const first=(obj,names)=>{
 async function fetchJSON(url,timeout=10500,fetcher=fetch) {
   try{
     const r=await fetcher(url,{signal:AbortSignal.timeout(timeout),headers:{accept:'application/json','user-agent':'MyWeather-RhoneStations/1.0 (https://github.com/Noskarant/myweather)'}});
-    if(!r.ok){console.warn('Weather source HTTP',new URL(url).host,r.status);return null;}
+    if(!r.ok){
+      const errorText=await r.text().catch(()=>'');
+      console.warn('Weather source HTTP',new URL(url).host,r.status,errorText.slice(0,320));
+      return null;
+    }
     const len=Number(r.headers.get('content-length')||0);
     if(len>6e6)return null;
     const text=await r.text();
@@ -41,6 +45,11 @@ async function fetchJSON(url,timeout=10500,fetcher=fetch) {
 }
 export function parseGrandLyon(payload,now=Date.now()) {
   const rows=Array.isArray(payload)?payload:
+    Array.isArray(payload?.values)?payload.values.map(row=>{
+      if(!Array.isArray(row))return row;
+      const keys=Array.isArray(payload.fields)?payload.fields.map(x=>typeof x==='string'?x:x.name||x.field||x.id):Object.keys(payload.fields||{});
+      return Object.fromEntries(row.map((value,i)=>[keys[i]||('field'+i),value]));
+    }):
     Array.isArray(payload?.results)?payload.results:
     Array.isArray(payload?.features)?payload.features:
     Array.isArray(payload?.records)?payload.records:
@@ -94,7 +103,7 @@ export function parseSenseBoxes(payload,now=Date.now()) {
   return result.filter(s=>s.id!=='sensebox-').slice(0,120);
 }
 const GRAND_LYON='https://data.grandlyon.com/fr/datapusher/ws/timeseries/meteofrance.climatologie_mesure_horaire/all.json?maxfeatures=200';
-const SENSE_BOXES='https://api.opensensemap.org/boxes?bbox=4.24,45.38,5.24,46.35&exposure=outdoor&limit=300';
+const SENSE_BOXES='https://api.opensensemap.org/boxes?bbox=4.24,45.38,5.24,46.35&exposure=outdoor&limit=100';
 const METAR_URL='https://aviationweather.gov/api/data/metar?ids=LFLY,LFLL&format=json';
 
 const METAR_STATIONS={
@@ -171,6 +180,7 @@ export async function collectRhoneObservations(now=Date.now(),fetcher=fetch) {
     getSenseBoxReadings(now,fetcher),
     fetchJSON(METAR_URL,11500,fetcher)
   ]);
+  console.log('Grand Lyon sample',JSON.stringify(grandlyon?.values?.[0]||null).slice(0,500), 'field sample', JSON.stringify(grandlyon?.fields||null).slice(0,500));
   const official=parseGrandLyon(grandlyon,now);
   const airport=parseMetars(metar,now);
   console.log('Source responses:',JSON.stringify({
