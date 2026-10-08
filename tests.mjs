@@ -4,6 +4,7 @@ import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo,
 import { sampleRoute } from './js/route.js';
 import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations } from './js/rhone-observations.js';
 import { parseSenseBoxes, parseGrandLyon, parseMetars, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
+import { parseMeteoFranceStationList, selectMeteoFranceStations, parseMeteoFranceObservation, collectMeteoFranceStations } from './scripts/meteo-france-observations.mjs';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
@@ -459,3 +460,55 @@ assert.ok(pagesSourceObs.includes('schedule:')&&pagesSourceObs.includes('node sc
 assert.ok(swSourceObs.includes("'./js/rhone-observations.js'"));
 assert.ok(swSourceObs.includes("'./data/rhone-observations.json'"));
 console.log('✓ Rhône station parsing, freshness, observation assimilation, hourly/daily UI and fail-safe tests passed');
+
+
+// Official Météo-France DPObs v2 regression tests; no real credentials used.
+const mfCsv='\ufeffId_station;Nom_usuel;Latitude;Longitude;Altitude\r\n'+
+ '69204002;ST-GENIS-LAVAL;45.694667;4.782333;290\r\n'+
+ '69029001;LYON-BRON;45.721333;4.949167;202\r\n'+
+ '12345678;OUTSIDE RHONE;48.0;2.3;70\r\n';
+const mfSites=parseMeteoFranceStationList(mfCsv);
+assert.equal(mfSites.length,2,'Official station catalogue must filter to Rhône vicinity');
+assert.equal(mfSites[0].id,'69204002','Station identifier must not be mangled');
+assert.equal(selectMeteoFranceStations(mfSites)[0].id,'69204002',
+ 'Saint-Genis-Laval has priority among suitable official stations');
+const mfExample={type:'FeatureCollection',features:[{
+ type:'Feature',geometry:{type:'Point',coordinates:[4.782333,45.694667]},
+ properties:{geo_id_insee:'69204002',validity_time:obsAt,t:284.15,u:82,ff:2,rr1:0}
+}]};
+const mfReading=parseMeteoFranceObservation(mfExample,mfSites[0],observationNow);
+assert.equal(mfReading.temperature,11,'Observed Météo-France temperature is Kelvin, not Celsius');
+assert.equal(mfReading.source,'Météo-France');
+assert.equal(mfReading.humidity,82);
+assert.equal(parseMeteoFranceObservation(mfExample,mfSites[0],observationNow+110*60000),null,
+ 'Official observations older than 100 minutes must not be assimilated');
+assert.equal(parseMeteoFranceObservation({features:[{...mfExample.features[0],
+ properties:{...mfExample.features[0].properties,t:11}}]},mfSites[0],observationNow),null,
+ 'Wrong temperature unit cannot be misinterpreted as Celsius');
+assert.equal(parseMeteoFranceObservation({features:[{...mfExample.features[0],
+ properties:{...mfExample.features[0].properties,geo_id_insee:'99999999'}}]},
+ mfSites[0],observationNow),null,'The station id in the returned feature must match the request');
+assert.equal((await collectMeteoFranceStations('',observationNow)).status,'not_configured',
+ 'Missing private GitHub Actions secret must not break the build');
+let mockCalls=0;
+const mockMF=async (url,options)=>{
+  assert.equal(options.headers.apikey,'FAKE_TEST_KEY_NOT_A_SECRET');
+  mockCalls++;
+  const path=new URL(url).pathname;
+  const body=path.endsWith('/liste-stations')?mfCsv:JSON.stringify(mfExample);
+  return {ok:true,status:200,text:async()=>body};
+};
+const sample=await collectMeteoFranceStations('FAKE_TEST_KEY_NOT_A_SECRET',observationNow,mockMF);
+assert.equal(sample.status,'ready');
+assert.equal(sample.stations.length,1);
+assert.equal(sample.stations[0].name,'ST-GENIS-LAVAL');
+assert.ok(mockCalls>=2,'Station list and measurements must be retrieved');
+assert.ok(!JSON.stringify(sample).includes('FAKE_TEST_KEY_NOT_A_SECRET'),
+ 'No credential may enter public station snapshot');
+const workflowMF=fs.readFileSync(new URL('./.github/workflows/pages.yml',import.meta.url),'utf8');
+const scriptMF=fs.readFileSync(new URL('./scripts/update-rhone-observations.mjs',import.meta.url),'utf8');
+assert.ok(workflowMF.includes('METEOFRANCE_API_KEY:')&&workflowMF.includes('secrets.METEOFRANCE_API_KEY'),
+ 'Météo-France API key must be read from the private GitHub Actions secret');
+assert.ok(scriptMF.includes('collectMeteoFranceStations(process.env.METEOFRANCE_API_KEY'));
+assert.ok(!fs.readFileSync(new URL('./index.html',import.meta.url),'utf8').includes('METEOFRANCE_API_KEY'));
+console.log('✓ Météo-France DPObs v2 parsing, Kelvin conversion, station selection and secret boundaries passed');
