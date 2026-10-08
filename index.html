@@ -96,6 +96,7 @@
             <span class="sun-time"><span class="sun-time-icon sunset" aria-hidden="true">◐</span><span>Coucher <time id="sunsetTime">—</time></span></span>
           </div>
           <div class="quick-metrics" id="quickMetrics"></div>
+          <button id="snowFusionToggle" class="snowfusion-trigger" type="button" aria-expanded="false" aria-controls="snowFusionPanel">❄️ Neige · prévisions et manteau neigeux <span aria-hidden="true">↗</span></button>
           <div id="weatherInsight" class="insight-banner">Analyse des conditions en cours…</div>
         </article>
       </div>
@@ -115,6 +116,19 @@
         </div>
         <div class="daily-columns" aria-hidden="true"><span>Jour</span><span>Temps</span><span>Températures</span><span>Conditions</span><span></span></div>
         <div id="dailyGrid" class="daily-grid"></div>
+      </section>
+
+      <section id="snowFusionPanel" class="page-width section-block snowfusion-panel glass" hidden aria-label="Analyse SnowFusion">
+        <div class="snowfusion-header">
+          <div><div class="eyebrow">SNOWFUSION · FRANCE</div><h2>Neige fraîche et neige au sol</h2>
+            <p id="snowFusionSource" class="muted small">Données du moteur météo principal.</p></div>
+          <button id="snowFusionClose" type="button" class="snowfusion-close" aria-label="Fermer l’analyse neige">✕</button>
+        </div>
+        <div id="snowFusionHighlights" class="snowfusion-highlights"></div>
+        <div id="snowFusionTable" class="snowfusion-table-wrap"></div>
+        <p class="snowfusion-note">Hauteurs au sol : estimation de modèle, non une mesure. Neige « ancienne/tassée » ≠ neige dure mesurée.
+          Probabilités ECMWF : fréquences des membres de l’ensemble, non probabilités calibrées.
+          Le vent, le rayonnement, la pluie et le relief génèrent une incertitude locale importante.</p>
       </section>
 
       <section class="page-width section-block advanced-section">
@@ -212,7 +226,7 @@
       </section>
 
       <section class="page-width source-strip glass">
-        <div><strong>Sources principales</strong><span>Open‑Meteo · modèles météo combinés · Windy · OpenStreetMap · OSRM</span></div>
+        <div><strong>Sources principales</strong><span>SnowFusion (AROME · ICON · ECMWF) / Open‑Meteo · Windy · OpenStreetMap · OSRM</span></div>
         <div><strong>Philosophie</strong><span>Données réelles, incertitude visible, aucune fausse précision.</span></div>
       </section>
     </section>
