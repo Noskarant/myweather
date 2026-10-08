@@ -979,7 +979,7 @@ function renderCockpit(c,h) {
     ['Couverture nuageuse', `${Math.round(h.cloud_cover ?? c.cloud_cover ?? 0)} %`, 'cloud'],
     ['Nuages bas / moy. / hauts', `${Math.round(h.cloud_cover_low ?? 0)} / ${Math.round(h.cloud_cover_mid ?? 0)} / ${Math.round(h.cloud_cover_high ?? 0)} %`, 'cloud'],
     ['UV', `${round(h.uv_index,1) ?? '—'}`, 'uv'],
-    ['Neige au sol', h.snow_depth != null ? `${round(h.snow_depth*100,1)} cm` : '—', 'snow']
+    ['Neige au sol', h.snowpack?.depth != null ? `${round(h.snowpack.depth,1)} cm` : h.snow_depth != null ? `${round(h.snow_depth*100,1)} cm` : '—', 'snow']
   ];
   const data = desktop ? [...rows,...expert,...scientific] : (state.expert ? [...rows,...expert] : rows);
   refs.cockpitGrid.innerHTML = data.map(([label,value,kind])=>`<div class="cockpit-cell" data-kind="${kind}"><span>${label}</span><strong>${value}</strong></div>`).join('');
@@ -1463,7 +1463,8 @@ function renderMountain(fallbackHour = null) {
   if (refs.mountainStatusIcon) refs.mountainStatusIcon.textContent = snowHere ? '❄' : precip > 0 ? '☂' : '☀';
   if (refs.mountainStatus) refs.mountainStatus.dataset.level = snowHere ? 'snow' : precip > 0 ? 'wet' : 'calm';
 
-  const snowDepth = h.snow_depth != null && Number.isFinite(Number(h.snow_depth))
+  const snowDepth = h.snowpack?.depth != null ? Math.max(0,Number(h.snowpack.depth))
+    : h.snow_depth != null && Number.isFinite(Number(h.snow_depth))
     ? Math.max(0, Number(h.snow_depth) * 100)
     : null;
   const feels = Number(h.apparent_temperature);
