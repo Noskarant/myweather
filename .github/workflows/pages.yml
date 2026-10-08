@@ -32,6 +32,7 @@ jobs:
       - name: Fetch public Rhône station observations
         env:
           METEOFRANCE_API_KEY: ${{ secrets.METEOFRANCE_API_KEY }}
+          METEOFRANCE_PACKAGE_API_KEY: ${{ secrets.METEOFRANCE_PACKAGE_API_KEY }}
         run: node scripts/update-rhone-observations.mjs
         timeout-minutes: 2
       - name: Configure Pages
