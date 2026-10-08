@@ -551,7 +551,7 @@ const mockPkg=async (url,options)=>{
   packageCalls++;
   assert.equal(options.headers.apikey,'FAKE_PACKAGE_KEY_NOT_A_SECRET');
   const actual=new URL(url);
-  assert.equal(actual.pathname,'/public/DPPaquetObs/v1/paquet/horaire');
+  assert.equal(actual.pathname,'/public/DPPaquetObs/v2/paquet/horaire');
   assert.equal(actual.searchParams.get('id-departement'),'69');
   assert.equal(actual.searchParams.get('format'),'json');
   return {ok:true,headers:{get:()=>null},text:async()=>JSON.stringify(pkgFrame)};
@@ -579,4 +579,4 @@ assert.ok(packageWorkflow.includes('METEOFRANCE_PACKAGE_API_KEY:')&&
 assert.ok(packageCollector.includes('process.env.METEOFRANCE_PACKAGE_API_KEY'));
 assert.ok(packageCollector.includes('officialById.set(reading.id,reading)'),
   'Package and v2 observations must be deduplicated by station');
-console.log('✓ DPPaquetObs package/hourly: department 69, freshness, units, dedup, fallback, secret isolation passed');
+console.log('✓ DPPaquetObs v2 package/hourly: department 69, freshness, units, dedup, fallback, secret isolation passed');

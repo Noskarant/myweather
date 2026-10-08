@@ -23,11 +23,11 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
-## Météo-France Package Observations v1 — Rhône entier
+## Météo-France Package Observations v2 — Rhône entier
 
 L'API Package Observations fournit en une requête les dernières 24 heures de
 mesures horaires des stations d'un département. MyWeather demande le paquet
-`/public/DPPaquetObs/v1/paquet/horaire?id-departement=69&format=json`,
+`/public/DPPaquetObs/v2/paquet/horaire?id-departement=69&format=json`,
 puis garde seulement les observations fraîches (maximum 100 minutes), dont
 les températures en kelvins sont converties en degrés Celsius.
 

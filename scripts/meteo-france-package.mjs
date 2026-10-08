@@ -1,8 +1,8 @@
-// Météo-France DPPaquetObs v1 (whole Rhône department hourly observations).
+// Météo-France DPPaquetObs v2 (whole Rhône department hourly observations).
 // Runs only in GitHub Actions. Never embeds credentials or logs response bodies.
 import {parseCsv, parseMeteoFranceObservation} from './meteo-france-observations.mjs';
 
-const API='https://public-api.meteofrance.fr/public/DPPaquetObs/v1/paquet/horaire';
+const API='https://public-api.meteofrance.fr/public/DPPaquetObs/v2/paquet/horaire';
 const DEPARTMENT='69';
 const MAX_RESPONSE_BYTES=8_000_000;
 const STATION_ID=/^69\d{6}$/;
@@ -45,7 +45,7 @@ export function parsePackageObservations(payload,now=Date.now(),metadata=[]) {
     if(!reading)continue;
     const prev=byId.get(code);
     if(!prev||Date.parse(reading.measuredAt)>Date.parse(prev.measuredAt)){
-      byId.set(code,{...reading,observationProduct:'DPPaquetObs v1'});
+      byId.set(code,{...reading,observationProduct:'DPPaquetObs v2'});
     }
   }
   return [...byId.values()];
