@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
-import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations } from './js/rhone-observations.js';
+import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations, inSavoieArea, eligibleSavoieStations, applySavoieObservations, loadSavoieObservations } from './js/rhone-observations.js';
 import { parseSenseBoxes, parseGrandLyon, parseMetars, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
 import { parseMeteoFranceStationList, selectMeteoFranceStations, parseMeteoFranceObservation, collectMeteoFranceStations } from './scripts/meteo-france-observations.mjs';
 import {parsePackageObservations, collectMeteoFrancePackage} from './scripts/meteo-france-package.mjs';
+import {collectSavoieObservations,mergeOfficialStations} from './scripts/savoie-observations.mjs';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
@@ -237,13 +238,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.10', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.11', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.10'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.11'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -253,8 +254,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.10'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.10'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.11'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.11'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -619,3 +620,118 @@ assert.ok(packageCollector.includes('process.env.METEOFRANCE_PACKAGE_API_KEY'));
 assert.ok(packageCollector.includes('officialById.set(reading.id,reading)'),
   'Package and v2 observations must be deduplicated by station');
 console.log('✓ DPPaquetObs v2 package/hourly: department 69, freshness, units, dedup, fallback, secret isolation passed');
+
+
+// Savoie (73) expansion: authenticated station data, terrain weighting and isolation.
+const savoiePlace={name:'Valmorel',lat:45.46,lon:6.44,elevation:1380,country:'France',admin2:'Savoie'};
+const planc={name:'Planchamp',lat:45.47,lon:6.48,elevation:1920,country:'France',admin2:'Savoie'};
+const chamb={name:'Chambéry',lat:45.566,lon:5.92,elevation:270,country:'France',admin2:'Savoie'};
+const aiguille={name:'Aiguille du Midi',lat:45.88,lon:6.89,elevation:3842,country:'France',admin2:'Haute-Savoie'};
+assert.equal(inSavoieArea(savoiePlace),true);
+assert.equal(inSavoieArea(planc),true);
+assert.equal(inSavoieArea(chamb),true);
+assert.equal(inSavoieArea(aiguille),false,'Do not label Haute-Savoie as Savoie when department metadata exists');
+assert.equal(inSavoieArea({lat:43.6,lon:1.4}),false);
+assert.equal(inRhoneArea(savoiePlace),false,'Rhône and Savoie must use separate station snapshots');
+const alpineStations={region:'savoie',stations:[
+  {id:'mf-73001001',name:'Station Valmorel',source:'Météo-France',
+    lat:45.462,lon:6.446,elevation:1400,temperature:3,modelTemperature:1,
+    measuredAt:obsAt},
+  {id:'mf-73001002',name:'Station en vallée',source:'Météo-France',
+    lat:45.463,lon:6.447,elevation:400,temperature:13,modelTemperature:9,
+    measuredAt:obsAt}
+]};
+const alpineEligible=eligibleSavoieStations(alpineStations,savoiePlace,observationNow);
+assert.equal(alpineEligible.length,2);
+assert.ok(alpineEligible[0].weight>alpineEligible[1].weight*10,
+  'Elevation difference must outweigh nearly identical mountain station distances');
+const alpineForecast=baseObs();
+const alpineMeta=applySavoieObservations(alpineForecast,savoiePlace,alpineStations,observationNow);
+assert.equal(alpineMeta?.applied,true);
+assert.equal(alpineMeta?.region,'savoie');
+assert.ok(alpineForecast.current.temperature_2m>13,'Stations must correct regular Savoie forecast');
+assert.equal(alpineForecast.daily.snowfall_sum[0],3,'No invented snow or snowpack');
+assert.ok(alpineForecast.hourly.temperature_2m[5]-13<alpineForecast.hourly.temperature_2m[0]-13);
+const savageSummit=baseObs();
+const summitMeta=applySavoieObservations(savageSummit,planc,{
+  region:'savoie',stations:[{...alpineStations.stations[1],lat:planc.lat,lon:planc.lon}]
+},observationNow);
+assert.equal(summitMeta,null,'A distant elevation band cannot silently correct a 1920 m summit');
+assert.equal(savageSummit.current.temperature_2m,13,'Extreme altitude mismatch keeps base data');
+assert.equal(applySavoieObservations(baseObs(),aiguille,alpineStations,observationNow),null);
+assert.equal(applySavoieObservations(baseObs(),savoiePlace,alpineStations,observationNow+2*3600e3),null,
+  'Do not use Savoie station snapshots older than 100 minutes');
+const savoieCSV='Id_station;Nom_usuel;Latitude;Longitude;Altitude\n'+
+ '73001001;MOUNTAIN1;45.462;6.446;1400\n'+
+ '73001002;VALLEY1;45.463;6.447;400\n'+
+ '74001001;HAUTE SAVOIE;45.8;6.6;1500\n';
+const saoStations=parseMeteoFranceStationList(savoieCSV,'savoie');
+assert.equal(saoStations.length,2,'Select department 73 only');
+const saoRec=[{geo_id_insee:'73001001',lat:45.462,lon:6.446,t:276.15,
+  validity_time:obsAt},{geo_id_insee:'73001002',lat:45.463,lon:6.447,t:286.15,
+  validity_time:obsAt},
+  {geo_id_insee:'74001001',lat:45.8,lon:6.6,t:270,validity_time:obsAt}];
+assert.equal(parsePackageObservations(saoRec,observationNow,saoStations,'73').length,2,
+  'Savoie package must reject Haute-Savoie readings');
+assert.equal(parsePackageObservations(saoRec,observationNow,saoStations,'69').length,0,
+  'Savoie data cannot leak into Rhône');
+const saoPk=await collectMeteoFrancePackage('DUMMY',observationNow,
+  async(url,opt)=>{
+    assert.equal(opt.headers.apikey,'DUMMY');
+    assert.equal(new URL(url).searchParams.get('id-departement'),'73');
+    return {ok:true,headers:{get:()=>null},text:async()=>JSON.stringify(saoRec)};
+  },saoStations,'73');
+assert.equal(saoPk.status,'ready');
+assert.equal(saoPk.stations.length,2);
+assert.equal(saoPk.stations[0].elevation,1400);
+const oldHour={...alpineStations.stations[0],measuredAt:'2026-10-08T07:30:00.000Z'};
+const newHour={...alpineStations.stations[0],temperature:5,measuredAt:obsAt};
+assert.equal(mergeOfficialStations([oldHour],[newHour])[0].temperature,5,
+  'Newest observation wins per station without duplicate temperatures');
+const stubbedFetch=async(url,options)=>{
+  const u=new URL(url);
+  if(u.pathname.endsWith('/liste-stations'))return {ok:true,text:async()=>savoieCSV};
+  if(u.pathname.includes('/station/horaire'))return {ok:true,text:async()=>JSON.stringify({
+    type:'FeatureCollection',features:[{type:'Feature',
+      properties:{geo_id_insee:u.searchParams.get('id_station'),t:276.15,validity_time:obsAt},
+      geometry:{coordinates:u.searchParams.get('id_station')==='73001001'?[6.446,45.462]:[6.447,45.463]}}]
+  })};
+  if(u.pathname.includes('/paquet/horaire'))return {ok:true,headers:{get:()=>null},
+    text:async()=>JSON.stringify(saoRec)};
+  if(u.host==='api.open-meteo.com'){
+    const ll=u.searchParams.get('latitude').split(',');
+    assert.ok(u.searchParams.has('elevation'),'Alpine model baselines must use actual station altitude');
+    return {ok:true,json:async()=>ll.map((_,i)=>({
+      current:{temperature_2m:i===0?1:9,time:'2026-10-08T08:00'},
+      elevation:Number(u.searchParams.get('elevation').split(',')[i])
+    }))};
+  }
+  throw new Error('Unexpected mocked endpoint '+u.host+u.pathname);
+};
+const saoCollection=await collectSavoieObservations(observationNow,stubbedFetch,
+  {observations:'DUMMY',package:'DUMMY'});
+assert.equal(saoCollection.region,'savoie');
+assert.equal(saoCollection.stations.length,2);
+assert.equal(saoCollection.sources.meteofranceV2,2);
+assert.equal(saoCollection.sources.meteofrancePackage,2);
+assert.equal(saoCollection.sources.validated,2);
+assert.ok(saoCollection.stations.every(s=>s.modelTemperature!==undefined));
+assert.ok(!JSON.stringify(saoCollection).includes('DUMMY'));
+const saoMissing=await collectSavoieObservations(observationNow,()=>{throw new Error('Should not fetch')},
+  {observations:'',package:''});
+assert.equal(saoMissing.stations.length,0,'Missing credentials must not break initial deployment');
+const stationFiles=fs.readFileSync(new URL('./js/weather.js',import.meta.url),'utf8');
+const pagesSavoie=fs.readFileSync(new URL('./.github/workflows/pages.yml',import.meta.url),'utf8');
+const swSavoie=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
+const indexSavoie=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
+const buildSavoie=fs.readFileSync(new URL('./scripts/update-rhone-observations.mjs',import.meta.url),'utf8');
+assert.ok(stationFiles.includes('applySavoieObservations(data,stationLocation,observations)'),
+  'Savoie must feed the main forecast, not only the snow panel');
+assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
+assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
+assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
+  'Offline cache must include the alpine snapshot');
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.11'));
+assert.ok(pagesSavoie.includes('Fetch Rhône and Savoie station observations'));
+assert.equal(saoMissing.sources.validated,0);
+console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
