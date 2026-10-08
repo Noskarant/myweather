@@ -23,6 +23,33 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
+## Météo-France Package Observations v1 — Rhône entier
+
+L'API Package Observations fournit en une requête les dernières 24 heures de
+mesures horaires des stations d'un département. MyWeather demande le paquet
+`/public/DPPaquetObs/v1/paquet/horaire?id-departement=69&format=json`,
+puis garde seulement les observations fraîches (maximum 100 minutes), dont
+les températures en kelvins sont converties en degrés Celsius.
+
+**Secret GitHub Actions distinct :** `METEOFRANCE_PACKAGE_API_KEY`.
+Ajoute une API Key pour **Package Observations** dans Settings → Secrets and
+variables → Actions → New repository secret. Ne pas utiliser le secret
+`METEOFRANCE_API_KEY` réservé à **Données d'observation v2**,
+ni publier aucun jeton dans le code, le site ou les journaux.
+
+Les données Package et v2 sont fusionnées **sans doublonner les stations** :
+on conserve la mesure la plus récente par identifiant. Les autres flux
+(Grand Lyon, METAR, openSenseMap) restent disponibles. Sans clé Package,
+avec une erreur réseau, un rejet d'authentification, ou un paquet vide/périmé,
+l'application garde son comportement actuel grâce à l'API v2 existante.
+
+Le diagnostic sans secret dans GitHub Actions présente
+`Météo-France package API status` et les compteurs validés.
+Le temps réel exact et le gain de précision ne sont pas garantis avant
+un test de collecte authentifié.
+
+Références : [documentation officielle](https://confluence-meteofrance.atlassian.net/wiki/spaces/OpenDataMeteoFrance/pages/854851588/)
+et [spécification des données d'observation](https://donneespubliques.meteofrance.fr/client/document/descriptiftechnique_observations_donneespubliques_v2_20250315_403.pdf).
 ## Connexion Météo-France DPObs v2 (observations officielles)
 
 Le collecteur supporte **l'API Données d'observation v2** de Météo-France
