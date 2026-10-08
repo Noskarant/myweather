@@ -61,10 +61,11 @@ export function parseGrandLyon(payload,now=Date.now()) {
     const ident=String(first(p,['identifiant','id_station','numer_sta','num_station','station','code_station','code'])||'');
     const metadata=STATIONS[ident];
     if(!metadata)continue;
-    const measured=first(p,['date','dateheure','date_heure','date_mesure','date_observation','datetime','date_utc','timestamp','heure']);
+    if(first(p,['observation']) && String(first(p,['observation'])).toUpperCase()!=='T')continue;
+    const measured=first(p,['horodate','date','dateheure','date_heure','date_mesure','date_observation','datetime','date_utc','timestamp','heure']);
     const date=measured instanceof Date?measured.toISOString():String(measured||'');
     if(!ageValid(date,now))continue;
-    let temp=finite(first(p,['T','temperature','temperature_c','temp','t_c']));
+    let temp=finite(first(p,['T','temperature','temperature_c','temp','t_c','measurement']));
     // A second tenths-of-degree column is used only if labelled explicitly.
     if(temp===null){const tenths=finite(first(p,['T10','temp_dixieme','temperature_dixieme']));if(tenths!==null)temp=tenths/10;}
     if(!validTemp(temp))continue;
@@ -102,8 +103,11 @@ export function parseSenseBoxes(payload,now=Date.now()) {
   }
   return result.filter(s=>s.id!=='sensebox-').slice(0,120);
 }
-const GRAND_LYON='https://data.grandlyon.com/fr/datapusher/ws/timeseries/meteofrance.climatologie_mesure_horaire/all.json?maxfeatures=200';
-const SENSE_BOXES='https://api.opensensemap.org/boxes?bbox=4.24,45.38,5.24,46.35&exposure=outdoor&limit=100';
+const GRAND_LYON='https://data.grandlyon.com/fr/datapusher/ws/timeseries/meteofrance.climatologie_mesure_horaire/all.json';
+const SENSE_BOXES=[
+  '4.24,45.38,4.74,45.86','4.74,45.38,5.24,45.86',
+  '4.24,45.86,4.74,46.35','4.74,45.86,5.24,46.35'
+].map(bbox=>'https://api.opensensemap.org/boxes?'+new URLSearchParams({bbox,exposure:'outdoor',limit:'20'}));
 const METAR_URL='https://aviationweather.gov/api/data/metar?ids=LFLY,LFLL&format=json';
 
 const METAR_STATIONS={
@@ -131,8 +135,10 @@ export function parseMetars(payload,now=Date.now()) {
 }
 
 async function getSenseBoxReadings(now,fetcher) {
-  const boxes=await fetchJSON(SENSE_BOXES,11500,fetcher);
-  if(!Array.isArray(boxes))return [];
+  const chunks=await Promise.all(SENSE_BOXES.map(url=>fetchJSON(url,9000,fetcher)));
+  const boxes=[...new Map(chunks.flatMap(x=>Array.isArray(x)?x:[])
+    .filter(b=>b?._id).map(b=>[b._id,b])).values()];
+  if(!boxes.length)return [];
   let fresh=parseSenseBoxes(boxes,now);
   if(fresh.length>=12)return fresh;
   // Station metadata may lack lastMeasurement; read the documented sensors endpoint.
@@ -176,7 +182,10 @@ async function enrichModelBaselines(stations,now,fetcher) {
 }
 export async function collectRhoneObservations(now=Date.now(),fetcher=fetch) {
   const [grandlyon,senseboxes,metar]=await Promise.all([
-    fetchJSON(GRAND_LYON,11500,fetcher),
+    fetchJSON(GRAND_LYON+'?'+new URLSearchParams({
+      horodate__gte:new Date(now-110*60*1000).toISOString(),
+      observation__eq:'T',maxfeatures:'200'
+    }),11500,fetcher),
     getSenseBoxReadings(now,fetcher),
     fetchJSON(METAR_URL,11500,fetcher)
   ]);

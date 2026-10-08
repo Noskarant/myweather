@@ -418,6 +418,16 @@ const grandlyonArray={
   fields:['identifiant','date','T'],
   values:[['69204002',obsAt,14.8],['69029001','2020-01-01T00:00:00Z',1]]
 };
+const measuredGrandLyon={
+  fields:['identifiant','observation','horodate','measurement'],
+  values:[
+    {identifiant:'69204002',observation:'T',horodate:obsAt,measurement:13.8},
+    {identifiant:'69029001',observation:'RR1',horodate:obsAt,measurement:5}
+  ]
+};
+const recorded=parseGrandLyon(measuredGrandLyon,observationNow);
+assert.equal(recorded.length,1,'Only observed temperature records should be used from Grand Lyon');
+assert.equal(recorded[0].temperature,13.8);
 assert.equal(parseGrandLyon(grandlyonArray,observationNow).length,1,
   'Grand Lyon timeseries column-array response must be supported');
 const parsedOfficial=parseGrandLyon(sampleGrandLyon,observationNow);
