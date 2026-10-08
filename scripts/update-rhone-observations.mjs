@@ -109,6 +109,34 @@ const SENSE_BOXES=[
   '4.24,45.86,4.74,46.35','4.74,45.86,5.24,46.35'
 ].map(bbox=>'https://api.opensensemap.org/boxes?'+new URLSearchParams({bbox,exposure:'outdoor',limit:'20'}));
 const METAR_URL='https://aviationweather.gov/api/data/metar?ids=LFLY,LFLL&format=json';
+const SAINT_GENIS_ID='69204002';
+
+// Grand Lyon's open timeseries is checked directly for the closest official
+// station to Oullins. A catalog entry is not evidence of a live measurement.
+export function parseSaintGenisObservations(payload, now=Date.now()) {
+  return parseGrandLyon(payload,now).filter(station=>station.id==='grandlyon-'+SAINT_GENIS_ID);
+}
+async function fetchSaintGenisObservations(now,fetcher) {
+  const params=new URLSearchParams({
+    identifiant__eq:SAINT_GENIS_ID,
+    observation__eq:'T',
+    horodate__gte:new Date(now-110*60*1000).toISOString(),
+    maxfeatures:'80'
+  });
+  const payload=await fetchJSON(GRAND_LYON+'?'+params,9500,fetcher);
+  const stations=parseSaintGenisObservations(payload,now);
+  const station=stations[0]||null;
+  return {
+    stations,
+    status:{stationId:SAINT_GENIS_ID,source:'Grand Lyon / Météo-France',
+      available:Boolean(station),measuredAt:station?.measuredAt||null,
+      checkedAt:new Date(now).toISOString(),
+      note:station
+        ? 'Mesure officielle récente détectée. Contrôle qualité du modèle requis avant assimilation.'
+        : 'Aucune mesure officielle récente disponible sur le flux ouvert. Prévisions inchangées.'}
+  };
+}
+
 
 const METAR_STATIONS={
   LFLY:{name:'Lyon-Bron (aéroport)',lat:45.73015,lon:4.938569,elevation:200},
@@ -181,16 +209,18 @@ async function enrichModelBaselines(stations,now,fetcher) {
   return done;
 }
 export async function collectRhoneObservations(now=Date.now(),fetcher=fetch) {
-  const [grandlyon,senseboxes,metar]=await Promise.all([
+  const [grandlyon,senseboxes,metar,saintGenis]=await Promise.all([
     fetchJSON(GRAND_LYON+'?'+new URLSearchParams({
       horodate__gte:new Date(now-110*60*1000).toISOString(),
       observation__eq:'T',maxfeatures:'200'
     }),11500,fetcher),
     getSenseBoxReadings(now,fetcher),
-    fetchJSON(METAR_URL,11500,fetcher)
+    fetchJSON(METAR_URL,11500,fetcher),
+    fetchSaintGenisObservations(now,fetcher)
   ]);
   console.log('Grand Lyon sample',JSON.stringify(grandlyon?.values?.[0]||null).slice(0,500), 'field sample', JSON.stringify(grandlyon?.fields||null).slice(0,500));
-  const official=parseGrandLyon(grandlyon,now);
+  const official=[...new Map([...parseGrandLyon(grandlyon,now),...saintGenis.stations]
+    .map(entry=>[entry.id,entry])).values()];
   const airport=parseMetars(metar,now);
   console.log('Source responses:',JSON.stringify({
     grandlyon:grandlyon==null?'none':Array.isArray(grandlyon)?grandlyon.length:Object.keys(grandlyon),
@@ -202,9 +232,13 @@ export async function collectRhoneObservations(now=Date.now(),fetcher=fetch) {
     .sort((a,b)=>(a.source==='Grand Lyon / Météo-France'?0:1)-(b.source==='Grand Lyon / Météo-France'?0:1))
     .slice(0,110);
   const stations=await enrichModelBaselines(collected,now,fetcher);
+  const stGenisValidated=stations.find(st=>st.id==='grandlyon-'+SAINT_GENIS_ID);
+  const saintGenisStatus={...saintGenis.status,assimilable:Boolean(stGenisValidated)};
+  console.log('Saint-Genis-Laval official feed:',JSON.stringify(saintGenisStatus));
   return {version:1,generatedAt:new Date(now).toISOString(),stations,
     sources:{grandlyon:official.length,metar:airport.length,opensensemap:senseboxes.length,
       validated:stations.length},
+    stationChecks:{saintGenisLaval:saintGenisStatus},
     note:'Observations météorologiques publiques ; températures locales corrigées uniquement si stations récentes et modèle de référence disponibles.'};
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
