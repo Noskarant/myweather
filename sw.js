@@ -1,5 +1,5 @@
-const CACHE = 'myweather-v1.8.10';
-const ASSETS = ['./','./index.html','./styles.css','./js/app.js','./js/weather.js','./js/snowfusion.js','./js/rhone-observations.js','./data/rhone-observations.json','./js/route.js','./js/utils.js','./assets/favicon.svg','./manifest.webmanifest'];
+const CACHE = 'myweather-v1.8.11';
+const ASSETS = ['./','./index.html','./styles.css','./js/app.js','./js/weather.js','./js/snowfusion.js','./js/rhone-observations.js','./data/rhone-observations.json','./data/savoie-observations.json','./js/route.js','./js/utils.js','./assets/favicon.svg','./manifest.webmanifest'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', event => {
