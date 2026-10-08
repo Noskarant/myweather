@@ -25,13 +25,14 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 
 ## Observations locales du Rhône (météo générale)
 
-Sans clé API : collecte des stations openSenseMap extérieures et des mesures
-horaires ouvertes Grand Lyon / Météo-France. Pendant le déploiement GitHub
+Sans clé API : collecte des stations openSenseMap extérieures, des mesures
+horaires ouvertes Grand Lyon / Météo-France et des observations aéronautiques
+METAR de Lyon-Bron / Lyon Saint-Exupéry. Pendant le déploiement GitHub
 Pages (planifié toutes les 30 minutes), un fichier JSON de mesures fraîches est créé.
 Le moteur météo principal utilise ces mesures pour les villes et lieux du Rhône.
 
 - Les stations âgées de plus de 100 minutes, les capteurs aberrants et
-  les observations sans modèle co-localisé sont rejetés.
+  les observations sans modèle co-localisé sont rejetées.
 - Le moteur corrige les températures via les **anomalies station - modèle**
   pondérées par distance, différence d'altitude et fraîcheur.
 - Pour une commune sans station, on interpole les anomalies voisines. Une
