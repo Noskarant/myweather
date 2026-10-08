@@ -539,7 +539,7 @@ const pkgSaintGenis=pkgParsed.find(s=>s.id==='mf-69204002');
 assert.equal(pkgSaintGenis.temperature,11,'Kelvin to Celsius must be accurate');
 assert.equal(pkgSaintGenis.name,'Saint-Genis-Laval');
 assert.equal(pkgSaintGenis.elevation,290);
-assert.equal(pkgSaintGenis.measuredAt,pkgAt2,'Use the most recent valid hourly observation');
+assert.equal(pkgSaintGenis.measuredAt,new Date(pkgAt2).toISOString(),'Use the most recent valid hourly observation');
 assert.equal(pkgSaintGenis.source,'Météo-France');
 assert.equal(pkgSaintGenis.rainMm,0.5);
 assert.deepEqual(parsePackageObservations(pkgFrame,observationNow+3*60*60000),[],
