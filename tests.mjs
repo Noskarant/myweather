@@ -237,13 +237,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.8', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.9', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.8'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.9'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -253,8 +253,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.8'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.8'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.9'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.9'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -455,7 +455,27 @@ const indexSourceObs=fs.readFileSync(new URL('./index.html',import.meta.url),'ut
 const pagesSourceObs=fs.readFileSync(new URL('./.github/workflows/pages.yml',import.meta.url),'utf8');
 const swSourceObs=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
 assert.ok(weatherSourceObs.includes('applyRhoneObservations(data,location,observations)'));
-assert.ok(indexSourceObs.includes('id="localObservationStatus"'));
+assert.ok(indexSourceObs.includes('id="localObservationIndicator"') &&
+  indexSourceObs.includes('id="localObservationInfo"') &&
+  indexSourceObs.includes('id="localObservationTooltip"'),
+  'Station indicator must be a focusable, labelled control in the top-right of Now card');
+assert.ok(!indexSourceObs.includes('id="localObservationStatus"'),
+  'The old permanent observation banner must be removed');
+assert.ok(appSourceObs.includes('refs.localObservationIndicator.hidden=!active'),
+  'The station icon must only appear for an actual applied correction');
+assert.ok(appSourceObs.includes("refs.localObservationTooltip.textContent=explanation+source"),
+  'Station methodology must remain available on demand');
+assert.ok(appSourceObs.includes("refs.localObservationInfo?.addEventListener('click'"),
+  'Mobile visitors must be able to tap the information icon');
+assert.ok(!appSourceObs.includes('Température corrigée grâce aux stations'),
+  'No permanent corrective message must remain');
+const obsStyleSource=fs.readFileSync(new URL('./styles.css',import.meta.url),'utf8');
+assert.ok(obsStyleSource.includes('.local-observation-indicator{') &&
+  obsStyleSource.includes('.local-observation-indicator[hidden]') &&
+  obsStyleSource.includes(':focus-within .local-observation-tooltip'),
+  'Responsive/icon-only station info must support mouse and keyboard');
+assert.ok(!obsStyleSource.includes('.local-observation-status'),
+  'Remove the unused status banner CSS');
 assert.ok(appSourceObs.includes("local.stationSource")===false && appSourceObs.includes("local.station"));
 assert.ok(pagesSourceObs.includes('schedule:')&&pagesSourceObs.includes('node scripts/update-rhone-observations.mjs'));
 assert.ok(swSourceObs.includes("'./js/rhone-observations.js'"));
