@@ -31,13 +31,13 @@ const first=(obj,names)=>{
 async function fetchJSON(url,timeout=10500,fetcher=fetch) {
   try{
     const r=await fetcher(url,{signal:AbortSignal.timeout(timeout),headers:{accept:'application/json','user-agent':'MyWeather-RhoneStations/1.0 (https://github.com/Noskarant/myweather)'}});
-    if(!r.ok)return null;
+    if(!r.ok){console.warn('Weather source HTTP',new URL(url).host,r.status);return null;}
     const len=Number(r.headers.get('content-length')||0);
     if(len>6e6)return null;
     const text=await r.text();
     if(text.length>6e6)return null;
     return JSON.parse(text);
-  }catch{return null;}
+  }catch(err){console.warn('Weather source unavailable',new URL(url).host,String(err?.message||err).slice(0,140));return null;}
 }
 export function parseGrandLyon(payload,now=Date.now()) {
   const rows=Array.isArray(payload)?payload:
@@ -95,6 +95,31 @@ export function parseSenseBoxes(payload,now=Date.now()) {
 }
 const GRAND_LYON='https://data.grandlyon.com/fr/datapusher/ws/timeseries/meteofrance.climatologie_mesure_horaire/all.json?maxfeatures=200';
 const SENSE_BOXES='https://api.opensensemap.org/boxes?bbox=4.24,45.38,5.24,46.35&exposure=outdoor&limit=300';
+const METAR_URL='https://aviationweather.gov/api/data/metar?ids=LFLY,LFLL&format=json';
+
+const METAR_STATIONS={
+  LFLY:{name:'Lyon-Bron (aéroport)',lat:45.73015,lon:4.938569,elevation:200},
+  LFLL:{name:'Lyon Saint-Exupéry',lat:45.725556,lon:5.081111,elevation:250}
+};
+export function parseMetars(payload,now=Date.now()) {
+  if(!Array.isArray(payload))return [];
+  const byCode=new Map();
+  for(const item of payload){
+    const code=String(item.icaoId||item.station_id||item.station||'').toUpperCase();
+    const site=METAR_STATIONS[code];
+    if(!site)continue;
+    const temp=finite(item.temp??item.tempC??item.temperature);
+    let obsTime=item.obsTime??item.observation_time??item.reportTime??item.validTime;
+    if(typeof obsTime==='number'&&Number.isFinite(obsTime)) obsTime=new Date(obsTime*(obsTime<1e12?1000:1)).toISOString();
+    const measuredAt=typeof obsTime==='string'?obsTime:null;
+    if(!validTemp(temp)||!ageValid(measuredAt,now,100))continue;
+    const entry={id:'metar-'+code,source:'METAR aviation',
+      ...site,temperature:temp,measuredAt:new Date(measuredAt).toISOString()};
+    if(!byCode.has(code)||Date.parse(byCode.get(code).measuredAt)<Date.parse(entry.measuredAt))
+      byCode.set(code,entry);
+  }
+  return [...byCode.values()];
+}
 
 async function getSenseBoxReadings(now,fetcher) {
   const boxes=await fetchJSON(SENSE_BOXES,11500,fetcher);
@@ -141,18 +166,25 @@ async function enrichModelBaselines(stations,now,fetcher) {
   return done;
 }
 export async function collectRhoneObservations(now=Date.now(),fetcher=fetch) {
-  const [grandlyon,senseboxes]=await Promise.all([
+  const [grandlyon,senseboxes,metar]=await Promise.all([
     fetchJSON(GRAND_LYON,11500,fetcher),
-    getSenseBoxReadings(now,fetcher)
+    getSenseBoxReadings(now,fetcher),
+    fetchJSON(METAR_URL,11500,fetcher)
   ]);
   const official=parseGrandLyon(grandlyon,now);
-  const collected=[...official,...senseboxes]
+  const airport=parseMetars(metar,now);
+  console.log('Source responses:',JSON.stringify({
+    grandlyon:grandlyon==null?'none':Array.isArray(grandlyon)?grandlyon.length:Object.keys(grandlyon),
+    opensensemap:senseboxes.length,
+    metar:metar==null?'none':Array.isArray(metar)?metar.length:Object.keys(metar)
+  }));
+  const collected=[...official,...airport,...senseboxes]
     .filter(s=>ageValid(s.measuredAt,now))
     .sort((a,b)=>(a.source==='Grand Lyon / Météo-France'?0:1)-(b.source==='Grand Lyon / Météo-France'?0:1))
     .slice(0,110);
   const stations=await enrichModelBaselines(collected,now,fetcher);
   return {version:1,generatedAt:new Date(now).toISOString(),stations,
-    sources:{grandlyon:official.length,opensensemap:senseboxes.length,
+    sources:{grandlyon:official.length,metar:airport.length,opensensemap:senseboxes.length,
       validated:stations.length},
     note:'Observations météorologiques publiques ; températures locales corrigées uniquement si stations récentes et modèle de référence disponibles.'};
 }
