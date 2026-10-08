@@ -6,6 +6,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {collectMeteoFranceStations} from './meteo-france-observations.mjs';
 import {collectMeteoFrancePackage} from './meteo-france-package.mjs';
+import {collectSavoieObservations} from './savoie-observations.mjs';
 
 const AREA={west:4.24,south:45.38,east:5.24,north:46.35};
 const MAX_AGE_MS=100*60*1000;
@@ -282,5 +283,19 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
   await mkdir('data',{recursive:true});
   await writeFile('data/rhone-observations.json',JSON.stringify(data,null,2)+'\n');
   console.log('Rhone stations:',JSON.stringify(data.sources));
-  if(data.stations.length===0) console.warn('No fresh usable stations: app falls back to original forecast.');
+  if(data.stations.length===0) console.warn('No fresh usable Rhône stations: app falls back to original forecast.');
+
+  // A problem with Savoie must never interrupt the proven Rhône collector.
+  let savoie;
+  try { savoie=await collectSavoieObservations(); }
+  catch(err){
+    console.warn('Savoie station collection unavailable',err?.name||'error');
+    savoie={version:1,region:'savoie',generatedAt:new Date().toISOString(),
+      stations:[],sources:{meteofranceV2:0,meteofrancePackage:0,uniqueOfficial:0,validated:0},
+      checks:{v2:'unavailable',package:'unavailable',department:'73'}};
+  }
+  await writeFile('data/savoie-observations.json',JSON.stringify(savoie,null,2)+'\n');
+  console.log('Savoie stations:',JSON.stringify(savoie.sources),
+    'sources:',JSON.stringify(savoie.checks));
+  if(savoie.stations.length===0)console.warn('No fresh usable Savoie stations: unmodified forecast fallback.');
 }

@@ -23,6 +23,45 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
+## Extension Savoie (73) : stations officielles et microclimats alpins
+
+MyWeather utilise aussi les **deux API Météo-France déjà configurées**, sans
+nouvelle clé, pour la Savoie et les communes/lieux de montagne situés dans sa
+zone géographique. La collecte horaire génère un second fichier
+`data/savoie-observations.json` séparé du Rhône.
+
+- **DPObs v2** sélectionne jusqu'à 32 stations de Savoie avec priorité aux
+  stations proches et une répartition géographique. **Package Observations v2**
+  récupère en plus les relevés horaires du département **73**.
+- Le collecteur conserve, pour chaque station, l'observation la plus récente,
+  sans la comptabiliser plusieurs fois, et vérifie sa fraîcheur (100 minutes
+  maximum). Les températures officielles sont converties de kelvins en °C.
+- Pour comparer une station située en altitude au modèle Open-Meteo, la
+  température du modèle est demandée **à l'altitude de cette station**. Une
+  observation n'est assimilée que si l'écart au modèle est plausible (≤7 °C).
+- À Valmorel, Planchamp, dans la vallée de la Tarentaise, en Maurienne et
+  autour de Chambéry/Aix-les-Bains, MyWeather corrige les **températures
+  actuelles et de courte échéance** via des anomalies pondérées par distance,
+  altitude et fraîcheur. La zone couvre une enveloppe géographique savoyarde
+  et quelques marges ; ce n'est pas un découpage administratif exact.
+- En montagne, la pondération est **plus restrictive** (distance maximale
+  de 25 km, pénalisation renforcée du dénivelé, correction bornée à 2,5 °C).
+  Un relevé de vallée ne devient jamais arbitrairement une observation à
+  2 000 ou 3 000 m. Une mesure est dite directe seulement à moins de 350 m
+  et avec une différence d'altitude inférieure à 30 m.
+- Le panneau SnowFusion continue de fournir les cumuls de neige et le manteau
+  neigeux. Les relevés de **température** ne recalculent pas artificiellement
+  les chutes de neige ni la hauteur au sol.
+- Aucune mesure récente, station trop éloignée, altitude incomparable, API
+  indisponible ? La prévision météorologique antérieure est préservée.
+- Le rafraîchissement du site est programmé toutes les 30 minutes via
+  GitHub Actions / Pages, sans garantie d'exécution à la minute près.
+
+Le compteur et les statuts Savoie apparaissent dans le journal GitHub Actions
+sous `Savoie stations:`. Les corrections nécessitent des stations
+effectivement reçues et validées ; aucune amélioration de précision n'est
+revendiquée avant vérification sur un historique de mesures.
+
 ## Météo-France Package Observations v2 — Rhône entier
 
 L'API Package Observations fournit en une requête les dernières 24 heures de
