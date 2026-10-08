@@ -6,7 +6,15 @@
     "grandlyon": 0,
     "metar": 0,
     "opensensemap": 0,
-    "validated": 0
+    "validated": 0,
+    "meteofrance": 0
   },
-  "note": "Aucune station chargée avant le premier déploiement automatique."
+  "note": "Aucune station chargée avant le premier déploiement automatique.",
+  "stationChecks": {
+    "saintGenisLaval": {
+      "available": false,
+      "assimilable": false
+    },
+    "meteoFranceApi": "not_configured"
+  }
 }

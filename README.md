@@ -23,6 +23,35 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
+## Connexion Météo-France DPObs v2 (observations officielles)
+
+Le collecteur supporte **l'API Données d'observation v2** de Météo-France
+pour les stations du Rhône et de ses abords, notamment Saint-Genis-Laval
+(identifiant 69204002 si disponible dans le catalogue actif).
+
+Configuration **obligatoire pour activer Météo-France** :
+- Souscrire à l'API Données d'observation v2 sur le portail Météo-France.
+- Dans GitHub : Settings → Secrets and variables → Actions → New repository secret.
+- Nom : `METEOFRANCE_API_KEY`. Valeur : nouvelle API Key Météo-France. **Ne
+  jamais placer la clé dans Git, dans un commit ou dans une variable publique.**
+- Au déploiement suivant (ou via Actions → Deploy MyWeather to GitHub Pages
+  → Run workflow), le collecteur s'authentifie côté GitHub Actions avec
+  l'en-tête `apikey`, détecte les stations par catalogue et récupère leurs
+  observations GeoJSON horaires ; il essaie aussi les données 6 minutes de
+  Saint-Genis-Laval. Les températures officielles sont en **kelvins** et sont
+  converties en °C pour MyWeather. Aucune clé n'est incluse dans le site publié.
+- Jusqu'à 32 stations sont consultées à chaque exécution. Toutes les mesures
+  doivent être fraîches (moins de 100 minutes) et passer le contrôle du modèle
+  avant assimilation.
+- Le diagnostic dans les logs du job montre le nombre de stations trouvées,
+  échantillonnées et valides ; jamais le secret.
+- Si le secret manque, l'API est indisponible, une station ne publie aucune
+  température ou la mesure est périmée, les données existantes restent inchangées.
+
+**Important :** une clé API envoyée dans une conversation doit être régénérée
+avant utilisation de production. Les mesures ne sont pas une preuve de
+meilleure précision des prévisions : cette amélioration doit être vérifiée.
+
 ## Observations locales du Rhône (météo générale)
 
 Sans clé API : collecte des stations openSenseMap extérieures, des mesures

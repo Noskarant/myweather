@@ -47,7 +47,7 @@ export function eligibleRhoneStations(snapshot, location, now=Date.now()) {
     const altitudeFactor=elevationDiff!==null?Math.exp(-elevationDiff/360):0.55;
     const distanceFactor=Math.exp(-distance/11);
     const ageFactor=clamp(1-age/(MAX_AGE_MINUTES*60*1000),0,1);
-    const sourceFactor=station.source==='Grand Lyon / Météo-France'?1.25:station.source==='METAR aviation'?1.15:0.8;
+    const sourceFactor=station.source==='Météo-France'?1.55:station.source==='Grand Lyon / Météo-France'?1.25:station.source==='METAR aviation'?1.15:0.8;
     const weight=distanceFactor*altitudeFactor*(0.45+0.55*ageFactor)*sourceFactor;
     if(weight<0.025) return [];
     return [{...station,lat,lon,temperature:temp,modelTemperature:model,
