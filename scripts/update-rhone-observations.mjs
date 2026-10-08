@@ -12,7 +12,7 @@ const STATIONS={
   '69123002':{name:'Lyon Tête d’Or',lat:45.7728333333,lon:4.8551666667,elevation:170},
   '69204002':{name:'Saint-Genis-Laval',lat:45.6946666667,lon:4.7823333333,elevation:290}
 };
-const TEMP_TEST=/temp[eé]rature|temperature|^temp(\.|$)|^t$/i;
+const TEMP_TEST=/temp[eé]ratur|^temp(\.|$)|^t$/i;
 const validTemp=n=>Number.isFinite(n)&&n>=-42&&n<=48;
 const finite=value=>value===undefined||value===null||value===''?null:Number.isFinite(Number(value))?Number(value):null;
 const ageValid=(time,now,minutes=100)=>{
