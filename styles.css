@@ -1652,11 +1652,42 @@ body{
  .snowfusion-panel{scroll-margin-top:60px;}
 }
 
-/* Local station-corrected temperature: unobtrusive provenance under current conditions. */
-.local-observation-status{
-  display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-top:10px;
-  padding:6px 10px;border-radius:10px;border:1px solid rgba(126,211,244,.23);
-  background:rgba(19,116,161,.16);color:inherit;font-size:12px;line-height:1.45;
-  overflow-wrap:anywhere;
+/* Station-assimilated temperature: compact symbol in the top-right corner. */
+.local-observation-indicator{
+  position:absolute;z-index:12;top:8px;right:9px;
 }
-.local-observation-status[hidden]{display:none!important;}
+.local-observation-indicator[hidden]{display:none!important}
+.local-observation-info{
+  display:grid;place-items:center;width:29px;height:29px;padding:0;
+  border:1px solid rgba(154,212,235,.28);border-radius:9px;
+  background:rgba(7,43,69,.65);color:#9edcf3;
+  cursor:pointer;transition:background .16s,border-color .16s;
+  -webkit-tap-highlight-color:transparent;
+}
+.local-observation-info:hover,.local-observation-info:focus-visible,
+.local-observation-indicator.is-open .local-observation-info{
+  background:rgba(28,104,146,.84);border-color:rgba(174,222,244,.65);
+}
+.local-observation-info:focus-visible{outline:2px solid #b3ebff;outline-offset:2px}
+.local-observation-tooltip{
+  pointer-events:none;position:absolute;top:35px;right:0;
+  width:220px;max-width:calc(100vw - 56px);padding:9px 10px;
+  border:1px solid rgba(151,213,238,.29);border-radius:10px;
+  background:#103b59;color:#ecf9ff;box-shadow:0 9px 22px rgba(1,22,39,.35);
+  font-size:11px;line-height:1.45;text-align:left;letter-spacing:normal;
+  opacity:0;visibility:hidden;transform:translateY(-3px);
+  transition:opacity .15s,transform .15s,visibility .15s;
+}
+.local-observation-indicator:hover .local-observation-tooltip,
+.local-observation-indicator:focus-within .local-observation-tooltip,
+.local-observation-indicator.is-open .local-observation-tooltip{
+  opacity:1;visibility:visible;transform:translateY(0);
+}
+@media(max-width:760px){
+  .local-observation-indicator{top:6px;right:6px}
+  .local-observation-info{width:27px;height:27px;border-radius:8px}
+  .local-observation-tooltip{width:min(188px,calc(50vw - 26px));font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .local-observation-info,.local-observation-tooltip{transition:none}
+}
