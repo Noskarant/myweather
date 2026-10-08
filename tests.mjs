@@ -476,7 +476,8 @@ assert.ok(obsStyleSource.includes('.local-observation-indicator{') &&
   'Responsive/icon-only station info must support mouse and keyboard');
 assert.ok(!obsStyleSource.includes('.local-observation-status'),
   'Remove the unused status banner CSS');
-assert.ok(appSourceObs.includes("local.stationSource")===false && appSourceObs.includes("local.station"));
+assert.ok(appSourceObs.includes('local.stationSource') && appSourceObs.includes('local.station'),
+  'The on-demand tooltip should identify the nearest observed station and its provider');
 assert.ok(pagesSourceObs.includes('schedule:')&&pagesSourceObs.includes('node scripts/update-rhone-observations.mjs'));
 assert.ok(swSourceObs.includes("'./js/rhone-observations.js'"));
 assert.ok(swSourceObs.includes("'./data/rhone-observations.json'"));
