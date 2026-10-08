@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
 import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations } from './js/rhone-observations.js';
-import { parseSenseBoxes, parseGrandLyon, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
+import { parseSenseBoxes, parseGrandLyon, parseMetars, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
@@ -417,6 +417,14 @@ const sampleGrandLyon={results:[
 const parsedOfficial=parseGrandLyon(sampleGrandLyon,observationNow);
 assert.equal(parsedOfficial.length,1);
 assert.equal(parsedOfficial[0].temperature,14.8);
+const metars=parseMetars([
+  {icaoId:'LFLL',temp:11,obsTime:Math.floor(Date.parse(obsAt)/1000)},
+  {icaoId:'LFLY',temp:12,obsTime:'2020-01-01T00:00:00Z'},
+  {icaoId:'XXXX',temp:18,obsTime:Math.floor(Date.parse(obsAt)/1000)}
+],observationNow);
+assert.equal(metars.length,1,'Recent official Lyon airport METAR should be accepted');
+assert.equal(metars[0].source,'METAR aviation');
+assert.equal(metars[0].temperature,11);
 const sensed=parseSenseBoxes([{_id:'aaaaaaaaaaaaaaaaaaaaaaaa',name:'Station test Rhône',
   exposure:'outdoor',currentLocation:{coordinates:[4.807,45.714,185]},
   sensors:[{title:'Temperatur',unit:'°C',
