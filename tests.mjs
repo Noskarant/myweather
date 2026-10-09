@@ -502,6 +502,8 @@ assert.ok(!obsStyleSource.includes('.local-observation-status'),
 assert.ok(appSourceObs.includes('local.stationSource') && appSourceObs.includes('local.station'),
   'The on-demand tooltip should identify the nearest observed station and its provider');
 assert.ok(pagesSourceObs.includes('schedule:')&&pagesSourceObs.includes('node scripts/update-rhone-observations.mjs'));
+assert.ok(pagesSourceObs.includes("cron: '7,22,37,52 * * * *'"),
+  'Station snapshot cron must use staggered 15-minute slots after missing numerous 30-minute runs');
 assert.ok(swSourceObs.includes("'./js/rhone-observations.js'"));
 assert.ok(swSourceObs.includes("'./data/rhone-observations.json'"));
 console.log('✓ Rhône station parsing, freshness, observation assimilation, hourly/daily UI and fail-safe tests passed');
