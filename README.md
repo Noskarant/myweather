@@ -27,7 +27,7 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 
 MyWeather utilise aussi les **deux API Météo-France déjà configurées**, sans
 nouvelle clé, pour la Savoie et les communes/lieux de montagne situés dans sa
-zone géographique. La collecte horaire génère un second fichier
+zone géographique. La collecte programmée génère un second fichier
 `data/savoie-observations.json` séparé du Rhône.
 
 - **DPObs v2** sélectionne jusqu'à 32 stations de Savoie avec priorité aux
@@ -61,6 +61,17 @@ Le compteur et les statuts Savoie apparaissent dans le journal GitHub Actions
 sous `Savoie stations:`. Les corrections nécessitent des stations
 effectivement reçues et validées ; aucune amélioration de précision n'est
 revendiquée avant vérification sur un historique de mesures.
+
+
+**Fraîcheur des relevés (Rhône et Savoie)** : seules des mesures prises depuis
+moins de 100 minutes peuvent corriger le modèle, et le badge station n'apparaît
+que si une correction a réellement été appliquée. GitHub Actions est une
+planification *best effort* : certains déclenchements peuvent être retardés
+ou supprimés par GitHub. Le workflow essaie désormais toutes les 15 minutes
+aux minutes 07, 22, 37 et 52 (UTC), sans garantir un rafraîchissement
+permanent. En cas de trou de collecte, la prévision de base est conservée.
+Pour une régularité contractuelle, prévoir un ordonnanceur externe fiable
+et une API serveur sécurisée : aucune clé Météo-France dans le navigateur.
 
 ## Météo-France Package Observations v2 — Rhône entier
 
