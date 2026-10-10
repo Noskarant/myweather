@@ -114,6 +114,25 @@ numérique par l'application** ; le bouton « Radar » permet de vérifier
 visuellement l'évolution réelle. Les échos radar ne prédisent pas à eux
 seuls une heure d'arrivée validée.
 
+### Corrections pluie qui commence / qui s'arrête (v1.8.18)
+
+Une quantité mesurée ou modélisée « maintenant » correspond souvent à la
+période qui **vient de s'écouler**, pas forcément à une averse réellement
+en cours. Le bulletin distingue désormais :
+- **arrivée** de pluie/neige si les précipitations ne sont pas attestées
+  comme actives au moment présent ;
+- **averses intermittentes** si le modèle annonce de nouveaux épisodes dans
+  les prochaines heures ;
+- **fin des précipitations** seulement si elles sont effectivement en
+  cours et si les prévisions à 15 minutes **et** horaires confirment une
+  période sèche durable (environ deux heures après la fin).
+
+Un simple quart d'heure sans pluie ne peut plus justifier « la pluie
+s'arrête » lorsqu'une averse est prévue une ou deux heures plus tard.
+Cette logique s'applique à toutes les régions et à la neige, y compris
+si une seule résolution de prévision est disponible. Le bulletin ne
+prétend pas fournir une observation radar en direct.
+
 ## Messages « À venir » : pluie, neige, retour du soleil (monde entier)
 
 Sous la météo actuelle, MyWeather affiche automatiquement un aperçu **court,
