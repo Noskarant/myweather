@@ -1362,6 +1362,16 @@ const tinyDrizzle={
   },
   hourly:hourlyOutlook.map(h=>({...h,cloud_cover:70,weather_code:3}))
 };
+const immediateStop=buildNextHoursMessages({
+ ...rainForecast,
+ current:{...rainForecast.current,precipitation:0.12,rain:0.12},
+ minutely_15:{...rainForecast.minutely_15,
+   precipitation:outlookTimes.map(()=>0),rain:outlookTimes.map(()=>0),
+   snowfall:outlookTimes.map(()=>0)},
+ hourly:hourlyOutlook.map(h=>({...h,precipitation:0,rain:0,snowfall:0}))
+},outlookNow);
+assert.ok(immediateStop.items.some(i=>i.kind==='rain'&&i.text.includes('arrêter')),
+  'When raining now and next two quarter-hour slots are dry, signal imminent end');
 const fineRain=buildNextHoursMessages(tinyDrizzle,outlookNow);
 assert.ok(fineRain.items.some(i=>i.kind==='rain'&&i.text.includes('pluie fine')),
   'A single realistic 0.025mm/15min drizzle slot must be useful to someone going outside');
