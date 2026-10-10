@@ -295,7 +295,7 @@ assert.equal(stylesSource.includes('.day-date-nav'), false, 'Removed day navigat
 assert.equal(stylesSource.includes('.day-webcam-card'), false, 'Removed webcam styles still present');
 assert.equal(stylesSource.includes('touch-action:pan-y'), true, 'Day-detail swipe touch policy missing');
 for (const required of [
-  'const items=f.hourly.slice',
+  'const {items,currentIndex}=hourlyRailWindow(f.hourly,forecastNowLocal())',
   'syncVisibleDayHeader',
   "view.addEventListener('scroll'",
   'dateLabel.textContent = formatDetailDate(visibleDate)'
