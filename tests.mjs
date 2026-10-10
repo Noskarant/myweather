@@ -246,13 +246,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.16', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.17', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.16'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.17'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -262,8 +262,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.16'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.16'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.17'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.17'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -744,7 +744,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.16'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.17'));
 assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
@@ -1267,7 +1267,7 @@ const snowForecast={
     weather_code:outlookTimes.map(()=>71)}
 };
 const nextSnow=buildNextHoursMessages(snowForecast,outlookNow);
-assert.ok(nextSnow.items.some(x=>x.kind==='snow'&&x.text.includes('neige')));
+assert.ok(nextSnow.items.some(x=>x.kind==='snow'&&/flocons|neige/.test(x.text)));
 assert.ok(nextSnow.items.some(x=>x.kind==='snow-total'&&x.text.includes('0,8 cm')));
 assert.ok(!nextSnow.items.some(x=>x.kind==='rain'),'Snow water equivalent is not liquid rain');
 const rainStopsForecast={
@@ -1314,7 +1314,7 @@ assert.equal(fallbackRain.source,'hourly');
 assert.ok(fallbackRain.items.some(x=>x.kind==='rain'),
   'The worldwide hourly model must work when 15-minute forecast is unavailable');
 assert.deepEqual(buildNextHoursMessages({current:{},hourly:[],utc_offset_seconds:0},
-  outlookNow),{items:[],source:'unavailable',resolution:60});
+  outlookNow),{items:[],source:'unavailable',resolution:60,radarUsed:false});
 const sparseClear={
   ...rainForecast,
   current:{...rainForecast.current,precipitation:0,cloud_cover:20},
@@ -1325,8 +1325,77 @@ const sparseClear={
 const sparseMessage=buildNextHoursMessages(sparseClear,outlookNow);
 assert.ok(!sparseMessage.items.some(x=>x.text.includes('dans les 6 prochaines heures')),
   'Never claim a six-hour dry window from just two hours of observations');
-assert.ok(sparseMessage.items.some(x=>x.kind==='calm'),
-  'Short clear outlook should still have a useful cautious summary');
+assert.equal(sparseMessage.items.length,0,
+  'Empty forecast must hide the entire alert panel instead of using valuable mobile space');
+// Regression reported on Oullins (2026-10-10): 0.1–0.2mm and
+// low-probability intermittent showers were invisible behind "no rain".
+const oullinsHour=hourlyOutlook.map((h,i)=>({
+  ...h,cloud_cover:75,
+  weather_code:i===1?80:3,
+  precipitation:i===1?.2:i===4?.1:0,
+  rain:i===1?.2:i===4?.1:0,
+  showers:0,precipitation_probability:i===1?15:i===4?5:0
+}));
+const dryMinuteOverride={
+  time:outlookTimes,precipitation:outlookTimes.map(()=>0),
+  rain:outlookTimes.map(()=>0),snowfall:outlookTimes.map(()=>0),
+  weather_code:outlookTimes.map(()=>2)
+};
+const lowShower=buildNextHoursMessages({
+  ...baseOutlook, hourly:oullinsHour,minutely_15:dryMinuteOverride,
+  current:{...baseOutlook.current,cloud_cover:75}
+},outlookNow);
+assert.equal(lowShower.source,'mixed','Disagreement between model steps must be declared');
+assert.ok(lowShower.items.some(i=>i.kind==='rain'&&
+  /averses|pluie fine|gouttes/.test(i.text.toLowerCase())),
+  'A 0.2mm light shower with 15% hourly chance must not become no-rain');
+assert.ok(lowShower.items.find(i=>i.kind==='rain').text.includes('pourraient'),
+  'The low-probability shower must be described as possible, not certain');
+assert.ok(!lowShower.items.some(i=>i.kind==='calm'),'No useless dry-outlook banner');
+const tinyDrizzle={
+  ...rainForecast,
+  minutely_15:{
+    ...rainForecast.minutely_15,
+    precipitation:outlookTimes.map((_,i)=>i===2?.025:0),
+    rain:outlookTimes.map((_,i)=>i===2?.025:0),
+    weather_code:outlookTimes.map(()=>51)
+  },
+  hourly:hourlyOutlook.map(h=>({...h,cloud_cover:70,weather_code:3}))
+};
+const immediateStop=buildNextHoursMessages({
+ ...rainForecast,
+ current:{...rainForecast.current,precipitation:0.12,rain:0.12},
+ minutely_15:{...rainForecast.minutely_15,
+   precipitation:outlookTimes.map(()=>0),rain:outlookTimes.map(()=>0),
+   snowfall:outlookTimes.map(()=>0)},
+ hourly:hourlyOutlook.map(h=>({...h,precipitation:0,rain:0,snowfall:0}))
+},outlookNow);
+assert.ok(immediateStop.items.some(i=>i.kind==='rain'&&i.text.includes('arrêter')),
+  'When raining now and next two quarter-hour slots are dry, signal imminent end');
+const fineRain=buildNextHoursMessages(tinyDrizzle,outlookNow);
+assert.ok(fineRain.items.some(i=>i.kind==='rain'&&i.text.includes('pluie fine')),
+  'A single realistic 0.025mm/15min drizzle slot must be useful to someone going outside');
+assert.equal(fineRain.items.some(i=>i.kind==='rain-total'),false,
+  'Do not invent visible rainfall totals for trace precipitation');
+const thunderForecast={
+ ...rainForecast,current:{...rainForecast.current,weather_code:3},
+ minutely_15:{
+   ...rainForecast.minutely_15,
+   precipitation:outlookTimes.map((_,i)=>i>1&&i<5?.3:0),
+   rain:outlookTimes.map((_,i)=>i>1&&i<5?.3:0),
+   weather_code:outlookTimes.map((_,i)=>i>1&&i<5?95:2)
+ }
+};
+const thunderEvent=buildNextHoursMessages(thunderForecast,outlookNow);
+assert.ok(thunderEvent.items.some(i=>i.kind==='thunder'&&/orageuses/.test(i.text)),
+  'Thunderstorms must be announced explicitly rather than just generic rain');
+const noForecast=buildNextHoursMessages({
+ ...baseOutlook,current:{precipitation:0,cloud_cover:10},
+ minutely_15:null,
+ hourly:hourlyOutlook.map(h=>({...h,cloud_cover:20,weather_code:1,
+   precipitation:0,rain:0,snowfall:0}))
+},outlookNow);
+assert.equal(noForecast.items.length,0,'No forecast event = no panel shown');
 const futureNowcastHTML=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const futureNowcastAPP=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
 const futureNowcastSW=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
