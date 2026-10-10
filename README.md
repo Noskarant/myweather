@@ -95,6 +95,25 @@ validées après chaque collecte. Les limites de quota et la couverture
 géographique officielle sont vérifiées en production ; aucune amélioration
 statistique de précision n'est garantie avant comparaison dans le temps.
 
+### Ajustement des faibles averses (v1.8.17)
+
+Le bandeau disparaît **entièrement** si aucune évolution significative (pluie,
+neige, orage ou retour du soleil) n'est prévue : on ne montre plus « pas de
+pluie ni neige ». Les précipitations légères dès ~0,02 mm par quart d'heure
+ou ~0,04 mm par heure peuvent générer une alerte (« pluie fine », « petites
+averses », « quelques flocons »). Les codes d'orage explicites sont nommés
+comme tels. Les horaires annoncés restent des **estimations**.
+
+Lorsque le modèle à 15 minutes est sec mais que le modèle horaire prévoit
+une faible averse, **l'horaire n'est plus ignoré** : MyWeather affiche
+une possibilité plus prudente (et signale le désaccord), surtout si la
+probabilité horaire est faible. La prévision de pluie/neige dépend de la
+résolution et reste différente d'une analyse de radar en direct. Les
+images radar Windy de la carte existante ne sont **pas lisibles comme flux
+numérique par l'application** ; le bouton « Radar » permet de vérifier
+visuellement l'évolution réelle. Les échos radar ne prédisent pas à eux
+seuls une heure d'arrivée validée.
+
 ## Messages « À venir » : pluie, neige, retour du soleil (monde entier)
 
 Sous la météo actuelle, MyWeather affiche automatiquement un aperçu **court,
