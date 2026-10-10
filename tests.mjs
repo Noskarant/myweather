@@ -1448,7 +1448,7 @@ const chaletForecast={
 };
 const chaletAlert=buildNextHoursMessages(chaletForecast,chaletNow);
 assert.ok(chaletAlert.items.some(i=>i.kind==='rain'&&
-  /commence|possible dès/.test(i.text)), 'Le Meiller: later showers should be announced as arriving');
+  /commence|possibles? dès/.test(i.text)), 'Le Meiller: later showers should be announced as arriving');
 assert.ok(!chaletAlert.items.some(i=>/s’arrête/.test(i.text)),
   'Le Meiller: past 15min precipitation must NEVER trigger rain-stop before predicted showers');
 assert.equal(chaletAlert.items.find(i=>i.kind==='rain')?.amountText,
