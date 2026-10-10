@@ -22,6 +22,24 @@ const dateTime=v=>{
   const ms=Date.parse(stamp);
   return Number.isFinite(ms)?new Date(ms).toISOString():null;
 };
+// The RSCQ public CSV timestamps are local Québec wall time without an offset.
+// Resolve them with the timezone database; never silently interpret them as UTC.
+export function rscqLocalTimestamp(value){
+  const raw=String(value??'').trim();
+  if(!raw)return null;
+  if(/[zZ]$|[+-]\\d\\d:?\\d\\d$/.test(raw))return dateTime(raw);
+  const wall=raw.replace(' ','T');
+  if(!/^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d(?::\\d\\d)?$/.test(wall))return null;
+  const utc=Date.parse(wall+'Z');
+  if(!Number.isFinite(utc))return null;
+  const zone=new Intl.DateTimeFormat('en-US',{
+    timeZone:'America/Toronto',timeZoneName:'shortOffset'
+  }).formatToParts(new Date(utc)).find(p=>p.type==='timeZoneName')?.value;
+  const m=String(zone||'').match(/GMT([+-])(\\d{1,2})(?::(\\d{2}))?/);
+  if(!m)return null;
+  const offset=(m[1]==='+'?1:-1)*(Number(m[2])*60+Number(m[3]||0));
+  return new Date(utc-offset*60_000).toISOString();
+}
 const fresh=(stamp,now)=>{
   const dt=Date.parse(stamp||'');const age=now-dt;
   return Number.isFinite(age)&&age>=-5*60_000&&age<=MAX_AGE;
@@ -115,7 +133,7 @@ export function parseRscqObservations(hourlyText,stationText,now=Date.now()){
     if('tins' in p||'tmoy' in p){
       const raw=pick(p,['tins','tmoy']);
       const temp=celsius(raw,'°C');
-      const stamp=dateTime(pick(p,['date_recueillie','date_heure','date_observation']));
+      const stamp=rscqLocalTimestamp(pick(p,['date_recueillie','date_heure','date_observation']));
       if(!box(site.lat,site.lon,temp,stamp,now))return [];
       return [{...site,id:'rscq-'+id,source:'RSCQ Québec',
         temperature:Math.round(temp*100)/100,measuredAt:stamp}];
@@ -178,42 +196,13 @@ export async function fetchRscqObservations(now=Date.now(),fetcher=fetch){
   if(meta?.success!==true||!Array.isArray(meta.result?.resources))
     return {stations:[],status:'metadata_unavailable'};
   const resources=identifyRscqResources(meta.result.resources);
-  if(!resources.stations||!resources.hourly){
-    console.log('RSCQ public CSV resource discovery:',JSON.stringify(
-      meta.result.resources.filter(r=>String(r.format||'').toUpperCase()==='CSV')
-        .slice(0,18).map(r=>({
-          name:String(r.name||r.name_fr||'').slice(0,95),
-          format:String(r.format||'').slice(0,12),
-          domain:(()=>{try{return new URL(r.url).hostname;}catch{return 'invalid';}})()
-        }))
-    ));
+  if(!resources.stations||!resources.hourly)
     return {stations:[],status:'resource_unavailable'};
-  }
   const [hourly,stations]=await Promise.all([
     safeText(resources.hourly,fetcher),safeText(resources.stations,fetcher)
   ]);
   if(!hourly||!stations)return {stations:[],status:'download_unavailable'};
   const parsed=parseRscqObservations(hourly,stations,now);
-  if(!parsed.length){
-    const header=str=>str.split(/\r?\n/,1)[0]?.slice(0,900)||'';
-    console.log('RSCQ CSV public header diagnostics:',
-      JSON.stringify({hourly:header(hourly),stations:header(stations)}));
-    const p=parseCsv(hourly).map(normalizedRow).find(p=>{
-      const lat=finite(p.latitude),lon=finite(p.longitude);
-      return within(lat,lon);
-    });
-    if(p)console.log('RSCQ sample area keys:',JSON.stringify({
-      station:p.no_station,date:p.date_recueillie,
-      tins:p.tins,tmoy:p.tmoy,lat:p.latitude,lon:p.longitude
-    }));
-    const relevant=parseCsv(hourly).map(normalizedRow).filter(p=>
-      within(finite(p.latitude),finite(p.longitude))&&
-      (finite(p.tins)!==null||finite(p.tmoy)!==null));
-    const latest=relevant.map(p=>p.date_recueillie).filter(Boolean).sort().at(-1);
-    console.log('RSCQ time diagnostic:',JSON.stringify({
-      latest,now:new Date(now).toISOString(),rowCount:relevant.length
-    }));
-  }
   return {stations:parsed,status:parsed.length?'ready':'no_fresh_temperature'};
 }
 export async function fetchSwobObservations(now=Date.now(),fetcher=fetch){
