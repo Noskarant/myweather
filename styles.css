@@ -1718,7 +1718,6 @@ body{
 .nowcast-messages p:last-child{margin-bottom:0}
 .nowcast-messages .nowcast-icon{display:inline-block;width:19px;text-align:center;margin-right:4px;
   font-size:13px;vertical-align:baseline}
-.nowcast-source{font-size:9px;color:#a4c8db;line-height:1.4;font-weight:500}
 .nowcast-radar{flex:0 0 auto;white-space:nowrap;align-self:center;
   background:rgba(127,198,235,.13);color:#def4ff;
   border:1px solid rgba(147,210,243,.22);border-radius:9px;
@@ -1727,7 +1726,6 @@ body{
 @media(max-width:760px){
   .home-current .weather-nowcast{display:flex;margin:10px 0 9px;padding:11px 12px;gap:7px}
   .weather-nowcast .nowcast-messages{font-size:11px}
-  .weather-nowcast .nowcast-source{font-size:9px}
   .weather-nowcast .nowcast-radar{font-size:10px;padding:8px 9px}
 }
 @media(max-width:470px){
