@@ -11,6 +11,8 @@ import {parsePackageObservations, collectMeteoFrancePackage} from './scripts/met
 import {CUSTOM_ADDRESSES,parseOfficialAddressCandidates,resolveCustomAddresses} from './scripts/resolve-custom-places.mjs';
 import {matchCustomPlaceAliases,searchCustomPlaces,loadCustomPlaces} from './js/custom-places.js';
 import {collectSavoieObservations,mergeOfficialStations} from './scripts/savoie-observations.mjs';
+import {collectExtraFranceRegions,EXTRA_FRANCE_REGIONS} from './scripts/france-extra-regions.mjs';
+import {inIleDeFranceArea,inVendeeArea,inReunionArea,loadExtraRegionObservations,eligibleExtraRegionStations,applyExtraRegionObservations} from './js/rhone-observations.js';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
@@ -242,13 +244,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.13', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.14', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.13'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.14'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -258,8 +260,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.13'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.13'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.14'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.14'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -740,8 +742,8 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.13'));
-assert.ok(pagesSavoie.includes('Fetch Rhône, Savoie and Québec station observations'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.14'));
+assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
 
@@ -946,7 +948,7 @@ assert.ok(qcCode.includes('applyQuebecObservations(data,stationLocation,observat
 assert.ok(qcCode.includes('quebec?loadQuebecObservations()'));
 assert.ok(qcCollector.includes("writeFile('data/quebec-observations.json'"));
 assert.ok(qcSW.includes("'./data/quebec-observations.json'"));
-assert.ok(qcPages.includes('Fetch Rhône, Savoie and Québec station observations'));
+assert.ok(qcPages.includes('Fetch French regions and Québec station observations'));
 
 assert.equal(rscqLocalTimestamp('2026-10-10T05:00:00'),
   '2026-10-10T09:00:00.000Z','RSCQ summer local hour must convert to UTC');
@@ -973,3 +975,133 @@ assert.equal(identifyRscqResources([
 ]).hourly,'https://stqc380donopppdtce01.blob.core.windows.net/public/rscq_24h.csv',
  'Exact official Azure Blob host must be allowed for Québec public datasets');
 console.log('✓ Quebec: open SWOB/RSCQ/METAR, verified readings, altitude weighting, fallback & PWA passed');
+
+
+// Extra metropolitan + overseas regions: 8 Île-de-France departments, Vendée 85,
+// Reunion island 974. No fake mountain stations, no temperature unit mix-up.
+const extraPlaces={
+  idf:{lat:48.8566,lon:2.3522,elevation:35,country:'France'},
+  vendee:{lat:46.669,lon:-1.427,elevation:45,country:'France'},
+  reunion:{lat:-21.115,lon:55.54,elevation:120,country:'La Réunion'}
+};
+assert.equal(inIleDeFranceArea(extraPlaces.idf),true);
+assert.equal(inIleDeFranceArea({lat:48.62,lon:2.44}),true);
+assert.equal(inVendeeArea(extraPlaces.vendee),true);
+assert.equal(inReunionArea(extraPlaces.reunion),true);
+assert.equal(inReunionArea({lat:-21.31,lon:55.81,countryCode:'FR'}),true);
+assert.equal(inReunionArea({lat:-12.78,lon:45.23,country:'France'}),false,
+  'Mayotte must not be treated as Reunion');
+assert.equal(inReunionArea({lat:-21.1,lon:55.5,country:'Maurice'}),false);
+assert.equal(inIleDeFranceArea(extraPlaces.vendee),false);
+assert.equal(inRhoneArea(extraPlaces.reunion),false);
+assert.deepEqual(EXTRA_FRANCE_REGIONS.idf.departments,
+  ['75','77','78','91','92','93','94','95']);
+
+const sampleRegionalSites=[
+  ['75056001',48.8566,2.3522,35],
+  ['77001001',48.6,3.07,115],
+  ['78001001',48.80,1.90,125],
+  ['91001001',48.5,2.2,80],
+  ['92001001',48.85,2.22,72],
+  ['93001001',48.93,2.38,63],
+  ['94001001',48.76,2.45,85],
+  ['95001001',49.08,2.25,95],
+  ['85001001',46.67,-1.43,55],
+  ['97401001',-21.12,55.47,120],
+  ['97402001',-21.16,55.49,1800]
+];
+const regionalCatalog='id_station;nom_usuel;latitude;longitude;altitude\n'+
+  sampleRegionalSites.map(([id,lat,lon,alt])=>
+    [id,'Station '+id,lat,lon,alt].join(';')).join('\n')+'\n';
+assert.equal(parseMeteoFranceStationList(regionalCatalog,'idf').length,8);
+assert.equal(parseMeteoFranceStationList(regionalCatalog,'vendee').length,1);
+assert.equal(parseMeteoFranceStationList(regionalCatalog,'reunion').length,2);
+assert.equal(parseMeteoFranceStationList(regionalCatalog,'savoie').length,0);
+const reunionSite=sampleRegionalSites[9];
+const regionFixture=(id,lat,lon)=>({
+  geo_id_insee:id,lat,lon,t:id.startsWith('974')?300.15:283.15,
+  validity_time:obsAt
+});
+assert.equal(parsePackageObservations(
+  [regionFixture(...reunionSite)],observationNow,
+  parseMeteoFranceStationList(regionalCatalog,'reunion'),'974').length,1);
+assert.equal(parsePackageObservations(
+  [regionFixture(...reunionSite)],observationNow,
+  parseMeteoFranceStationList(regionalCatalog,'reunion'),'85').length,0);
+assert.equal(parsePackageObservations(
+  [regionFixture(...reunionSite)],observationNow,
+  parseMeteoFranceStationList(regionalCatalog,'reunion'),'974')[0].temperature,27,
+  'Reunion measured tropical temperature must use Kelvin-to-Celsius conversion');
+const regioMock=async(url,options)=>{
+  const u=new URL(url);
+  if(u.pathname.endsWith('/liste-stations'))return {
+    ok:true,text:async()=>regionalCatalog};
+  if(u.pathname.includes('/paquet/horaire')){
+    assert.equal(options.headers.apikey,'FAKE-PACKAGE');
+    const dep=u.searchParams.get('id-departement');
+    const rows=sampleRegionalSites.filter(([id])=>id.startsWith(dep))
+      .map(([id,lat,lon])=>regionFixture(id,lat,lon));
+    return {ok:true,headers:{get:()=>null},text:async()=>JSON.stringify(rows)};
+  }
+  if(u.host==='api.open-meteo.com'){
+    const longitude=u.searchParams.get('longitude').split(',').map(Number);
+    const elevation=u.searchParams.get('elevation').split(',').map(Number);
+    assert.ok(elevation.every(Number.isFinite),
+      'Model baseline must use actual station elevation, especially on Reunion');
+    return {ok:true,json:async()=>longitude.map((lon,i)=>({
+      current:{time:'2026-10-08T08:00',
+        temperature_2m:lon>50?26:9},
+      elevation:elevation[i]
+    }))};
+  }
+  throw new Error('Unexpected regional endpoint '+u.host+u.pathname);
+};
+const regionalBuild=await collectExtraFranceRegions(observationNow,regioMock,
+  {observations:'FAKE-OBS',package:'FAKE-PACKAGE'});
+assert.equal(regionalBuild.idf.sources.validated,8);
+assert.equal(regionalBuild.vendee.sources.validated,1);
+assert.equal(regionalBuild.reunion.sources.validated,2);
+assert.ok(regionalBuild.reunion.stations.every(s=>s.region!== 'vendee'));
+assert.ok(!JSON.stringify(regionalBuild).includes('FAKE-PACKAGE'));
+const parisForecast=baseObs();
+const parisExtra=applyExtraRegionObservations(parisForecast,extraPlaces.idf,
+  regionalBuild.idf,observationNow,'idf');
+assert.equal(parisExtra?.region,'idf');
+assert.ok(parisForecast.current.temperature_2m>13);
+assert.equal(parisForecast.daily.snowfall_sum[0],3);
+const vendeeForecast=baseObs();
+assert.ok(applyExtraRegionObservations(vendeeForecast,extraPlaces.vendee,
+  regionalBuild.vendee,observationNow,'vendee')?.applied);
+const reunionForecast=baseObs();
+assert.equal(applyExtraRegionObservations(reunionForecast,extraPlaces.reunion,
+  regionalBuild.reunion,observationNow,'reunion')?.applied,true);
+const reuMountain={...extraPlaces.reunion,lat:-21.16,lon:55.49,elevation:2800};
+assert.equal(eligibleExtraRegionStations(
+  {stations:[regionalBuild.reunion.stations[0]]},reuMountain,
+  observationNow,'reunion').length,0,
+  'Do not extrapolate a 120m Réunion coastal station to a 2800m mountain');
+assert.equal(applyExtraRegionObservations(baseObs(),extraPlaces.reunion,
+  regionalBuild.reunion,observationNow+120*60000,'reunion'),null,
+  'Old overseas observations must not correct current weather');
+assert.equal(applyExtraRegionObservations(baseObs(),lyon,
+  regionalBuild.reunion,observationNow,'reunion'),null,
+  'Reunion data must never affect the Rhône');
+const extraFiles=['ile-de-france','vendee','reunion'];
+const latestWeatherCode=fs.readFileSync(new URL('./js/weather.js',import.meta.url),'utf8');
+const latestBuildCode=fs.readFileSync(new URL('./scripts/update-rhone-observations.mjs',import.meta.url),'utf8');
+const latestSW=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
+for(const slug of extraFiles){
+  assert.ok(latestBuildCode.includes("slug+'-observations.json'"),
+    'The extra region publisher must create snapshots');
+  assert.ok(latestSW.includes("'./data/"+slug+"-observations.json'"),
+    'New regional station snapshot must be available in PWA cache');
+}
+assert.ok(latestWeatherCode.includes('applyExtraRegionObservations(data,stationLocation,observations'));
+assert.ok(latestWeatherCode.includes('inReunionArea(location)'));
+assert.ok(latestWeatherCode.includes('inVendeeArea(location)'));
+assert.ok(latestWeatherCode.includes('inIleDeFranceArea(location)'));
+const failedRegional=await collectExtraFranceRegions(observationNow,async()=>({
+  ok:false,status:503,headers:{get:()=>null},text:async()=>''}),{observations:'',package:''});
+assert.equal(failedRegional.idf.stations.length,0);
+assert.equal(failedRegional.reunion.stations.length,0);
+console.log('✓ IDF / Vendée / Réunion: 10 department packages, tropics, altitude, guards, PWA and fallbacks');
