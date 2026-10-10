@@ -1720,6 +1720,10 @@ body{
   font-size:13px;vertical-align:baseline}
 .nowcast-messages .nowcast-amount{margin:4px 0 0;padding-left:23px;
   font-size:10px;font-weight:500;line-height:1.35;color:#afcede}
+.nowcast-messages .nowcast-tomorrow{padding-top:5px;margin-top:6px;
+  border-top:1px solid rgba(160,219,243,.16)}
+.nowcast-messages .nowcast-attribution{display:block;margin-top:4px;
+  font-size:9px;font-weight:400;color:#9cb9c8;text-decoration:underline}
 .nowcast-radar{flex:0 0 auto;white-space:nowrap;align-self:center;
   background:rgba(127,198,235,.13);color:#def4ff;
   border:1px solid rgba(147,210,243,.22);border-radius:9px;

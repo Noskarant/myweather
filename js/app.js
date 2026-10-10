@@ -1,5 +1,6 @@
 import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.16';
-import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.20';
+import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
+import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -15,6 +16,7 @@ const state = {
   location: loadLastLocation() || { name:'Oullins', admin1:'Auvergne-Rhône-Alpes', country:'France', lat:45.714, lon:4.807, elevation:180, timezone:'Europe/Paris' },
   baseLocation:loadBaseLocation() || loadLastLocation() || null,
   forecast:null,
+  radarNowcast:null,
   selectedDate:null,
   dayDetailDate:null,
   dayDetailStep:1,
@@ -378,6 +380,8 @@ async function useLocationPickerSelection() {
 async function loadLocation(location, {silent=false,asBase=false}={}) {
   if (state.loading) return;
   state.loading = true;
+  radarTicket++;
+  state.radarNowcast=null;
   refs.refreshBtn.classList.add('spinning');
   try {
     if (OFFLINE_TEST) throw new Error('offline test mode');
@@ -421,6 +425,7 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
     state.loading = false;
     refs.refreshBtn.classList.remove('spinning');
     if (state.forecast) renderAll();
+    if(!OFFLINE_TEST&&!state.demo&&state.forecast)refreshRadarNowcast();
   }
 }
 
@@ -440,6 +445,15 @@ function currentHourly() {
 }
 
 const nowcastIcons={thunder:'⚡',rain:'☂',snow:'❄',sun:'☀','rain-total':'◌','snow-total':'❄'};
+let radarTicket=0;
+async function refreshRadarNowcast(){
+  const ticket=++radarTicket;
+  const lat=state.location?.lat,lon=state.location?.lon;
+  const result=await fetchRadarTransition(state.location);
+  if(ticket!==radarTicket||state.location?.lat!==lat||state.location?.lon!==lon)return;
+  state.radarNowcast=result;
+  renderNowcast();
+}
 let lastNowcastSignature='';
 function renderNowcast(){
   if(!refs.nowcast||!refs.nowcastMessages)return;
@@ -448,9 +462,9 @@ function renderNowcast(){
     lastNowcastSignature='';
     return;
   }
-  const outlook=buildNextHoursMessages(state.forecast,Date.now());
+  const outlook=buildNextHoursMessages(state.forecast,Date.now(),state.radarNowcast);
   const signature=JSON.stringify(outlook);
-  if(!outlook.items.length){
+  if(!outlook.items.length&&!outlook.tomorrowItems?.length){
     refs.nowcast.hidden=true;
     lastNowcastSignature='';
     return;
@@ -459,10 +473,16 @@ function renderNowcast(){
   if(signature===lastNowcastSignature)return;
   lastNowcastSignature=signature;
   const primary=outlook.items[0];
-  refs.nowcastMessages.innerHTML=
+  const headline=primary?
     '<p><span class="nowcast-icon" aria-hidden="true">'+(nowcastIcons[primary.kind]||'◎')+
     '</span>'+escapeHtml(primary.text)+'</p>'+
-    (primary.amountText?'<p class="nowcast-amount">'+escapeHtml(primary.amountText)+'</p>':'');
+    (primary.amountText?'<p class="nowcast-amount">'+escapeHtml(primary.amountText)+'</p>'):'';
+  const tomorrow=(outlook.tomorrowItems||[]).map(item=>
+    '<p class="nowcast-tomorrow"><span class="nowcast-icon" aria-hidden="true">'+
+    (nowcastIcons[item.kind]||'◎')+'</span>'+escapeHtml(item.text)+'</p>').join('');
+  const attribution=outlook.radarUsed?
+    '<a class="nowcast-attribution" href="https://www.rainviewer.com/" target="_blank" rel="noopener noreferrer">Radar : RainViewer</a>':'';
+  refs.nowcastMessages.innerHTML=headline+tomorrow+attribution;
 }
 
 function renderAll() {
@@ -1945,7 +1965,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.20', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.21', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {

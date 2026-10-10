@@ -13,7 +13,8 @@ import {matchCustomPlaceAliases,searchCustomPlaces,loadCustomPlaces} from './js/
 import {collectSavoieObservations,mergeOfficialStations} from './scripts/savoie-observations.mjs';
 import {collectExtraFranceRegions,EXTRA_FRANCE_REGIONS} from './scripts/france-extra-regions.mjs';
 import {isSaintGillesCoastalLocation,coastalStationWeight,applySaintGillesCoastalWindHumidity} from './js/coastal-vendee.js';
-import {buildNextHoursMessages} from './js/weather-nowcast.js';
+import {buildNextHoursMessages,tomorrowPrecipitation} from './js/weather-nowcast.js';
+import {estimateRadarMotion} from './js/radar-nowcast.js';
 import {inIleDeFranceArea,inVendeeArea,inReunionArea,loadExtraRegionObservations,eligibleExtraRegionStations,applyExtraRegionObservations} from './js/rhone-observations.js';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
@@ -246,13 +247,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.20', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.21', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.20'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.21'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -262,8 +263,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.20'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.20'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.21'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.21'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -744,7 +745,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.20'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.21'));
 assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
@@ -1254,8 +1255,8 @@ const rainForecast={
 };
 const nextRain=buildNextHoursMessages(rainForecast,outlookNow);
 assert.equal(nextRain.source,'quarter-hour');
-assert.ok(nextRain.items.find(i=>i.kind==='rain')?.text.includes('dans environ 30 min'),
-  'Forecast of a rain arrival in two consecutive 15-minute buckets');
+assert.ok(nextRain.items.find(i=>i.kind==='rain')?.text.includes('12h30'),
+  'Forecast of rain arrival uses local clock time and model 15-minute resolution');
 assert.ok(nextRain.items.find(i=>i.kind==='rain-total')?.text.includes('0,9 mm'),
   '3h rain sum must be actual 15-minute interval mm totals, not 4x rate');
 assert.equal(nextRain.items.find(i=>i.kind==='rain')?.amountText,
@@ -1355,8 +1356,8 @@ assert.equal(lowShower.source,'mixed','Disagreement between model steps must be 
 assert.ok(lowShower.items.some(i=>i.kind==='rain'&&
   /averses|pluie fine|gouttes/.test(i.text.toLowerCase())),
   'A 0.2mm light shower with 15% hourly chance must not become no-rain');
-assert.ok(lowShower.items.find(i=>i.kind==='rain').text.includes('pourraient'),
-  'The low-probability shower must be described as possible, not certain');
+assert.ok(lowShower.items.find(i=>i.kind==='rain').text.includes('possible'),
+  'Low-confidence hourly shower must remain explicitly possible');
 assert.ok(!lowShower.items.some(i=>i.kind==='calm'),'No useless dry-outlook banner');
 const tinyDrizzle={
   ...rainForecast,
@@ -1519,7 +1520,7 @@ assert.ok(!mainOnlyApp.includes('nowcastSource'),
   'Do not render source-disagreement, interpolation or radar instructions below alert');
 assert.ok(mainOnlyApp.includes('const primary=outlook.items[0];')&&
   mainOnlyApp.includes('(primary.amountText?'),
-  'Show the single highest-priority message and only its quantity underneath');
+  'Show only the highest-priority immediate message and its amount');
 assert.ok(mainOnlyHtml.includes('id="weatherNowcastRadar"'),
   'Keep the user-requested radar shortcut');
 const futureNowcastHTML=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
@@ -1536,3 +1537,49 @@ assert.ok(futureNowcastWeather.includes("minutely_15:'precipitation,rain,snowfal
 assert.ok(futureNowcastSW.includes("'./js/weather-nowcast.js'"),
   'New pure module must be included in offline PWA cache');
 console.log('✓ Global rain/snow/sun outlook: 15min + worldwide hourly fallback, timing, totals, daylight, real-radar separation');
+
+const tomorrowBase={
+ utc_offset_seconds:7200,timezone:'Europe/Paris',
+ daily:[{time:'2026-10-10',rain_sum:0,snowfall_sum:0},
+        {time:'2026-10-11',rain_sum:1.7,showers_sum:.3,snowfall_sum:2.4}],
+ hourly:[{time:'2026-10-11T14:00',weather_code:71,precipitation:.2,snowfall:.4},
+         {time:'2026-10-11T18:00',weather_code:63,precipitation:.9,rain:.9}]
+};
+const tomorrowSummary=tomorrowPrecipitation(tomorrowBase,outlookNow);
+assert.deepEqual(tomorrowSummary.map(x=>x.text),
+  ['Neige prévue demain : 2,4 cm.','Pluie prévue demain : 2,0 mm.'],
+  'Tomorrow forecast shows snow and rain quantities even without immediate rain');
+const tomorrowStorm=tomorrowPrecipitation({
+ ...tomorrowBase,
+ daily:[{time:'2026-10-11',rain_sum:4,showers_sum:0,snowfall_sum:0}],
+ hourly:[{time:'2026-10-11T17:00',weather_code:95,precipitation:4,
+   precipitation_probability:70}]
+},outlookNow);
+assert.ok(tomorrowStorm[0].text.includes('Orages prévus demain'));
+const allClearTomorrow=tomorrowPrecipitation({
+ ...tomorrowBase,daily:[{time:'2026-10-11',rain_sum:0,showers_sum:0,snowfall_sum:0}],
+ hourly:[]
+},outlookNow);
+assert.equal(allClearTomorrow.length,0,'Do not show a useless dry tomorrow message');
+function syntheticRadar(cx){
+ const n=128,b=new Uint8Array(n*n);
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++)
+   if(Math.hypot(x-cx,y-62)<14)b[y*n+x]=1;
+ return b;
+}
+const radarStart=estimateRadarMotion(syntheticRadar(39),syntheticRadar(45),
+  128,10,outlookNow,outlookNow);
+assert.ok(radarStart?.type==='start'&&radarStart.epoch>outlookNow,
+  'Only coherent movement of actual images can create a minute-level arrival');
+const radarNoEcho=estimateRadarMotion(new Uint8Array(128*128),
+  new Uint8Array(128*128),128,10,outlookNow,outlookNow);
+assert.equal(radarNoEcho,null,'Do not invent a radar arrival on empty images');
+const radarOverlay=buildNextHoursMessages(rainForecast,outlookNow,radarStart);
+assert.equal(radarOverlay.radarUsed,true,'Source must indicate real radar image motion');
+assert.ok(/\\d{2}h\\d{2}/.test(radarOverlay.items[0].text),
+  'Radar alert uses a local clock time, without relative/approximate language');
+const staleRadar=buildNextHoursMessages(rainForecast,outlookNow,{
+ ...radarStart,frameEpoch:outlookNow-19*60000
+});
+assert.equal(staleRadar.radarUsed,false,'Stale radar cannot override fresh models');
+console.log('✓ Tomorrow rain/snow/storm quantities and conditional measured radar motion');

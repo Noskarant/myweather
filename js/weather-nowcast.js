@@ -145,17 +145,16 @@ function continuingWetMessage(quarter,hourly,kind,now){
   return mixed?'Des averses restent possibles dans les prochaines heures.':
     'La pluie pourrait continuer dans les prochaines heures.';
 }
-function whenText(step,now){
-  const mins=(step.epoch-now)/60000;
-  if(mins<=16)return 'très bientôt';
-  if(step.minutes===60){
-    const h=Number(step.time.slice(11,13));
-    if(Number.isFinite(h))return 'vers '+h+' h';
-  }
-  const rounded=Math.max(15,Math.round(mins/15)*15);
-  if(rounded<60)return 'dans environ '+rounded+' min';
-  const hrs=Math.floor(rounded/60),rest=rounded%60;
-  return 'dans environ '+hrs+' h'+(rest?' '+String(rest).padStart(2,'0'):'');
+function clockAt(epochMs,forecast){
+  const tz=forecast?.timezone;
+  if(tz)try{
+    const parts=new Intl.DateTimeFormat('fr-FR',{timeZone:tz,hour:'2-digit',
+      minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(epochMs));
+    const get=k=>parts.find(p=>p.type===k)?.value;
+    if(get('hour')&&get('minute'))return get('hour')+'h'+get('minute');
+  }catch{}
+  const off=finite(forecast?.utc_offset_seconds)||0;
+  return new Date(epochMs+off*1000).toISOString().slice(11,16).replace(':','h');
 }
 const lowConfidence=step=>step?.chance!==null&&step?.chance<35;
 function eventName(step,kind){
@@ -164,18 +163,19 @@ function eventName(step,kind){
   if(step.showers)return step.weak?'De petites averses':'Des averses';
   return step.weak?'De la pluie fine':'De la pluie';
 }
-function eventArrival(step,kind,now,conflict=false){
+function eventArrival(step,kind,forecast,conflict=false){
+  const hour=clockAt(step.epoch,forecast);
   const cautious=conflict||lowConfidence(step);
-  const label=eventName(step,kind);
-  const adverb=cautious?'pourraient':'devraient';
-  // Keep idiomatic grammar: "De la pluie fine pourrait arriver".
-  const singular=kind==='rain'&&!step.showers||kind==='snow'&&!step.weak;
-  const modal=singular?(cautious?'pourrait':'devrait'):adverb;
-  return label+' '+modal+' arriver '+whenText(step,now)+'.';
+  if(cautious)return (kind==='snow'?'Neige':kind==='thunder'?'Orages':
+    step.weak?'Pluie fine':'Pluie')+' possible dès '+hour+'.';
+  if(kind==='snow')return 'La neige commence à '+hour+'.';
+  if(kind==='thunder')return 'Des orages commencent à '+hour+'.';
+  if(step.showers)return 'Des averses commencent à '+hour+'.';
+  return (step.weak?'La pluie fine':'La pluie')+' commence à '+hour+'.';
 }
-function eventStop(step,kind,now){
-  const label=kind==='snow'?'La neige':'La pluie';
-  return label+' pourrait s’arrêter '+whenText(step,now)+'.';
+function eventStop(step,kind,forecast){
+  return (kind==='snow'?'La neige':'La pluie')+' s’arrête à '+
+    clockAt(step.epoch,forecast)+'.';
 }
 function chooseEvent(quarter,hourly,kind,now){
   const q=startOf(quarter,kind,now),h=startOf(hourly,kind,now);
@@ -222,16 +222,52 @@ function sunReturn(forecast,now){
 }
 const printAmount=(amount,unit)=>amount<.1?'moins de 0,1 '+unit:
   (amount<10?amount.toFixed(1):Math.round(amount).toString()).replace('.',',')+' '+unit;
+export function tomorrowPrecipitation(forecast,now=Date.now()){
+  const offset=finite(forecast?.utc_offset_seconds)||0;
+  const localDate=new Date(now+offset*1000).toISOString().slice(0,10);
+  const tomorrow=new Date(Date.parse(localDate+'T12:00:00Z')+86400000)
+    .toISOString().slice(0,10);
+  const daily=(forecast?.daily||[]).find(d=>d.time===tomorrow);
+  const hours=(forecast?.hourly||[]).filter(h=>h.time?.slice(0,10)===tomorrow);
+  if(!daily&&!hours.length)return [];
+  const sum=name=>hours.reduce((s,h)=>s+positive(h[name]),0);
+  const snow=finite(daily?.snowfall_sum)??sum('snowfall');
+  const rain=finite(daily?.rain_sum)!==null
+    ?positive(daily.rain_sum)+positive(daily.showers_sum)
+    :sum('rain')+sum('showers');
+  const hasStorm=hours.some(h=>WMO_THUNDER.has(finite(h.weather_code))&&
+    (positive(h.precipitation)>0||(finite(h.precipitation_probability)??0)>=30));
+  const items=[];
+  if(hasStorm)items.push({kind:'thunder',text:'Orages prévus demain'+
+    (rain>0?' : '+printAmount(rain,'mm')+' de pluie.':'.')});
+  if(snow>0)items.push({kind:'snow',text:'Neige prévue demain : '+printAmount(snow,'cm')+'.'});
+  if(rain>0&&!hasStorm)items.push({kind:'rain',text:'Pluie prévue demain : '+printAmount(rain,'mm')+'.'});
+  return items.slice(0,2);
+}
+function radarKind(forecast,epoch){
+  const off=finite(forecast?.utc_offset_seconds)||0;
+  const forecastHour=(forecast?.hourly||[]).reduce((best,h)=>{
+    const t=epochTime(h.time,off);
+    return t!==null&&(!best||Math.abs(t-epoch)<best.delta)?
+      {row:h,delta:Math.abs(t-epoch)}:best;
+  },null)?.row;
+  if(WMO_THUNDER.has(finite(forecastHour?.weather_code)))return 'thunder';
+  if((finite(forecastHour?.snowfall)??0)>0||
+    WMO_SNOW.has(finite(forecastHour?.weather_code)))return 'snow';
+  return 'rain';
+}
+const epochTime=(time,off)=>epoch(time,off);
 /**
  * Only output ACTIONABLE forecasts; a completely dry forecast returns [] and
  * the compact UI disappears (including its radar shortcut). Live radar is
  * accessible separately in the existing Maps section.
  */
-export function buildNextHoursMessages(forecast,now=Date.now()){
+export function buildNextHoursMessages(forecast,now=Date.now(),radar=null){
+  const tomorrowItems=tomorrowPrecipitation(forecast,now);
   const {quarter,hourly}=chooseSteps(forecast,now);
   const source=quarter.length?'quarter-hour':hourly.length?'hourly':'unavailable';
   const resolution=quarter.length?15:60;
-  if(!quarter.length&&!hourly.length)return {items:[],source:'unavailable',resolution:60,radarUsed:false};
+  if(!quarter.length&&!hourly.length)return {items:[],tomorrowItems,source:'unavailable',resolution:60,radarUsed:false};
   const items=[];
   let containsHourlyContradiction=false;
   for(const kind of ['thunder','snow','rain']){
@@ -239,7 +275,7 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
       if(kind!=='thunder'){
         const finish=agreedEnd(quarter,hourly,kind,now);
         if(finish)items.push({kind,priority:kind==='snow'?2:3,
-          epoch:finish.epoch,text:eventStop(finish,kind,now)});
+          epoch:finish.epoch,text:eventStop(finish,kind,forecast)});
         else {
           const ongoing=continuingWetMessage(quarter,hourly,kind,now);
           if(ongoing)items.push({kind,priority:kind==='snow'?2:3,
@@ -251,7 +287,7 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
     const found=chooseEvent(quarter,hourly,kind,now);
     if(found){
       const {step,conflict}=found;
-      const text=eventArrival(step,kind,now,conflict);
+      const text=eventArrival(step,kind,forecast,conflict);
       if(conflict)containsHourlyContradiction=true;
       items.push({kind,priority:kind==='thunder'?1:kind==='snow'?2:3,
         epoch:step.epoch,text});
@@ -264,7 +300,25 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
       items.splice(i,1);
   const clearing=sunReturn(forecast,now);
   if(clearing)items.push({kind:'sun',priority:4,epoch:clearing.epoch,
-    text:'Le soleil pourrait revenir '+whenText(clearing,now)+'.'});
+    text:'Le soleil pourrait revenir à '+clockAt(clearing.epoch,forecast)+'.'});
+  // Real radar observations can refine the very next transition only if the
+  // sampled echoes move consistently. It cannot forecast tomorrow or lightning.
+  const radarValid=radar?.source==='rainviewer'&&
+    (radar.type==='start'||radar.type==='stop')&&
+    Number.isFinite(radar.epoch)&&radar.epoch>now&&radar.epoch<=now+60*60000&&
+    Number.isFinite(radar.frameEpoch)&&now-radar.frameEpoch<=18*60000;
+  if(radarValid){
+    const kind=radarKind(forecast,radar.epoch);
+    const hour=clockAt(radar.epoch,forecast);
+    const subject=kind==='snow'?'La neige':kind==='thunder'?'Les orages':'La pluie';
+    const text=radar.type==='start'?
+      subject+(kind==='thunder'?' commencent':' commence')+' à '+hour+'.':
+      subject+(kind==='thunder'?' se terminent':' s’arrête')+' à '+hour+'.';
+    for(let i=items.length-1;i>=0;i--)
+      if(['rain','snow','thunder'].includes(items[i].kind))items.splice(i,1);
+    items.unshift({kind,priority:0,epoch:radar.epoch,text,
+      stopping:radar.type==='stop'});
+  }
   const takeRain=s=>s.rainAmount===null?0:s.rainAmount;
   const future=quarter.length?quarter:hourly;
   const totals=future.filter(s=>s.epoch>now&&s.epoch<=now+3*3600_000);
@@ -285,8 +339,8 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
   // including trace amounts. Never invent a total when models give none,
   // and never put an accumulation below a 'rain/snow stopping' message.
   for(const item of items){
-    if(!['rain','snow','thunder'].includes(item.kind)||
-      item.text.includes('s’arrêter'))continue;
+    if(!['rain','snow','thunder'].includes(item.kind)||item.stopping||
+      item.text.includes('s’arrête')||item.text.includes('se terminent'))continue;
     const isSnow=item.kind==='snow';
     const amount=isSnow?snow:rain;
     if(amount>0)item.amountText=(isSnow?'Neige':'Pluie')+
@@ -294,6 +348,7 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
   }
   // No filler "Pas de pluie ni neige": leave room for the forecast below.
   items.sort((a,b)=>a.priority-b.priority||((a.epoch??Infinity)-(b.epoch??Infinity)));
-  return {items:items.slice(0,3),source:containsHourlyContradiction?'mixed':source,
-    resolution,radarUsed:false};
+  return {items:items.slice(0,3),tomorrowItems,
+    source:radarValid?'radar':containsHourlyContradiction?'mixed':source,
+    resolution,radarUsed:Boolean(radarValid)};
 }
