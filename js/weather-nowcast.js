@@ -166,8 +166,9 @@ function eventName(step,kind){
 function eventArrival(step,kind,forecast,conflict=false){
   const hour=clockAt(step.epoch,forecast);
   const cautious=conflict||lowConfidence(step);
-  if(cautious)return (kind==='snow'?'Neige':kind==='thunder'?'Orages':
-    step.weak?'Pluie fine':'Pluie')+' possible dès '+hour+'.';
+  if(cautious)return (kind==='snow'?'Neige possible':kind==='thunder'?'Orages possibles':
+    step.showers?'Averses possibles':step.weak?'Pluie fine possible':'Pluie possible')+
+    ' dès '+hour+'.';
   if(kind==='snow')return 'La neige commence à '+hour+'.';
   if(kind==='thunder')return 'Des orages commencent à '+hour+'.';
   if(step.showers)return 'Des averses commencent à '+hour+'.';

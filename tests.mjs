@@ -1404,7 +1404,7 @@ const thunderForecast={
  }
 };
 const thunderEvent=buildNextHoursMessages(thunderForecast,outlookNow);
-assert.ok(thunderEvent.items.some(i=>i.kind==='thunder'&&/orageuses/.test(i.text)),
+assert.ok(thunderEvent.items.some(i=>i.kind==='thunder'&&/orages/.test(i.text)),
   'Thunderstorms must be announced explicitly rather than just generic rain');
 const noForecast=buildNextHoursMessages({
  ...baseOutlook,current:{precipitation:0,cloud_cover:10},
@@ -1576,7 +1576,7 @@ const radarNoEcho=estimateRadarMotion(new Uint8Array(128*128),
 assert.equal(radarNoEcho,null,'Do not invent a radar arrival on empty images');
 const radarOverlay=buildNextHoursMessages(rainForecast,outlookNow,radarStart);
 assert.equal(radarOverlay.radarUsed,true,'Source must indicate real radar image motion');
-assert.ok(/\\d{2}h\\d{2}/.test(radarOverlay.items[0].text),
+assert.ok(/\d{2}h\d{2}/.test(radarOverlay.items[0].text),
   'Radar alert uses a local clock time, without relative/approximate language');
 const staleRadar=buildNextHoursMessages(rainForecast,outlookNow,{
  ...radarStart,frameEpoch:outlookNow-19*60000
