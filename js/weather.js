@@ -573,6 +573,25 @@ async function fetchSnowFusionEnsemble(location) {
   return response.json();
 }
 
+async function fetchMinutelyForecast(location) {
+  const params=new URLSearchParams({
+    latitude:String(location.lat),longitude:String(location.lon),
+    timezone:'auto',minutely_15:'precipitation,rain,snowfall,weather_code,is_day',
+    forecast_minutely_15:'52',past_minutely_15:'4',precipitation_unit:'mm'
+  });
+  if(isFrance(location)&&finiteWeatherNumber(location.elevation)!=null)
+    params.set('elevation',String(Math.round(location.elevation)));
+  try{
+    const response=await fetch(FORECAST+'?'+params,{signal:AbortSignal.timeout(1900)});
+    if(!response.ok)return null;
+    const data=await response.json();
+    const series=data?.minutely_15;
+    if(!Array.isArray(series?.time)||series.time.length<8||
+      !Array.isArray(series.precipitation))return null;
+    return series;
+  }catch{return null;}
+}
+
 export async function getForecast(location) {
   const params = new URLSearchParams({
     latitude:String(location.lat), longitude:String(location.lon), timezone:'auto', forecast_days:'16',
@@ -586,6 +605,9 @@ export async function getForecast(location) {
   if (!response.ok) throw new Error(`Prévisions indisponibles (${response.status})`);
   const data = await response.json();
 
+  // Optional high-frequency forecast. A failed 15-minute request must never
+  // interrupt the proven global hourly/16-day forecast.
+  const minutePromise=fetchMinutelyForecast(location);
   const local=isFrance(location);
   const rhone=inRhoneArea(location),savoie=!rhone&&inSavoieArea(location);
   const quebec=!rhone&&!savoie&&inQuebecArea(location);
@@ -634,6 +656,7 @@ export async function getForecast(location) {
       console.warn('Observations locales indisponibles, modèle standard conservé',err);
     }
   }
+  data.minutely_15=await optionalWithTimeout(minutePromise,2100,null);
   data.location = { ...location, elevation: data.elevation ?? location.elevation, timezone:data.timezone, timezoneAbbreviation:data.timezone_abbreviation };
   return normalizeForecast(data);
 }
