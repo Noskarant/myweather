@@ -32,7 +32,7 @@ const state = {
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), mapPickerBtn:$('#mapPickerBtn'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
-  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), localObservationIndicator:$('#localObservationIndicator'), localObservationInfo:$('#localObservationInfo'), localObservationTooltip:$('#localObservationTooltip'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'), nowcast:$('#weatherNowcast'), nowcastMessages:$('#weatherNowcastMessages'), nowcastSource:$('#weatherNowcastSource'), nowcastRadar:$('#weatherNowcastRadar'),
+  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), localObservationIndicator:$('#localObservationIndicator'), localObservationInfo:$('#localObservationInfo'), localObservationTooltip:$('#localObservationTooltip'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'), nowcast:$('#weatherNowcast'), nowcastMessages:$('#weatherNowcastMessages'), nowcastRadar:$('#weatherNowcastRadar'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   snowFusionToggle:$('#snowFusionToggle'), snowFusionPanel:$('#snowFusionPanel'), snowFusionClose:$('#snowFusionClose'), snowFusionSource:$('#snowFusionSource'), snowFusionHighlights:$('#snowFusionHighlights'), snowFusionTable:$('#snowFusionTable'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
@@ -442,7 +442,7 @@ function currentHourly() {
 const nowcastIcons={thunder:'⚡',rain:'☂',snow:'❄',sun:'☀','rain-total':'◌','snow-total':'❄'};
 let lastNowcastSignature='';
 function renderNowcast(){
-  if(!refs.nowcast||!refs.nowcastMessages||!refs.nowcastSource)return;
+  if(!refs.nowcast||!refs.nowcastMessages)return;
   if(!state.forecast||state.demo){
     refs.nowcast.hidden=true;
     lastNowcastSignature='';
@@ -458,14 +458,9 @@ function renderNowcast(){
   refs.nowcast.hidden=false;
   if(signature===lastNowcastSignature)return;
   lastNowcastSignature=signature;
-  refs.nowcastMessages.innerHTML=outlook.items.map(item=>
+  refs.nowcastMessages.innerHTML=outlook.items.slice(0,1).map(item=>
     '<p><span class="nowcast-icon" aria-hidden="true">'+(nowcastIcons[item.kind]||'◎')+
     '</span>'+escapeHtml(item.text)+'</p>').join('');
-  refs.nowcastSource.textContent=outlook.source==='mixed'?
-    'Averses possibles · prévisions divergentes · radar à consulter':
-    outlook.source==='quarter-hour'?
-      'Prévisions à 15 min · averses locales incertaines':
-      'Prévisions horaires · horaires approximatifs';
 }
 
 function renderAll() {
@@ -1948,7 +1943,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.18', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.19', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
