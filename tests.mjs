@@ -741,7 +741,7 @@ assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
 assert.ok(indexSavoie.includes('./js/app.js?v=1.8.13'));
-assert.ok(pagesSavoie.includes('Fetch Rhône and Savoie station observations'));
+assert.ok(pagesSavoie.includes('Fetch Rhône, Savoie and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
 
