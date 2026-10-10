@@ -476,7 +476,7 @@ function renderNowcast(){
   const headline=primary?
     '<p><span class="nowcast-icon" aria-hidden="true">'+(nowcastIcons[primary.kind]||'◎')+
     '</span>'+escapeHtml(primary.text)+'</p>'+
-    (primary.amountText?'<p class="nowcast-amount">'+escapeHtml(primary.amountText)+'</p>'):'';
+    (primary.amountText?'<p class="nowcast-amount">'+escapeHtml(primary.amountText)+'</p>':''):'';
   const tomorrow=(outlook.tomorrowItems||[]).map(item=>
     '<p class="nowcast-tomorrow"><span class="nowcast-icon" aria-hidden="true">'+
     (nowcastIcons[item.kind]||'◎')+'</span>'+escapeHtml(item.text)+'</p>').join('');
