@@ -23,6 +23,45 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
+## Île-de-France, Vendée et La Réunion : stations officielles locales
+
+MyWeather exploite désormais les **deux clés Météo-France déjà présentes dans GitHub
+Actions**, sans secret supplémentaire, pour les zones suivantes :
+
+- **Île-de-France** : Paris (75), Seine-et-Marne (77), Yvelines (78),
+  Essonne (91), Hauts-de-Seine (92), Seine-Saint-Denis (93),
+  Val-de-Marne (94), Val-d'Oise (95).
+- **Vendée (85)** : La Roche-sur-Yon, Les Sables-d'Olonne, Noirmoutier,
+  Challans, Fontenay-le-Comte et communes voisines.
+- **Île de La Réunion (974)** : Saint-Denis, Saint-Paul, Saint-Pierre,
+  Saint-Benoît, Cilaos, Salazie, Plaine des Cafres et les Hauts.
+
+À chaque déploiement, les données horaires des paquets départementaux
+Météo-France DPPaquetObs v2 sont récupérées. Un seul catalogue DPObs v2 est
+utilisé pour associer l'altitude réelle et les coordonnées aux stations.
+L'API DPObs v2 peut servir de repli ciblé quand une région n'a pas de
+données fraîches dans ses paquets. Les relevés de moins de **100 minutes**
+sont comparés aux prévisions Open-Meteo **à la même altitude**, puis
+leurs écarts corrigent modérément la température actuelle et
+les prévisions de courte échéance (jusqu'à 30 heures, avec atténuation).
+
+Sur La Réunion, les variations rapides d'altitude imposent une pondération
+nettement plus stricte (maximum 18 km et forte pénalisation des dénivelés).
+**Une station côtière ne doit pas servir de mesure directe pour un sommet.**
+Les stations sans altitude officielle, les valeurs aberrantes et les
+mesures trop anciennes sont exclues. Les cumuls de pluie/neige, le manteau
+neigeux et SnowFusion ne sont pas directement recalculés à partir de ces
+relevés de température.
+
+Les fichiers de stations sont indépendants de ceux du Rhône,
+de Savoie et de Québec : `data/ile-de-france-observations.json`,
+`data/vendee-observations.json` et `data/reunion-observations.json`.
+Une panne partielle laisse le modèle normal en place. Les compteurs
+`Regional stations:` dans GitHub Actions indiquent les stations réellement
+validées après chaque collecte. Les limites de quota et la couverture
+géographique officielle sont vérifiées en production ; aucune amélioration
+statistique de précision n'est garantie avant comparaison dans le temps.
+
 ## Québec City, Lévis, Beauport, Sainte-Foy et Stoneham : stations gratuites sans compte
 
 MyWeather collecte en parallèle trois sources publiques **sans inscription ni clé** :
