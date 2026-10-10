@@ -1930,10 +1930,10 @@ function bindEvents(){
   refs.snowFusionToggle?.addEventListener('click',()=>toggleSnowFusion(!state.snowPanelOpen));
   refs.snowFusionClose?.addEventListener('click',()=>toggleSnowFusion(false));
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
-  $('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
+  $$('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
   refs.nowcastRadar?.addEventListener('click',()=>{
     state.mapOverlay='radar';
-    $('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x.dataset.overlay==='radar'));
+    $$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x.dataset.overlay==='radar'));
     updateMap();
     $('#mapsSection')?.scrollIntoView({behavior:'smooth',block:'start'});
   });
