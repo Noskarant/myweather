@@ -1546,6 +1546,14 @@ const tomorrowBase={
          {time:'2026-10-11T18:00',weather_code:63,precipitation:.9,rain:.9}]
 };
 const tomorrowSummary=tomorrowPrecipitation(tomorrowBase,outlookNow);
+const tomorrowActualShape=tomorrowPrecipitation({
+ ...tomorrowBase,
+ daily:[{time:'2026-10-11',rain:2.1,showers:.4,snowfall:3.2}],
+ hourly:[]
+},outlookNow);
+assert.deepEqual(tomorrowActualShape.map(x=>x.text),
+  ['Neige prévue demain : 3,2 cm.','Pluie prévue demain : 2,5 mm.'],
+  'The normalized daily forecast used by MyWeather must drive tomorrow amounts');
 assert.deepEqual(tomorrowSummary.map(x=>x.text),
   ['Neige prévue demain : 2,4 cm.','Pluie prévue demain : 2,0 mm.'],
   'Tomorrow forecast shows snow and rain quantities even without immediate rain');

@@ -232,10 +232,13 @@ export function tomorrowPrecipitation(forecast,now=Date.now()){
   const hours=(forecast?.hourly||[]).filter(h=>h.time?.slice(0,10)===tomorrow);
   if(!daily&&!hours.length)return [];
   const sum=name=>hours.reduce((s,h)=>s+positive(h[name]),0);
-  const snow=finite(daily?.snowfall_sum)??sum('snowfall');
-  const rain=finite(daily?.rain_sum)!==null
-    ?positive(daily.rain_sum)+positive(daily.showers_sum)
-    :sum('rain')+sum('showers');
+  // getForecast() normalizes daily JSON fields to snowfall/rain/showers;
+  // accept the raw API names too, and keep weak hourly precipitation visible.
+  const snow=Math.max(positive(finite(daily?.snowfall)??finite(daily?.snowfall_sum)),
+    sum('snowfall'));
+  const dailyRain=positive(finite(daily?.rain)??finite(daily?.rain_sum))+
+    positive(finite(daily?.showers)??finite(daily?.showers_sum));
+  const rain=Math.max(dailyRain,sum('rain')+sum('showers'));
   const hasStorm=hours.some(h=>WMO_THUNDER.has(finite(h.weather_code))&&
     (positive(h.precipitation)>0||(finite(h.precipitation_probability)??0)>=30));
   const items=[];
