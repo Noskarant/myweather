@@ -8,6 +8,7 @@ import {collectMeteoFranceStations} from './meteo-france-observations.mjs';
 import {collectMeteoFrancePackage} from './meteo-france-package.mjs';
 import {collectSavoieObservations} from './savoie-observations.mjs';
 import {collectQuebecObservations} from './quebec-observations.mjs';
+import {collectExtraFranceRegions,EXTRA_FRANCE_REGIONS} from './france-extra-regions.mjs';
 
 const AREA={west:4.24,south:45.38,east:5.24,north:46.35};
 const MAX_AGE_MS=100*60*1000;
@@ -312,5 +313,25 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
   console.log('Quebec stations:',JSON.stringify(quebec.sources),
     'sources:',JSON.stringify(quebec.checks));
   if(quebec.stations.length===0)console.warn('No fresh usable Quebec stations: forecast fallback.');
+  // Three independent regional snapshots. An outage must never interrupt the
+  // established Rhône, Savoie, Québec or GitHub Pages pipeline.
+  let newRegions;
+  try{newRegions=await collectExtraFranceRegions();}
+  catch(err){
+    console.warn('Additional French region collection unavailable',err?.name||'error');
+    newRegions={};
+  }
+  const files={idf:'ile-de-france',vendee:'vendee',reunion:'reunion'};
+  for(const [region,slug] of Object.entries(files)){
+    const snapshot=newRegions[region]||{
+      version:1,region:EXTRA_FRANCE_REGIONS[region].region,generatedAt:new Date().toISOString(),
+      stations:[],sources:{package:0,v2:0,uniqueOfficial:0,validated:0},
+      checks:{error:'collection_unavailable'}
+    };
+    await writeFile('data/'+slug+'-observations.json',JSON.stringify(snapshot,null,2)+'\n');
+    console.log('Regional stations:',region,JSON.stringify(snapshot.sources),
+      'checks:',JSON.stringify(snapshot.checks));
+  }
+
 
 }
