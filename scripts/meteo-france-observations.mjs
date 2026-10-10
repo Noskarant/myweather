@@ -5,7 +5,10 @@ const API='https://public-api.meteofrance.fr/public/DPObs/v2';
 const REGIONS={
   rhone:{south:45.38,north:46.35,west:4.24,east:5.24,center:{lat:45.714,lon:4.807}},
   // Wider geographic envelope for Savoie department 73; exact station IDs remain prefixed 73.
-  savoie:{south:45.05,north:46.06,west:5.52,east:7.28,center:{lat:45.55,lon:6.6}}
+  savoie:{south:45.05,north:46.06,west:5.52,east:7.28,center:{lat:45.55,lon:6.6}},
+  idf:{south:48.1,north:49.25,west:1.42,east:3.57,center:{lat:48.8566,lon:2.3522}},
+  vendee:{south:46.22,north:47.18,west:-2.55,east:-0.5,center:{lat:46.67,lon:-1.43}},
+  reunion:{south:-21.43,north:-20.85,west:55.18,east:55.89,center:{lat:-21.115,lon:55.54}}
 };
 const CANDIDATE_LIMIT=32;
 const MAX_AGE=100*60*1000;
@@ -59,7 +62,11 @@ export function parseMeteoFranceStationList(payload,region='rhone') {
     const lat=sane(pick(normalized,'latitude','lat'));
     const lon=sane(pick(normalized,'longitude','lon','long'));
     const elevation=sane(pick(normalized,'altitude','alt','elevation'));
-    if(!/^\d{8}$/.test(id)||!inside(lat,lon,region)||(region==='savoie'&&!id.startsWith('73')))return [];
+    const accepted=region==='idf'?['75','77','78','91','92','93','94','95'].some(prefix=>id.startsWith(prefix)):
+      region==='vendee'?id.startsWith('85'):
+      region==='reunion'?id.startsWith('974'):
+      region==='savoie'?id.startsWith('73'):true;
+    if(!/^\d{8}$/.test(id)||!inside(lat,lon,region)||!accepted)return [];
     const name=String(pick(normalized,'nom_usuel','nom','name','long_name')||'Station '+id).slice(0,90);
     return [{id,name,lat,lon,elevation}];
   });
@@ -141,12 +148,13 @@ async function apiGET(endpoint,apiKey,fetcher,format='geojson'){
     return null;
   }
 }
-export async function collectMeteoFranceStations(apiKey,now=Date.now(),fetcher=fetch,region='rhone') {
+export async function collectMeteoFranceStations(apiKey,now=Date.now(),fetcher=fetch,region='rhone',options={}) {
   if(!apiKey||typeof apiKey!=='string')return {stations:[],status:'not_configured',available:0,selected:0};
-  const listing=await apiGET('/liste-stations?format=csv',apiKey,fetcher,'csv');
+  const listing=options.catalog??await apiGET('/liste-stations?format=csv',apiKey,fetcher,'csv');
   if(!listing)return {stations:[],status:'catalog_unavailable',available:0,selected:0};
   const catalog=parseMeteoFranceStationList(listing,region);
-  const selected=selectMeteoFranceStations(catalog,CANDIDATE_LIMIT,region);
+  const limit=Math.min(CANDIDATE_LIMIT,Math.max(1,Number(options.limit)||CANDIDATE_LIMIT));
+  const selected=selectMeteoFranceStations(catalog,limit,region);
   const stations=[];
   for(let i=0;i<selected.length;i+=5){
     const batch=selected.slice(i,i+5);

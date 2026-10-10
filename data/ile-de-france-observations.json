@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "region": "ile-de-france",
+  "generatedAt": null,
+  "stations": [],
+  "sources": {
+    "package": 0,
+    "v2": 0,
+    "uniqueOfficial": 0,
+    "validated": 0
+  },
+  "checks": {
+    "status": "pending_first_deployment"
+  },
+  "note": "Fichier régional alimenté par GitHub Actions; aucune mesure inventée."
+}
