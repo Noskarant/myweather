@@ -1286,9 +1286,9 @@ const rainStopsForecast={
   }
 };
 const rainStops=buildNextHoursMessages(rainStopsForecast,outlookNow);
-assert.ok(rainStops.items.find(x=>x.kind==='rain')?.text.includes('s’arrêter'),
+assert.ok(rainStops.items.find(x=>x.kind==='rain')?.text.includes('s’arrête'),
   'After rain now, only sustained dry spells can trigger a stopping message');
-assert.ok(!rainStops.items.some(x=>x.text.includes('arriver')),
+assert.ok(!rainStops.items.some(x=>x.text.includes('commence')),
   'Do not announce incoming rain when it is already raining');
 const sunEventually=buildNextHoursMessages({
   ...baseOutlook, minutely_15:null,
@@ -1448,8 +1448,8 @@ const chaletForecast={
 };
 const chaletAlert=buildNextHoursMessages(chaletForecast,chaletNow);
 assert.ok(chaletAlert.items.some(i=>i.kind==='rain'&&
-  /arriver/.test(i.text)), 'Le Meiller: later showers should be announced as arriving');
-assert.ok(!chaletAlert.items.some(i=>/arrêter/.test(i.text)),
+  /commence|possible dès/.test(i.text)), 'Le Meiller: later showers should be announced as arriving');
+assert.ok(!chaletAlert.items.some(i=>/s’arrête/.test(i.text)),
   'Le Meiller: past 15min precipitation must NEVER trigger rain-stop before predicted showers');
 assert.equal(chaletAlert.items.find(i=>i.kind==='rain')?.amountText,
   'Pluie prévue sur 3 h : 0,5 mm.',
@@ -1466,7 +1466,7 @@ const chaletActive={
   }
 };
 const chaletWetAlert=buildNextHoursMessages(chaletActive,chaletNow);
-assert.ok(!chaletWetAlert.items.some(i=>/arrêter/.test(i.text)),
+assert.ok(!chaletWetAlert.items.some(i=>/s’arrête/.test(i.text)),
   'When rain IS currently active, a 15-min gap followed by hourly showers is not a sustained end');
 assert.ok(chaletWetAlert.items.some(i=>/averses/.test(i.text)),
   'Intermittent rain underway should be described as possible upcoming showers');
@@ -1482,7 +1482,7 @@ const genuineDry={
   }
 };
 const dryEnd=buildNextHoursMessages(genuineDry,chaletNow);
-assert.ok(dryEnd.items.some(i=>/arrêter/.test(i.text)),
+assert.ok(dryEnd.items.some(i=>/s’arrête/.test(i.text)),
   'A credible active rain and two hours of agreed dry forecast may announce rain ending');
 assert.equal(dryEnd.items.find(i=>i.kind==='rain')?.amountText,undefined,
   'No precipitation amount should appear underneath a stopping-rain alert');
@@ -1498,7 +1498,7 @@ const heavySnowNow={
   }))
 };
 const snowIntermittent=buildNextHoursMessages(heavySnowNow,chaletNow);
-assert.ok(!snowIntermittent.items.some(i=>/arrêter/.test(i.text)),
+assert.ok(!snowIntermittent.items.some(i=>/s’arrête/.test(i.text)),
   'Snow cannot be announced finished before another predicted snowfall event');
 const distantDrizzle={
   ...chaletForecast,
