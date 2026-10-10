@@ -1517,8 +1517,9 @@ assert.ok(!mainOnlyHtml.includes('weatherNowcastSource'),
   'Remove the non-actionable technical subtitle underneath the forecast headline');
 assert.ok(!mainOnlyApp.includes('nowcastSource'),
   'Do not render source-disagreement, interpolation or radar instructions below alert');
-assert.ok(mainOnlyApp.includes('outlook.items.slice(0,1).map'),
-  'Only the single highest-priority actionable message should be displayed');
+assert.ok(mainOnlyApp.includes('const primary=outlook.items[0];')&&
+  mainOnlyApp.includes('(primary.amountText?'),
+  'Show the single highest-priority message and only its quantity underneath');
 assert.ok(mainOnlyHtml.includes('id="weatherNowcastRadar"'),
   'Keep the user-requested radar shortcut');
 const futureNowcastHTML=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
