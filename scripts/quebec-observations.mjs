@@ -206,6 +206,13 @@ export async function fetchRscqObservations(now=Date.now(),fetcher=fetch){
       station:p.no_station,date:p.date_recueillie,
       tins:p.tins,tmoy:p.tmoy,lat:p.latitude,lon:p.longitude
     }));
+    const relevant=parseCsv(hourly).map(normalizedRow).filter(p=>
+      within(finite(p.latitude),finite(p.longitude))&&
+      (finite(p.tins)!==null||finite(p.tmoy)!==null));
+    const latest=relevant.map(p=>p.date_recueillie).filter(Boolean).sort().at(-1);
+    console.log('RSCQ time diagnostic:',JSON.stringify({
+      latest,now:new Date(now).toISOString(),rowCount:relevant.length
+    }));
   }
   return {stations:parsed,status:parsed.length?'ready':'no_fresh_temperature'};
 }
