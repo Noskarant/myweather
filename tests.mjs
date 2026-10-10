@@ -1067,7 +1067,10 @@ const parisForecast=baseObs();
 const parisExtra=applyExtraRegionObservations(parisForecast,extraPlaces.idf,
   regionalBuild.idf,observationNow,'idf');
 assert.equal(parisExtra?.region,'idf');
-assert.ok(parisForecast.current.temperature_2m>13);
+assert.equal(parisExtra.direct,true,
+  'Exact same-altitude Paris station should be a direct reading');
+assert.equal(parisForecast.current.temperature_2m,10,
+  'Direct station measurement replaces the model at the station coordinates');
 assert.equal(parisForecast.daily.snowfall_sum[0],3);
 const vendeeForecast=baseObs();
 assert.ok(applyExtraRegionObservations(vendeeForecast,extraPlaces.vendee,
