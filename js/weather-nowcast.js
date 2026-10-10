@@ -80,19 +80,70 @@ function startOf(steps,kind,now,horizon=6*3600_000){
   }
   return null;
 }
-function endOf(steps,kind,now,startedNow=false){
+// Current precipitation totals may describe the *previous* 15 minutes.
+// They are not proof that rain is falling at this very moment. Require a
+// rain/snow present-weather WMO code or a continuous high-frequency wet signal.
+function activeNow(forecast,kind,quarter,now){
+  const observed=classify(forecast?.current||{},15);
+  if(!observed[kind])return false;
+  const code=finite(forecast?.current?.weather_code);
+  const explicitlyWet=kind==='snow'?WMO_SNOW.has(code):
+    kind==='thunder'?WMO_THUNDER.has(code):
+    WMO_RAIN.has(code)||WMO_THUNDER.has(code);
+  if(explicitlyWet)return true;
+  // A cloudy current-weather code (3) alongside 0.1 mm is not a wet
+  // observation. Only treat it as continuous rain when fine-resolution
+  // intervals corroborate it on *both* sides of the present.
+  const before=quarter.some(s=>s.epoch>=now-18*60_000&&s.epoch<=now&&s[kind]);
+  const after=quarter.some(s=>s.epoch>now&&s.epoch<=now+18*60_000&&s[kind]);
+  return before&&after;
+}
+function endOf(steps,kind,now){
   const future=steps.filter(s=>s.epoch>=now-12*60_000&&s.epoch<=now+6*3600_000);
-  let sawWet=startedNow;
+  let sawWet=true;
   for(let i=0;i<future.length;i++){
-    const s=future[i];
-    if(s[kind]){sawWet=true;continue;}
-    if(!sawWet||!s.known)continue;
-    const need=s.minutes===15?2:2;
+    const step=future[i];
+    if(step[kind]){sawWet=true;continue;}
+    if(!sawWet||!step.known)continue;
+    // A gap of 15–60 minutes inside intermittent showers is not an end.
+    const need=step.minutes===15?3:2;
     const clear=future.slice(i,i+need);
     if(clear.length===need&&clear.every((x,j)=>x.known&&!x[kind]&&
-      (j===0||x.epoch-clear[j-1].epoch<=s.minutes*60_000+1000)))return s;
+      (j===0||x.epoch-clear[j-1].epoch<=step.minutes*60_000+1000)))
+      return step;
   }
   return null;
+}
+// A cessation must be a genuine dry spell shared by the 15-minute AND hourly
+// forecasts. If either forecast shows another shower within the following
+// two hours, announcing "the rain is stopping" would be misleading.
+function agreedEnd(quarter,hourly,kind,now){
+  const preferred=quarter.length?quarter:hourly;
+  const end=endOf(preferred,kind,now);
+  if(!end||end.epoch<now-10*60_000)return null;
+  const until=Math.max(now,end.epoch)+2*3600_000;
+  for(const series of [quarter,hourly]){
+    if(!series.length)continue;
+    const after=series.filter(s=>s.epoch>=Math.max(now,end.epoch)-60_000&&
+      s.epoch<=until);
+    if(after.some(s=>s[kind]))return null;
+    // The "stable end" assertion needs real data for the full dry spell.
+    if(!after.length||after.at(-1).epoch<until-(series===quarter?20:70)*60_000)
+      return null;
+  }
+  return end;
+}
+function continuingWetMessage(quarter,hourly,kind,now){
+  const upcoming=hourly.filter(s=>s.epoch>=now&&s.epoch<=now+3*3600_000);
+  const finer=quarter.filter(s=>s.epoch>=now&&s.epoch<=now+3*3600_000);
+  const any=[...upcoming,...finer].some(s=>s[kind]);
+  if(!any)return null;
+  const mixed=[...upcoming,...finer].some(s=>s.known&&!s[kind]);
+  if(kind==='snow')
+    return mixed?'Des chutes de neige intermittentes restent possibles dans les prochaines heures.':
+      'La neige pourrait continuer dans les prochaines heures.';
+  return mixed?'Des averses restent possibles dans les prochaines heures.':
+    'La pluie pourrait continuer dans les prochaines heures.';
 }
 function whenText(step,now){
   const mins=(step.epoch-now)/60000;
@@ -181,15 +232,20 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
   const source=quarter.length?'quarter-hour':hourly.length?'hourly':'unavailable';
   const resolution=quarter.length?15:60;
   if(!quarter.length&&!hourly.length)return {items:[],source:'unavailable',resolution:60,radarUsed:false};
-  const current=classify(forecast?.current||{},15);
   const items=[];
   let containsHourlyContradiction=false;
   for(const kind of ['thunder','snow','rain']){
-    if(current[kind]){
-      const future=quarter.length?quarter:hourly;
-      const finish=endOf(future,kind,now,true);
-      if(finish && kind!=='thunder')items.push({kind,priority:kind==='snow'?2:3,
-        epoch:finish.epoch,text:eventStop(finish,kind,now)});
+    if(activeNow(forecast,kind,quarter,now)){
+      if(kind!=='thunder'){
+        const finish=agreedEnd(quarter,hourly,kind,now);
+        if(finish)items.push({kind,priority:kind==='snow'?2:3,
+          epoch:finish.epoch,text:eventStop(finish,kind,now)});
+        else {
+          const ongoing=continuingWetMessage(quarter,hourly,kind,now);
+          if(ongoing)items.push({kind,priority:kind==='snow'?2:3,
+            epoch:now,text:ongoing});
+        }
+      }
       continue;
     }
     const found=chooseEvent(quarter,hourly,kind,now);

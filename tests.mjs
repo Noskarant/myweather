@@ -246,13 +246,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.17', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.18', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.17'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.18'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -262,8 +262,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.17'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.17'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.18'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.18'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -744,7 +744,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.17'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.18'));
 assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
@@ -1271,7 +1271,7 @@ assert.ok(nextSnow.items.some(x=>x.kind==='snow'&&/flocons|neige/.test(x.text)))
 assert.ok(nextSnow.items.some(x=>x.kind==='snow-total'&&x.text.includes('0,8 cm')));
 assert.ok(!nextSnow.items.some(x=>x.kind==='rain'),'Snow water equivalent is not liquid rain');
 const rainStopsForecast={
-  ...rainForecast,current:{...rainForecast.current,precipitation:0.4,rain:0.4},
+  ...rainForecast,current:{...rainForecast.current,precipitation:0.4,rain:0.4,weather_code:61},
   minutely_15:{
     ...rainForecast.minutely_15,
     precipitation:outlookTimes.map((_,i)=>i<3?0.3:0),
@@ -1364,7 +1364,7 @@ const tinyDrizzle={
 };
 const immediateStop=buildNextHoursMessages({
  ...rainForecast,
- current:{...rainForecast.current,precipitation:0.12,rain:0.12},
+ current:{...rainForecast.current,precipitation:0.12,rain:0.12,weather_code:61},
  minutely_15:{...rainForecast.minutely_15,
    precipitation:outlookTimes.map(()=>0),rain:outlookTimes.map(()=>0),
    snowfall:outlookTimes.map(()=>0)},
@@ -1396,6 +1396,99 @@ const noForecast=buildNextHoursMessages({
    precipitation:0,rain:0,snowfall:0}))
 },outlookNow);
 assert.equal(noForecast.items.length,0,'No forecast event = no panel shown');
+
+// Global cessation regression: Le Meiller at 13h06 showed "rain stops very
+// soon" even though 14h (0.3mm) and 15h (0.2mm) have showers forecast.
+// Current API precipitation covers a past short interval; with "cloudy"
+// current WMO code, it is NOT evidence of rain actively falling.
+const chaletNow=Date.parse('2026-10-10T11:06:00Z');
+const chaletHourTimes=Array.from({length:10},(_,i)=>
+  '2026-10-10T'+String(i+13).padStart(2,'0')+':00');
+const chaletQuarterTimes=Array.from({length:32},(_,i)=>{
+  const minutes=(13*60)+15*i;
+  return '2026-10-10T'+String(Math.floor(minutes/60)).padStart(2,'0')+
+    ':'+String(minutes%60).padStart(2,'0');
+});
+const chaletForecast={
+  utc_offset_seconds:7200,
+  current:{precipitation:0.08,rain:0.08,snowfall:0,
+    weather_code:3,cloud_cover:85},
+  hourly:chaletHourTimes.map((time,i)=>({
+    time,weather_code:i===1?80:i===2?61:3,
+    precipitation:i===1?.3:i===2?.2:0,
+    rain:i===1?.3:i===2?.2:0,showers:0,snowfall:0,
+    precipitation_probability:i===1?38:i===2?30:5,
+    cloud_cover:85
+  })),
+  minutely_15:{
+    time:chaletQuarterTimes,
+    precipitation:chaletQuarterTimes.map(()=>0),
+    rain:chaletQuarterTimes.map(()=>0),
+    snowfall:chaletQuarterTimes.map(()=>0),
+    weather_code:chaletQuarterTimes.map(()=>3)
+  },
+  daily:[{time:'2026-10-10',sunrise:'2026-10-10T07:43',sunset:'2026-10-10T18:57'}]
+};
+const chaletAlert=buildNextHoursMessages(chaletForecast,chaletNow);
+assert.ok(chaletAlert.items.some(i=>i.kind==='rain'&&
+  /arriver/.test(i.text)), 'Le Meiller: later showers should be announced as arriving');
+assert.ok(!chaletAlert.items.some(i=>/arrêter/.test(i.text)),
+  'Le Meiller: past 15min precipitation must NEVER trigger rain-stop before predicted showers');
+assert.ok(chaletAlert.items.some(i=>i.kind==='rain-total'&&i.text.includes('0,5 mm')),
+  'Le Meiller: light showers on 14h and 15h still count toward the 3h total');
+const chaletActive={
+  ...chaletForecast,
+  current:{...chaletForecast.current,weather_code:61},
+  minutely_15:{
+    ...chaletForecast.minutely_15,
+    precipitation:chaletQuarterTimes.map((_,i)=>i===0?.08:0),
+    rain:chaletQuarterTimes.map((_,i)=>i===0?.08:0)
+  }
+};
+const chaletWetAlert=buildNextHoursMessages(chaletActive,chaletNow);
+assert.ok(!chaletWetAlert.items.some(i=>/arrêter/.test(i.text)),
+  'When rain IS currently active, a 15-min gap followed by hourly showers is not a sustained end');
+assert.ok(chaletWetAlert.items.some(i=>/averses/.test(i.text)),
+  'Intermittent rain underway should be described as possible upcoming showers');
+const genuineDry={
+  ...chaletActive,
+  hourly:chaletHourTimes.map((time,i)=>({
+    time,weather_code:3,precipitation:0,rain:0,showers:0,
+    snowfall:0,cloud_cover:80
+  })),
+  minutely_15:{...chaletForecast.minutely_15,
+    precipitation:chaletQuarterTimes.map(()=>0),
+    rain:chaletQuarterTimes.map(()=>0)
+  }
+};
+const dryEnd=buildNextHoursMessages(genuineDry,chaletNow);
+assert.ok(dryEnd.items.some(i=>/arrêter/.test(i.text)),
+  'A credible active rain and two hours of agreed dry forecast may announce rain ending');
+const heavySnowNow={
+  ...chaletForecast,
+  current:{...chaletForecast.current,weather_code:71,precipitation:.12,
+    rain:0,snowfall:.3},
+  hourly:chaletHourTimes.map((time,i)=>({
+    time,weather_code:i>=1&&i<=2?71:3,
+    precipitation:i>=1&&i<=2?.3:0,
+    rain:0,snowfall:i>=1&&i<=2?.6:0,
+    cloud_cover:95
+  }))
+};
+const snowIntermittent=buildNextHoursMessages(heavySnowNow,chaletNow);
+assert.ok(!snowIntermittent.items.some(i=>/arrêter/.test(i.text)),
+  'Snow cannot be announced finished before another predicted snowfall event');
+const distantDrizzle={
+  ...chaletForecast,
+  minutely_15:null,
+  hourly:chaletHourTimes.map((time,i)=>({
+    time,weather_code:i===1?51:3,
+    precipitation:i===1?.08:0,rain:i===1?.08:0,snowfall:0,cloud_cover:70
+  }))
+};
+const outsideNowcast=buildNextHoursMessages(distantDrizzle,chaletNow);
+assert.ok(outsideNowcast.items.some(i=>i.kind==='rain'),
+  'Globally (hourly only), weak rain still triggers an arrival notification');
 const futureNowcastHTML=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const futureNowcastAPP=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
 const futureNowcastSW=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
