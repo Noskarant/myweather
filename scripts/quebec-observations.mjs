@@ -166,8 +166,17 @@ export async function fetchRscqObservations(now=Date.now(),fetcher=fetch){
   if(meta?.success!==true||!Array.isArray(meta.result?.resources))
     return {stations:[],status:'metadata_unavailable'};
   const resources=identifyRscqResources(meta.result.resources);
-  if(!resources.stations||!resources.hourly)
+  if(!resources.stations||!resources.hourly){
+    console.log('RSCQ public CSV resource discovery:',JSON.stringify(
+      meta.result.resources.filter(r=>String(r.format||'').toUpperCase()==='CSV')
+        .slice(0,18).map(r=>({
+          name:String(r.name||r.name_fr||'').slice(0,95),
+          format:String(r.format||'').slice(0,12),
+          domain:(()=>{try{return new URL(r.url).hostname;}catch{return 'invalid';}})()
+        }))
+    ));
     return {stations:[],status:'resource_unavailable'};
+  }
   const [hourly,stations]=await Promise.all([
     safeText(resources.hourly,fetcher),safeText(resources.stations,fetcher)
   ]);
