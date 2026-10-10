@@ -22,6 +22,3 @@ jobs:
         run: npm test
       - name: Syntax checks
         run: npm run check
-      - name: Probe anonymous RSCQ catalogue on feature PR
-        if: github.event_name == 'pull_request'
-        run: node --input-type=module -e "import {fetchRscqObservations} from './scripts/quebec-observations.mjs'; const result=await fetchRscqObservations(); console.log('RSCQ probe status:',result.status,'stations:',result.stations.length)"
