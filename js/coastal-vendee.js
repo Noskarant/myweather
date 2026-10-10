@@ -54,14 +54,14 @@ function apparentDelta(temp,fromHum,toHum,fromWind,toWind){
   return clamp(0.33*(vapor(toHum)-vapor(fromHum))-
     0.7*(toWind-fromWind)/3.6,-3.5,3.5);
 }
-function updateCoastalValues(obj,hBias,wBias,scale){
-  if(!obj||scale<=0)return {humidity:false,wind:false};
+function updateCoastalValues(obj,hBias,wBias,hScale,wScale=hScale){
+  if(!obj||(hScale<=0&&wScale<=0))return {humidity:false,wind:false};
   const oldRH=finite(obj.relative_humidity_2m);
   const oldWind=finite(obj.wind_speed_10m);
   const temp=finite(obj.temperature_2m);
   let rh=false,wind=false;
-  if(oldRH!==null&&hBias!==null){
-    const newRH=Math.round(clamp(oldRH+hBias*scale,0,100)*10)/10;
+  if(oldRH!==null&&hBias!==null&&hScale>0){
+    const newRH=Math.round(clamp(oldRH+hBias*hScale,0,100)*10)/10;
     if(newRH!==oldRH){
       obj.relative_humidity_2m=newRH;rh=true;
       const oldDew=finite(obj.dew_point_2m);
@@ -74,11 +74,11 @@ function updateCoastalValues(obj,hBias,wBias,scale){
       }
     }
   }
-  if(oldWind!==null&&wBias!==null){
-    let newWind=clamp(oldWind+wBias*scale,0,150);
+  if(oldWind!==null&&wBias!==null&&wScale>0){
+    let newWind=clamp(oldWind+wBias*wScale,0,150);
     // Do not fabricate gusts; the mean cannot exceed an available modeled gust.
     const gust=finite(obj.wind_gusts_10m);
-    if(gust!==null)newWind=Math.min(newWind,Math.max(0,gust));
+    if(gust!==null&&oldWind<=gust)newWind=Math.min(newWind,Math.max(0,gust));
     newWind=Math.round(newWind*10)/10;
     if(newWind!==oldWind){obj.wind_speed_10m=newWind;wind=true;}
   }
@@ -135,15 +135,9 @@ export function applySaintGillesCoastalWindHumidity(base,location,stations,now=D
       'wind_gusts_10m','apparent_temperature','dew_point_2m']){
       entry[key]=base.hourly[key]?.[i]??null;
     }
-    const updated=updateCoastalValues(entry,humidity.bias,wind.bias,
-      attenuation(hour,12));
     // Wind has a shorter observational predictability horizon (9h).
-    if(wind.bias!==null){
-      entry.wind_speed_10m=base.hourly.wind_speed_10m?.[i]??null;
-      const windOnly=updateCoastalValues(entry,null,wind.bias,
-        attenuation(hour,9));
-      updated.wind=windOnly.wind;
-    }
+    const updated=updateCoastalValues(entry,humidity.bias,wind.bias,
+      attenuation(hour,12),attenuation(hour,9));
     if(updated.humidity){
       if(Array.isArray(base.hourly.relative_humidity_2m))
         base.hourly.relative_humidity_2m[i]=entry.relative_humidity_2m;
@@ -166,7 +160,7 @@ export function applySaintGillesCoastalWindHumidity(base,location,stations,now=D
   let current={humidity:false,wind:false};
   if(base?.current&&hours>=-1.5&&hours<=2)
     current=updateCoastalValues(base.current,humidity.bias,wind.bias,
-      attenuation(hours,Math.min(9,12)));
+      attenuation(hours,12),attenuation(hours,9));
   if(!hourlyHum&&!hourlyWind&&!current.humidity&&!current.wind)return null;
   base.localCoastal={
     active:true,region:'saint-gilles-croix-de-vie',
