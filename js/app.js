@@ -1,4 +1,4 @@
-import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.14';
+import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.15';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -470,7 +470,8 @@ function renderAll() {
         ? 'Température mesurée par la station '+local.station+'.'
         : 'Température estimée pour ce lieu à partir des stations proches, dont '+
           local.station+' ('+local.nearestKm+' km).';
-      refs.localObservationTooltip.textContent=explanation+source;
+      refs.localObservationTooltip.textContent=explanation+source+
+        (local.coastal?' Les relevés maritimes servent aussi à affiner le vent et l’humidité.':'');
     } else {
       refs.localObservationIndicator.classList.remove('is-open');
       refs.localObservationInfo.setAttribute('aria-expanded','false');
@@ -1910,7 +1911,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.14', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.15', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
