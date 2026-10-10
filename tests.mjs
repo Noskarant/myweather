@@ -1321,7 +1321,7 @@ assert.equal(fallbackRain.source,'hourly');
 assert.ok(fallbackRain.items.some(x=>x.kind==='rain'),
   'The worldwide hourly model must work when 15-minute forecast is unavailable');
 assert.deepEqual(buildNextHoursMessages({current:{},hourly:[],utc_offset_seconds:0},
-  outlookNow),{items:[],source:'unavailable',resolution:60,radarUsed:false});
+  outlookNow),{items:[],tomorrowItems:[],source:'unavailable',resolution:60,radarUsed:false});
 const sparseClear={
   ...rainForecast,
   current:{...rainForecast.current,precipitation:0,cloud_cover:20},
