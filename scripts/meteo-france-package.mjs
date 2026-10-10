@@ -5,7 +5,17 @@ import {parseCsv, parseMeteoFranceObservation} from './meteo-france-observations
 const API='https://public-api.meteofrance.fr/public/DPPaquetObs/v2/paquet/horaire';
 const DEPARTMENTS={
   '69':{south:45.38,north:46.35,west:4.24,east:5.24},
-  '73':{south:45.05,north:46.06,west:5.52,east:7.28}
+  '73':{south:45.05,north:46.06,west:5.52,east:7.28},
+  '75':{south:48.1,north:49.25,west:1.42,east:3.57},
+  '77':{south:48.1,north:49.25,west:1.42,east:3.57},
+  '78':{south:48.1,north:49.25,west:1.42,east:3.57},
+  '91':{south:48.1,north:49.25,west:1.42,east:3.57},
+  '92':{south:48.1,north:49.25,west:1.42,east:3.57},
+  '93':{south:48.1,north:49.25,west:1.42,east:3.57},
+  '94':{south:48.1,north:49.25,west:1.42,east:3.57},
+  '95':{south:48.1,north:49.25,west:1.42,east:3.57},
+  '85':{south:46.22,north:47.18,west:-2.55,east:-0.5},
+  '974':{south:-21.43,north:-20.85,west:55.18,east:55.89}
 };
 const MAX_RESPONSE_BYTES=8_000_000;
 
@@ -46,7 +56,9 @@ export function parsePackageObservations(payload,now=Date.now(),metadata=[],depa
       id:code,name:known?.name||'Météo-France '+code,
       lat,lon,elevation:safeNumber(known?.elevation)
     };
-    const reading=parseMeteoFranceObservation(row,station,now,department==='73'?'savoie':'rhone');
+    const region=department==='73'?'savoie':department==='85'?'vendee':
+      department==='974'?'reunion':['75','77','78','91','92','93','94','95'].includes(department)?'idf':'rhone';
+    const reading=parseMeteoFranceObservation(row,station,now,region);
     if(!reading)continue;
     const prev=byId.get(code);
     if(!prev||Date.parse(reading.measuredAt)>Date.parse(prev.measuredAt)){
