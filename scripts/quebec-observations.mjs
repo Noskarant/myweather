@@ -147,7 +147,8 @@ function approvedDownload(url){
     return u.protocol==='https:'&&(
       u.hostname==='donneesquebec.ca'||u.hostname==='www.donneesquebec.ca'||
       u.hostname==='environnement.gouv.qc.ca'||u.hostname.endsWith('.environnement.gouv.qc.ca')||
-      u.hostname==='storage.googleapis.com'
+      u.hostname==='storage.googleapis.com'||
+      u.hostname==='stqc380donopppdtce01.blob.core.windows.net'
     );
   }catch{return false;}
 }
@@ -182,6 +183,11 @@ export async function fetchRscqObservations(now=Date.now(),fetcher=fetch){
   ]);
   if(!hourly||!stations)return {stations:[],status:'download_unavailable'};
   const parsed=parseRscqObservations(hourly,stations,now);
+  if(!parsed.length){
+    const header=str=>str.split(/\r?\n/,1)[0]?.slice(0,900)||'';
+    console.log('RSCQ CSV public header diagnostics:',
+      JSON.stringify({hourly:header(hourly),stations:header(stations)}));
+  }
   return {stations:parsed,status:parsed.length?'ready':'no_fresh_temperature'};
 }
 export async function fetchSwobObservations(now=Date.now(),fetcher=fetch){
