@@ -1699,3 +1699,38 @@ body{
 @media(prefers-reduced-motion:reduce){
   .local-observation-info,.local-observation-tooltip{transition:none}
 }
+
+
+/* MyWeather 1.8.16 — short-range transitions, accessible on mobile and desktop */
+.weather-nowcast{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:12px 0 11px;padding:13px 15px;border-radius:14px;
+  border:1px solid rgba(130,196,232,.2);
+  background:linear-gradient(115deg,rgba(19,77,111,.67),rgba(9,50,82,.85));
+  color:#e4f6ff;min-width:0;box-sizing:border-box}
+.weather-nowcast[hidden]{display:none!important}
+.nowcast-copy{display:flex;flex-direction:column;align-items:flex-start;min-width:0;gap:5px;flex:1}
+.nowcast-label{display:flex;align-items:center;gap:6px;font-size:9px;font-weight:800;
+  letter-spacing:.12em;color:#9edcf2}
+.nowcast-dot{display:block;height:6px;width:6px;border-radius:50%;background:#72d9e4;
+  box-shadow:0 0 0 3px rgba(114,217,228,.1)}
+.nowcast-messages{font-size:12px;font-weight:650;line-height:1.45;min-width:0}
+.nowcast-messages p{margin:0 0 3px}
+.nowcast-messages p:last-child{margin-bottom:0}
+.nowcast-messages .nowcast-icon{display:inline-block;width:19px;text-align:center;margin-right:4px;
+  font-size:13px;vertical-align:baseline}
+.nowcast-source{font-size:9px;color:#a4c8db;line-height:1.4;font-weight:500}
+.nowcast-radar{flex:0 0 auto;white-space:nowrap;align-self:center;
+  background:rgba(127,198,235,.13);color:#def4ff;
+  border:1px solid rgba(147,210,243,.22);border-radius:9px;
+  padding:9px 11px;font-weight:720;font-size:11px;cursor:pointer}
+.nowcast-radar:hover,.nowcast-radar:focus-visible{background:rgba(128,211,242,.24);outline-offset:2px}
+@media(max-width:760px){
+  .home-current .weather-nowcast{display:flex;margin:10px 0 9px;padding:11px 12px;gap:7px}
+  .weather-nowcast .nowcast-messages{font-size:11px}
+  .weather-nowcast .nowcast-source{font-size:9px}
+  .weather-nowcast .nowcast-radar{font-size:10px;padding:8px 9px}
+}
+@media(max-width:470px){
+  .weather-nowcast{align-items:flex-start}
+  .weather-nowcast .nowcast-radar{padding:8px 7px}
+}
