@@ -22,6 +22,24 @@ const dateTime=v=>{
   const ms=Date.parse(stamp);
   return Number.isFinite(ms)?new Date(ms).toISOString():null;
 };
+// The RSCQ public CSV timestamps are local Québec wall time without an offset.
+// Resolve them with the timezone database; never silently interpret them as UTC.
+export function rscqLocalTimestamp(value){
+  const raw=String(value??'').trim();
+  if(!raw)return null;
+  if(/[zZ]$|[+-]\d\d:?\d\d$/.test(raw))return dateTime(raw);
+  const wall=raw.replace(' ','T');
+  if(!/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?$/.test(wall))return null;
+  const utc=Date.parse(wall+'Z');
+  if(!Number.isFinite(utc))return null;
+  const zone=new Intl.DateTimeFormat('en-US',{
+    timeZone:'America/Toronto',timeZoneName:'shortOffset'
+  }).formatToParts(new Date(utc)).find(p=>p.type==='timeZoneName')?.value;
+  const m=String(zone||'').match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+  if(!m)return null;
+  const offset=(m[1]==='+'?1:-1)*(Number(m[2])*60+Number(m[3]||0));
+  return new Date(utc-offset*60_000).toISOString();
+}
 const fresh=(stamp,now)=>{
   const dt=Date.parse(stamp||'');const age=now-dt;
   return Number.isFinite(age)&&age>=-5*60_000&&age<=MAX_AGE;
@@ -101,7 +119,7 @@ export function parseRscqObservations(hourlyText,stationText,now=Date.now()){
     if(!id||!within(lat,lon))continue;
     sites.set(id,{
       id,name:cleanName(pick(p,['nom_station','nom','station_nom','nom_usuel'])||id),
-      lat,lon,elevation:finite(pick(p,['altitude','elevation','altitude_m']))
+      lat,lon,elevation:finite(pick(p,['altitude','alt','elevation','altitude_m']))
     });
   }
   const rows=parseCsv(hourlyText).map(normalizedRow);
@@ -109,6 +127,17 @@ export function parseRscqObservations(hourlyText,stationText,now=Date.now()){
     const id=cleanId(pick(p,['no_station','numero_station','station','id_station','code_station']));
     const site=sites.get(id);
     if(!site)return [];
+    // RSCQ official 24 h *grouped* CSV is a wide format:
+    // NO_STATION, DATE_RECUEILLIE, TINS, TMOY, [other phenomena], LONGITUDE, LATITUDE.
+    // Always prefer instantaneous air temperature, then hourly mean.
+    if('tins' in p||'tmoy' in p){
+      const raw=pick(p,['tins','tmoy']);
+      const temp=celsius(raw,'°C');
+      const stamp=rscqLocalTimestamp(pick(p,['date_recueillie','date_heure','date_observation']));
+      if(!box(site.lat,site.lon,temp,stamp,now))return [];
+      return [{...site,id:'rscq-'+id,source:'RSCQ Québec',
+        temperature:Math.round(temp*100)/100,measuredAt:stamp}];
+    }
     const phenomenon=norm(pick(p,['nom_phenomene','phenomene','parametre',
       'code_phenomene','code_donnee','type_donnee','variable','nom_variable']));
     if(!/\btemp(?:erature)?\b|^ta$|^temp_air$|^temperature_air$/.test(phenomenon))return [];
@@ -147,7 +176,8 @@ function approvedDownload(url){
     return u.protocol==='https:'&&(
       u.hostname==='donneesquebec.ca'||u.hostname==='www.donneesquebec.ca'||
       u.hostname==='environnement.gouv.qc.ca'||u.hostname.endsWith('.environnement.gouv.qc.ca')||
-      u.hostname==='storage.googleapis.com'
+      u.hostname==='storage.googleapis.com'||
+      u.hostname==='stqc380donopppdtce01.blob.core.windows.net'
     );
   }catch{return false;}
 }
