@@ -111,6 +111,16 @@
             </aside>
           </div>
 
+          <div id="weatherNowcast" class="weather-nowcast" role="status" aria-live="polite" aria-atomic="true" hidden>
+            <div class="nowcast-copy">
+              <span class="nowcast-label"><span class="nowcast-dot" aria-hidden="true"></span> À VENIR</span>
+              <div id="weatherNowcastMessages" class="nowcast-messages"></div>
+              <small id="weatherNowcastSource" class="nowcast-source"></small>
+            </div>
+            <button id="weatherNowcastRadar" class="nowcast-radar" type="button"
+              aria-label="Voir les observations radar sur la carte météo">Radar <span aria-hidden="true">↗</span></button>
+          </div>
+
           <div class="sun-times" aria-label="Lever et coucher du soleil">
             <span class="sun-time"><span class="sun-time-icon" aria-hidden="true">☀</span><span>Lever <time id="sunriseTime">—</time></span></span>
             <span class="sun-time"><span class="sun-time-icon sunset" aria-hidden="true">◐</span><span>Coucher <time id="sunsetTime">—</time></span></span>
