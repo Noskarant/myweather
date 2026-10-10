@@ -148,12 +148,13 @@ async function apiGET(endpoint,apiKey,fetcher,format='geojson'){
     return null;
   }
 }
-export async function collectMeteoFranceStations(apiKey,now=Date.now(),fetcher=fetch,region='rhone') {
+export async function collectMeteoFranceStations(apiKey,now=Date.now(),fetcher=fetch,region='rhone',options={}) {
   if(!apiKey||typeof apiKey!=='string')return {stations:[],status:'not_configured',available:0,selected:0};
-  const listing=await apiGET('/liste-stations?format=csv',apiKey,fetcher,'csv');
+  const listing=options.catalog??await apiGET('/liste-stations?format=csv',apiKey,fetcher,'csv');
   if(!listing)return {stations:[],status:'catalog_unavailable',available:0,selected:0};
   const catalog=parseMeteoFranceStationList(listing,region);
-  const selected=selectMeteoFranceStations(catalog,CANDIDATE_LIMIT,region);
+  const limit=Math.min(CANDIDATE_LIMIT,Math.max(1,Number(options.limit)||CANDIDATE_LIMIT));
+  const selected=selectMeteoFranceStations(catalog,limit,region);
   const stations=[];
   for(let i=0;i<selected.length;i+=5){
     const batch=selected.slice(i,i+5);
