@@ -80,9 +80,9 @@ function startOf(steps,kind,now,horizon=6*3600_000){
   }
   return null;
 }
-function endOf(steps,kind,now){
+function endOf(steps,kind,now,startedNow=false){
   const future=steps.filter(s=>s.epoch>=now-12*60_000&&s.epoch<=now+6*3600_000);
-  let sawWet=false;
+  let sawWet=startedNow;
   for(let i=0;i<future.length;i++){
     const s=future[i];
     if(s[kind]){sawWet=true;continue;}
@@ -187,7 +187,7 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
   for(const kind of ['thunder','snow','rain']){
     if(current[kind]){
       const future=quarter.length?quarter:hourly;
-      const finish=endOf(future,kind,now);
+      const finish=endOf(future,kind,now,true);
       if(finish && kind!=='thunder')items.push({kind,priority:kind==='snow'?2:3,
         epoch:finish.epoch,text:eventStop(finish,kind,now)});
       continue;
