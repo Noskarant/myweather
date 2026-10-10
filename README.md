@@ -95,6 +95,35 @@ validées après chaque collecte. Les limites de quota et la couverture
 géographique officielle sont vérifiées en production ; aucune amélioration
 statistique de précision n'est garantie avant comparaison dans le temps.
 
+## Messages « À venir » : pluie, neige, retour du soleil (monde entier)
+
+Sous la météo actuelle, MyWeather affiche automatiquement un aperçu **court,
+discret et accessible sur mobile** : arrivée ou fin de la pluie, arrivée ou fin
+de la neige, retour probable du soleil après le mauvais temps, et estimations
+de pluie (**mm**) ou de neige fraîche (**cm**) sur les 3 prochaines heures.
+Les transitions exigent plusieurs créneaux concordants ; le soleil n'est
+annoncé que **de jour**, après éclaircie durable. Les horaires sont indiqués
+comme **approximatifs** (« dans environ… »), pas comme des certitudes.
+
+Une requête **facultative** à la Forecast API Open-Meteo extrait les
+précipitations et chutes de neige au pas de **15 minutes**. Selon les pays,
+les valeurs 15 minutes peuvent être interpolées à partir des modèles horaires :
+cela reste un **calcul de prévision**. Si cette API est indisponible ou
+incomplète, le **modèle horaire** du lieu est automatiquement utilisé.
+Le bulletin se met à jour lors des recherches, rafraîchissements et
+progression de l'horloge. La météo principale et les corrections par stations
+continuent de fonctionner même si la requête 15 minutes échoue.
+
+Le bouton « **Radar ↗** » ouvre la **carte radar Windy existante**, qui
+permet de consulter les observations radar directement. **Le texte d'alerte
+ne prétend jamais calculer une arrivée de pluie à partir d'images radar** :
+cette intégration nécessiterait un produit radar exploitable, sa datation,
+son extrapolation et une validation dédiée. Les données météo à 15 minutes
+peuvent intégrer des mesures radar selon le modèle, mais ne constituent pas
+une lecture directe du radar. Sources documentées :
+[Open-Meteo](https://open-meteo.com/en/docs) et
+[RainViewer (API publique historique limitée)](https://www.rainviewer.com/br/api/transition-faq.html).
+
 ## Québec City, Lévis, Beauport, Sainte-Foy et Stoneham : stations gratuites sans compte
 
 MyWeather collecte en parallèle trois sources publiques **sans inscription ni clé** :
