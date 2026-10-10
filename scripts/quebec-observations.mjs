@@ -101,7 +101,7 @@ export function parseRscqObservations(hourlyText,stationText,now=Date.now()){
     if(!id||!within(lat,lon))continue;
     sites.set(id,{
       id,name:cleanName(pick(p,['nom_station','nom','station_nom','nom_usuel'])||id),
-      lat,lon,elevation:finite(pick(p,['altitude','elevation','altitude_m']))
+      lat,lon,elevation:finite(pick(p,['altitude','alt','elevation','altitude_m']))
     });
   }
   const rows=parseCsv(hourlyText).map(normalizedRow);
@@ -109,6 +109,17 @@ export function parseRscqObservations(hourlyText,stationText,now=Date.now()){
     const id=cleanId(pick(p,['no_station','numero_station','station','id_station','code_station']));
     const site=sites.get(id);
     if(!site)return [];
+    // RSCQ official 24 h *grouped* CSV is a wide format:
+    // NO_STATION, DATE_RECUEILLIE, TINS, TMOY, [other phenomena], LONGITUDE, LATITUDE.
+    // Always prefer instantaneous air temperature, then hourly mean.
+    if('tins' in p||'tmoy' in p){
+      const raw=pick(p,['tins','tmoy']);
+      const temp=celsius(raw,'°C');
+      const stamp=dateTime(pick(p,['date_recueillie','date_heure','date_observation']));
+      if(!box(site.lat,site.lon,temp,stamp,now))return [];
+      return [{...site,id:'rscq-'+id,source:'RSCQ Québec',
+        temperature:Math.round(temp*100)/100,measuredAt:stamp}];
+    }
     const phenomenon=norm(pick(p,['nom_phenomene','phenomene','parametre',
       'code_phenomene','code_donnee','type_donnee','variable','nom_variable']));
     if(!/\btemp(?:erature)?\b|^ta$|^temp_air$|^temperature_air$/.test(phenomenon))return [];
@@ -187,6 +198,14 @@ export async function fetchRscqObservations(now=Date.now(),fetcher=fetch){
     const header=str=>str.split(/\r?\n/,1)[0]?.slice(0,900)||'';
     console.log('RSCQ CSV public header diagnostics:',
       JSON.stringify({hourly:header(hourly),stations:header(stations)}));
+    const p=parseCsv(hourly).map(normalizedRow).find(p=>{
+      const lat=finite(p.latitude),lon=finite(p.longitude);
+      return within(lat,lon);
+    });
+    if(p)console.log('RSCQ sample area keys:',JSON.stringify({
+      station:p.no_station,date:p.date_recueillie,
+      tins:p.tins,tmoy:p.tmoy,lat:p.latitude,lon:p.longitude
+    }));
   }
   return {stations:parsed,status:parsed.length?'ready':'no_fresh_temperature'};
 }
