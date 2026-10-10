@@ -1,4 +1,5 @@
-import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.15';
+import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.16';
+import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.16';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -31,7 +32,7 @@ const state = {
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), mapPickerBtn:$('#mapPickerBtn'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
-  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), localObservationIndicator:$('#localObservationIndicator'), localObservationInfo:$('#localObservationInfo'), localObservationTooltip:$('#localObservationTooltip'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'),
+  locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), localObservationIndicator:$('#localObservationIndicator'), localObservationInfo:$('#localObservationInfo'), localObservationTooltip:$('#localObservationTooltip'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'), nowcast:$('#weatherNowcast'), nowcastMessages:$('#weatherNowcastMessages'), nowcastSource:$('#weatherNowcastSource'), nowcastRadar:$('#weatherNowcastRadar'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   snowFusionToggle:$('#snowFusionToggle'), snowFusionPanel:$('#snowFusionPanel'), snowFusionClose:$('#snowFusionClose'), snowFusionSource:$('#snowFusionSource'), snowFusionHighlights:$('#snowFusionHighlights'), snowFusionTable:$('#snowFusionTable'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
@@ -438,6 +439,33 @@ function currentHourly() {
   return state.forecast.hourly[nearestIndex(state.forecast.hourly.map(x=>x.time), forecastNowLocal())];
 }
 
+const nowcastIcons={rain:'☂',snow:'❄',sun:'☀','rain-total':'◌','snow-total':'❄',calm:'◉'};
+let lastNowcastSignature='';
+function renderNowcast(){
+  if(!refs.nowcast||!refs.nowcastMessages||!refs.nowcastSource)return;
+  if(!state.forecast||state.demo){
+    refs.nowcast.hidden=true;
+    lastNowcastSignature='';
+    return;
+  }
+  const outlook=buildNextHoursMessages(state.forecast,Date.now());
+  const signature=JSON.stringify(outlook);
+  if(!outlook.items.length){
+    refs.nowcast.hidden=true;
+    lastNowcastSignature='';
+    return;
+  }
+  refs.nowcast.hidden=false;
+  if(signature===lastNowcastSignature)return;
+  lastNowcastSignature=signature;
+  refs.nowcastMessages.innerHTML=outlook.items.map(item=>
+    '<p><span class="nowcast-icon" aria-hidden="true">'+(nowcastIcons[item.kind]||'◎')+
+    '</span>'+escapeHtml(item.text)+'</p>').join('');
+  refs.nowcastSource.textContent=outlook.source==='quarter-hour'?
+    'Prévision à 15 min · interpolation possible · pas une mesure radar':
+    'Prévision horaire · échéances approximatives · pas une mesure radar';
+}
+
 function renderAll() {
   const f = state.forecast;
   if (!f) return;
@@ -510,6 +538,7 @@ function renderAll() {
   ];
   refs.quickMetrics.innerHTML = metrics.map(([k,v,i])=>`<div><i>${i}</i><span>${k}<strong>${v}</strong></span></div>`).join('');
   refs.insight.innerHTML = weatherInsight(c,hNow,loc);
+  renderNowcast();
 
   renderCockpit(c,hNow);
   renderTempChart();
@@ -1902,6 +1931,12 @@ function bindEvents(){
   refs.snowFusionClose?.addEventListener('click',()=>toggleSnowFusion(false));
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
   $$('#mapTabs [data-overlay]').forEach(b=>b.addEventListener('click',()=>{state.mapOverlay=b.dataset.overlay;$$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x===b));updateMap()}));
+  refs.nowcastRadar?.addEventListener('click',()=>{
+    state.mapOverlay='radar';
+    $$('#mapTabs [data-overlay]').forEach(x=>x.classList.toggle('active',x.dataset.overlay==='radar'));
+    updateMap();
+    $('#mapsSection')?.scrollIntoView({behavior:'smooth',block:'start'});
+  });
   $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
   refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(refs.locationPickerModal && !refs.locationPickerModal.classList.contains('hidden')) closeLocationPicker(); else if(!refs.modal.classList.contains('hidden')) closeHour(); else if(refs.bulletinModal && !refs.bulletinModal.classList.contains('hidden')) closeBulletin(); else if(addingFavorite)closeFavoriteSearch(); else closeDayDetail();}});
   refs.routeForm.addEventListener('submit',handleRoute);refs.swapRoute.addEventListener('click',()=>{const a=refs.routeFrom.value;refs.routeFrom.value=refs.routeTo.value;refs.routeTo.value=a});
@@ -1911,7 +1946,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.15', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.16', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -1935,7 +1970,7 @@ async function init(){
   refs.expertToggle?.setAttribute('aria-pressed', String(state.expert));
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
-  setInterval(updateNowClock,30000);
+  setInterval(()=>{updateNowClock();if(state.forecast)renderNowcast();},30000);
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
   registerServiceWorker();
