@@ -1,6 +1,6 @@
 import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.8.2';
 import { applySnowFusion, isFrance, SNOWFUSION_MODELS, SNOWFUSION_ENSEMBLE } from './snowfusion.js?v=1.8.7';
-import { inRhoneArea, inSavoieArea, inQuebecArea, loadRhoneObservations, loadSavoieObservations, loadQuebecObservations, applyRhoneObservations, applySavoieObservations, applyQuebecObservations } from './rhone-observations.js?v=1.8.13';
+import { inRhoneArea, inSavoieArea, inQuebecArea, inIleDeFranceArea, inVendeeArea, inReunionArea, loadRhoneObservations, loadSavoieObservations, loadQuebecObservations, loadExtraRegionObservations, applyRhoneObservations, applySavoieObservations, applyQuebecObservations, applyExtraRegionObservations } from './rhone-observations.js?v=1.8.14';
 import {searchCustomPlaces} from './custom-places.js?v=1.8.12';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
@@ -589,9 +589,14 @@ export async function getForecast(location) {
   const local=isFrance(location);
   const rhone=inRhoneArea(location),savoie=!rhone&&inSavoieArea(location);
   const quebec=!rhone&&!savoie&&inQuebecArea(location);
+  const extraRegion=!(rhone||savoie||quebec)?
+    inIleDeFranceArea(location)?'idf':
+    inVendeeArea(location)?'vendee':
+    inReunionArea(location)?'reunion':null:null;
   const observationPromise=rhone?loadRhoneObservations():
     savoie?loadSavoieObservations():
-      quebec?loadQuebecObservations():Promise.resolve(null);
+      quebec?loadQuebecObservations():
+      extraRegion?loadExtraRegionObservations(extraRegion):Promise.resolve(null);
   const terrainPromise=optionalWithTimeout(assessLocalTerrain(location), 1500, null);
   // Parallel, time-bounded extras keep the old Best Match forecast usable.
   const modelsPromise=local?optionalWithTimeout(fetchSnowFusionModels(location), 3800, null):Promise.resolve(null);
@@ -617,13 +622,14 @@ export async function getForecast(location) {
     data.localConsensus = mergeLocalConsensus(terrain, models, spatial);
   }
 
-  if (rhone||savoie||quebec) {
+  if (rhone||savoie||quebec||extraRegion) {
     try {
       const observations=await observationPromise;
       const stationLocation={...location,elevation:location.elevation??data.elevation};
       if(rhone)applyRhoneObservations(data,stationLocation,observations);
       else if(savoie)applySavoieObservations(data,stationLocation,observations);
-      else applyQuebecObservations(data,stationLocation,observations);
+      else if(quebec)applyQuebecObservations(data,stationLocation,observations);
+      else applyExtraRegionObservations(data,stationLocation,observations,Date.now(),extraRegion);
     } catch (err) {
       console.warn('Observations locales indisponibles, modèle standard conservé',err);
     }
