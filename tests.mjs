@@ -4,7 +4,7 @@ import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo,
 import { sampleRoute } from './js/route.js';
 import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations, inSavoieArea, eligibleSavoieStations, applySavoieObservations, loadSavoieObservations } from './js/rhone-observations.js';
 import {inQuebecArea,eligibleQuebecStations,applyQuebecObservations,loadQuebecObservations} from './js/rhone-observations.js';
-import {parseSwobObservations,parseMetarQuebec,parseRscqObservations,identifyRscqResources,dedupeQuebecStations,collectQuebecObservations} from './scripts/quebec-observations.mjs';
+import {parseSwobObservations,parseMetarQuebec,parseRscqObservations,identifyRscqResources,dedupeQuebecStations,collectQuebecObservations,rscqLocalTimestamp} from './scripts/quebec-observations.mjs';
 import { parseSenseBoxes, parseGrandLyon, parseMetars, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
 import { parseMeteoFranceStationList, selectMeteoFranceStations, parseMeteoFranceObservation, collectMeteoFranceStations } from './scripts/meteo-france-observations.mjs';
 import {parsePackageObservations, collectMeteoFrancePackage} from './scripts/meteo-france-package.mjs';
@@ -947,4 +947,29 @@ assert.ok(qcCode.includes('quebec?loadQuebecObservations()'));
 assert.ok(qcCollector.includes("writeFile('data/quebec-observations.json'"));
 assert.ok(qcSW.includes("'./data/quebec-observations.json'"));
 assert.ok(qcPages.includes('Fetch Rhône, Savoie and Québec station observations'));
+
+assert.equal(rscqLocalTimestamp('2026-10-10T05:00:00'),
+  '2026-10-10T09:00:00.000Z','RSCQ summer local hour must convert to UTC');
+assert.equal(rscqLocalTimestamp('2026-01-10T05:00:00'),
+  '2026-01-10T10:00:00.000Z','RSCQ winter local hour must use Eastern standard time');
+assert.equal(rscqLocalTimestamp('2026-10-10T09:00:00Z'),
+  '2026-10-10T09:00:00.000Z','Timezone-qualified RSCQ timestamp must not shift');
+const rscqWideStations='NO_STATION,NOM_STATION,LAT,LONG,ALT\n'+
+ '7016283,Québec Duberger,46.82,-71.23,13\n';
+const rscqWideHours='NO_STATION,NOM_STATION,DATE_RECUEILLIE,TINS,TMOY,LONGITUDE,LATITUDE,ALTITUDE,PLUIE\n'+
+ '7016283,Québec Duberger,2026-10-10T05:00:00,2.9,2.7,-71.23,46.82,13,15\n'+
+ '7016283,Québec Duberger,2026-10-10T03:00:00,1.8,1.7,-71.23,46.82,13,0\n';
+const rscqWide=parseRscqObservations(rscqWideHours,rscqWideStations,qcNow);
+assert.equal(rscqWide.length,1,'Official RSCQ wide-format hourly CSV must be parsed');
+assert.equal(rscqWide[0].temperature,2.9,'Use instantaneous TINS, not rain or hourly average');
+assert.equal(rscqWide[0].measuredAt,qcObserved);
+assert.equal(parseRscqObservations(rscqWideHours,rscqWideStations,
+  qcNow+3*3600e3).length,0,'Never assimilate stale RSCQ data after conversion');
+assert.equal(identifyRscqResources([
+ {name:'Données horaires des 24 dernières heures groupées par station, date et phénomène météorologique',
+  format:'CSV',url:'https://stqc380donopppdtce01.blob.core.windows.net/public/rscq_24h.csv'},
+ {name:'Liste des stations',format:'CSV',
+  url:'https://stqc380donopppdtce01.blob.core.windows.net/public/stations.csv'}
+]).hourly,'https://stqc380donopppdtce01.blob.core.windows.net/public/rscq_24h.csv',
+ 'Exact official Azure Blob host must be allowed for Québec public datasets');
 console.log('✓ Quebec: open SWOB/RSCQ/METAR, verified readings, altitude weighting, fallback & PWA passed');
