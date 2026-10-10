@@ -165,7 +165,7 @@ function applyRegionalObservations(base,location,snapshot,now,region) {
     region==='rhone'?-3.5:-2.5,region==='rhone'?3.5:2.5);
   const lead=stations[0];
   // High confidence only for a station almost exactly at the target site.
-  const direct=lead.distance<=(region==='savoie'?0.35:0.75)&&(lead.elevationDiff===null?false:lead.elevationDiff<=(region==='savoie'?30:60))
+  const direct=lead.distance<=(region==='rhone'?0.75:0.35)&&(lead.elevationDiff===null?false:lead.elevationDiff<=(region==='rhone'?60:30))
     && Math.abs(lead.residual)<=5;
   const localityFactor=direct?1:clamp(total/(total+0.25),0.15,0.87);
   const correction=bias*localityFactor;
