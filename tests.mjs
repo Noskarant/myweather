@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
+import { hourlyRailWindow } from './js/hourly-navigation.js';
 import { sampleRoute } from './js/route.js';
 import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations, inSavoieArea, eligibleSavoieStations, applySavoieObservations, loadSavoieObservations } from './js/rhone-observations.js';
 import {inQuebecArea,eligibleQuebecStations,applyQuebecObservations,loadQuebecObservations} from './js/rhone-observations.js';
@@ -247,13 +248,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.21', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.22', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.21'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.22'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -263,8 +264,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.21'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.21'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.22'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.22'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -745,7 +746,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.21'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.22'));
 assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
@@ -1591,3 +1592,39 @@ const staleRadar=buildNextHoursMessages(rainForecast,outlookNow,{
 });
 assert.equal(staleRadar.radarUsed,false,'Stale radar cannot override fresh models');
 console.log('✓ Tomorrow rain/snow/storm quantities and conditional measured radar motion');
+
+// Past-hour rail regression: default position stays on the current hour,
+// while the user can swipe left to ALL hours of yesterday, not just 24h back.
+const localPastHours=Array.from({length:72},(_,i)=>{
+  const stamp=new Date(Date.parse('2026-10-09T00:00:00Z')+i*3600000)
+    .toISOString().slice(0,16);
+  return {time:stamp,temperature_2m:i};
+});
+const lateView=hourlyRailWindow(localPastHours,'2026-10-10T22:01');
+assert.equal(lateView.items[0].time,'2026-10-09T00:00');
+assert.equal(lateView.items[lateView.currentIndex].time,'2026-10-10T22:00');
+assert.equal(lateView.items.length,72,
+  'The rail must retain yesterday, today and the future, not slice from now');
+const midnightView=hourlyRailWindow(localPastHours,'2026-10-11T00:10');
+assert.equal(midnightView.items[0].time,'2026-10-10T00:00',
+  'Crossing midnight must keep the entire prior calendar day');
+assert.equal(midnightView.items[midnightView.currentIndex].time,'2026-10-11T00:00');
+const sparseHourly=hourlyRailWindow([
+ {time:'2026-10-10T19:00'},{time:'2026-10-10T20:00'}],'2026-10-10T19:43');
+assert.equal(sparseHourly.currentIndex,0,'The current hour is not rounded up');
+assert.deepEqual(hourlyRailWindow([],'2026-10-10T22:01'),{items:[],currentIndex:0});
+const weatherCode=fs.readFileSync(new URL('./js/weather.js',import.meta.url),'utf8');
+const railAppCode=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
+const cacheCode=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
+assert.ok(weatherCode.includes("past_hours:'48'"),
+  'The forecast API must request enough hourly history to include all of yesterday');
+assert.ok(weatherCode.includes("forecast_days:'16'"),
+  'The 16-day forecast horizon must remain unchanged');
+assert.ok(railAppCode.includes('hourlyRailWindow(f.hourly,forecastNowLocal())'),
+  'The home hourly rail must use yesterday-inclusive hours');
+assert.ok(railAppCode.includes('previousFirstHour===items[0]?.time')&&
+  railAppCode.includes('current.offsetLeft-first.offsetLeft'),
+  'Forecast refresh must preserve horizontal scroll; first load must focus now');
+assert.ok(cacheCode.includes("'./js/hourly-navigation.js'"),
+  'The offline PWA must cache the restored rail-navigation module');
+console.log('✓ Past-hour carousel: previous full day, current focus, refresh retention and PWA');

@@ -595,6 +595,9 @@ async function fetchMinutelyForecast(location) {
 export async function getForecast(location) {
   const params = new URLSearchParams({
     latitude:String(location.lat), longitude:String(location.lon), timezone:'auto', forecast_days:'16',
+    // Hourly history only: at any local time it includes the complete previous day.
+    // Unlike past_days, this does not prepend yesterday to the 16 daily forecasts.
+    past_hours:'48',
     current:CURRENT_VARS.join(','), hourly:HOURLY_VARS.join(','), daily:DAILY_VARS.join(','),
     wind_speed_unit:'kmh', temperature_unit:'celsius', precipitation_unit:'mm'
   });

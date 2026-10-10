@@ -1,4 +1,5 @@
-import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.16';
+import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.22';
+import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.22';
 import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
 import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
 import { analyzeRoute } from './route.js?v=1.6.1';
@@ -1077,11 +1078,9 @@ function hourlyPrecipitation(h) {
 
 function renderHourly(dateStr) {
   const f=state.forecast; if (!f?.hourly?.length) return;
-  const now=forecastNowLocal();
-  let startIndex=nearestIndex(f.hourly.map(x=>x.time),now);
-  while(startIndex < f.hourly.length-1 && f.hourly[startIndex].time < now) startIndex++;
-  const items=f.hourly.slice(Math.max(0,startIndex));
+  const {items,currentIndex}=hourlyRailWindow(f.hourly,forecastNowLocal());
   const previousLocation=refs.hourlyRail.dataset.location;
+  const previousFirstHour=refs.hourlyRail.dataset.firstHour;
   const previousScroll=refs.hourlyRail.scrollLeft;
   const locationKey=favoriteKey(state.location);
 
@@ -1096,7 +1095,17 @@ function renderHourly(dateStr) {
   refs.hourlyRail.querySelectorAll('[data-hour]').forEach(btn=>btn.addEventListener('click',()=>openHour(btn.dataset.hour)));
   refs.hourlyRail.dataset.date=dateStr || '';
   refs.hourlyRail.dataset.location=locationKey;
-  refs.hourlyRail.scrollLeft=previousLocation===locationKey ? previousScroll : 0;
+  refs.hourlyRail.dataset.firstHour=items[0]?.time||'';
+  if(previousLocation===locationKey&&previousFirstHour===items[0]?.time){
+    // Preserve the user's position during an automatic forecast refresh.
+    refs.hourlyRail.scrollLeft=previousScroll;
+  }else{
+    // Show the CURRENT hour on first load, but allow swiping left across
+    // today's earlier hours and the full previous calendar day.
+    const first=refs.hourlyRail.children[0],current=refs.hourlyRail.children[currentIndex];
+    refs.hourlyRail.scrollLeft=first&&current?
+      Math.max(0,current.offsetLeft-first.offsetLeft):0;
+  }
 }
 
 function dayHours(date) {
@@ -1965,7 +1974,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.21', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.22', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
