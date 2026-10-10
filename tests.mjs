@@ -1315,6 +1315,18 @@ assert.ok(fallbackRain.items.some(x=>x.kind==='rain'),
   'The worldwide hourly model must work when 15-minute forecast is unavailable');
 assert.deepEqual(buildNextHoursMessages({current:{},hourly:[],utc_offset_seconds:0},
   outlookNow),{items:[],source:'unavailable',resolution:60});
+const sparseClear={
+  ...rainForecast,
+  current:{...rainForecast.current,precipitation:0,cloud_cover:20},
+  hourly:hourlyOutlook.map(h=>({...h,precipitation:0,rain:0,snowfall:0,cloud_cover:20,weather_code:1})),
+  minutely_15:{time:outlookTimes.slice(0,8),precipitation:Array(8).fill(0),
+    rain:Array(8).fill(0),snowfall:Array(8).fill(0)}
+};
+const sparseMessage=buildNextHoursMessages(sparseClear,outlookNow);
+assert.ok(!sparseMessage.items.some(x=>x.text.includes('dans les 6 prochaines heures')),
+  'Never claim a six-hour dry window from just two hours of observations');
+assert.ok(sparseMessage.items.some(x=>x.kind==='calm'),
+  'Short clear outlook should still have a useful cautious summary');
 const futureNowcastHTML=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const futureNowcastAPP=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
 const futureNowcastSW=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
