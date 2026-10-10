@@ -439,7 +439,7 @@ function currentHourly() {
   return state.forecast.hourly[nearestIndex(state.forecast.hourly.map(x=>x.time), forecastNowLocal())];
 }
 
-const nowcastIcons={rain:'☂',snow:'❄',sun:'☀','rain-total':'◌','snow-total':'❄',calm:'◉'};
+const nowcastIcons={thunder:'⚡',rain:'☂',snow:'❄',sun:'☀','rain-total':'◌','snow-total':'❄'};
 let lastNowcastSignature='';
 function renderNowcast(){
   if(!refs.nowcast||!refs.nowcastMessages||!refs.nowcastSource)return;
@@ -461,9 +461,11 @@ function renderNowcast(){
   refs.nowcastMessages.innerHTML=outlook.items.map(item=>
     '<p><span class="nowcast-icon" aria-hidden="true">'+(nowcastIcons[item.kind]||'◎')+
     '</span>'+escapeHtml(item.text)+'</p>').join('');
-  refs.nowcastSource.textContent=outlook.source==='quarter-hour'?
-    'Prévision à 15 min · interpolation possible · pas une mesure radar':
-    'Prévision horaire · échéances approximatives · pas une mesure radar';
+  refs.nowcastSource.textContent=outlook.source==='mixed'?
+    'Averses possibles · prévisions divergentes · radar à consulter':
+    outlook.source==='quarter-hour'?
+      'Prévisions à 15 min · averses locales incertaines':
+      'Prévisions horaires · horaires approximatifs';
 }
 
 function renderAll() {
