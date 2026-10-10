@@ -12,6 +12,7 @@ import {CUSTOM_ADDRESSES,parseOfficialAddressCandidates,resolveCustomAddresses} 
 import {matchCustomPlaceAliases,searchCustomPlaces,loadCustomPlaces} from './js/custom-places.js';
 import {collectSavoieObservations,mergeOfficialStations} from './scripts/savoie-observations.mjs';
 import {collectExtraFranceRegions,EXTRA_FRANCE_REGIONS} from './scripts/france-extra-regions.mjs';
+import {isSaintGillesCoastalLocation,coastalStationWeight,applySaintGillesCoastalWindHumidity} from './js/coastal-vendee.js';
 import {inIleDeFranceArea,inVendeeArea,inReunionArea,loadExtraRegionObservations,eligibleExtraRegionStations,applyExtraRegionObservations} from './js/rhone-observations.js';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
 import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
@@ -244,13 +245,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.14', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.15', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.14'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.15'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -260,8 +261,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.14'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.14'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.15'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.15'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -742,7 +743,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.14'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.15'));
 assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
@@ -1108,3 +1109,113 @@ const failedRegional=await collectExtraFranceRegions(observationNow,async()=>({
 assert.equal(failedRegional.idf.stations.length,0);
 assert.equal(failedRegional.reunion.stations.length,0);
 console.log('✓ IDF / Vendée / Réunion: 10 department packages, tropics, altitude, guards, PWA and fallbacks');
+
+
+// Saint-Gilles-Croix-de-Vie: maritime representativeness and measured coastal
+// humidity / wind speed corrections must never invent a fixed sea-breeze effect.
+const saintGilles={name:'Saint-Gilles-Croix-de-Vie',country:'France',
+  lat:46.696,lon:-1.940,elevation:12};
+const gillesCoastAdjacent={name:'Saint-Hilaire-de-Riez',
+  countryCode:'FR',lat:46.726,lon:-1.96,elevation:7};
+const sables={name:'Les Sables-d Olonne',country:'France',
+  lat:46.496,lon:-1.783,elevation:16};
+assert.equal(isSaintGillesCoastalLocation(saintGilles),true);
+assert.equal(isSaintGillesCoastalLocation(gillesCoastAdjacent),true);
+assert.equal(isSaintGillesCoastalLocation(sables),false);
+assert.equal(isSaintGillesCoastalLocation(extraPlaces.idf),false);
+assert.equal(isSaintGillesCoastalLocation({...saintGilles,country:'Portugal'}),false);
+const coastStation=(id,lat,lon,elevation,humidity,modelHumidity,
+  windSpeedMs,modelWindSpeed,temp=16,modelTemp=15)=>({
+  id,name:'Station '+id,source:'Météo-France',lat,lon,elevation,
+  measuredAt:obsAt,temperature:temp,modelTemperature:modelTemp,
+  humidity,modelHumidity,windSpeedMs,modelWindSpeed
+});
+const gillesObserved=[
+  coastStation('mf-85172001',46.8265,-1.999833,2,78,65,5.0,12),
+  coastStation('mf-85113004',46.718167,-2.388667,19,82,69,6.0,13),
+  coastStation('mf-85060002',46.477167,-1.725833,27,78,66,5.2,12),
+  coastStation('mf-85191003',46.705,-1.381833,88,45,60,1,14,14,15)
+];
+assert.ok(coastalStationWeight(gillesObserved[1],saintGilles,270)>
+  coastalStationWeight(gillesObserved[3],saintGilles,270),
+  'Maritime Île d Yeu must be more representative than inland La Roche-sur-Yon');
+assert.equal(coastalStationWeight(gillesObserved[1],sables,270),1,
+  'Other Vendée places must keep their existing regional weighting');
+assert.ok(coastalStationWeight(gillesObserved[1],saintGilles,250)>
+  coastalStationWeight(gillesObserved[1],saintGilles,90),
+  'Onshore western flow should favour ocean-exposed stations over easterly flow');
+const withCoastalWeather=()=>{
+  const forecast=baseObs();
+  forecast.current.relative_humidity_2m=65;
+  forecast.current.wind_speed_10m=14;
+  forecast.current.wind_gusts_10m=32;
+  forecast.current.wind_direction_10m=265;
+  forecast.hourly.relative_humidity_2m=Array(6).fill(65);
+  forecast.hourly.wind_speed_10m=Array(6).fill(14);
+  forecast.hourly.wind_gusts_10m=Array(6).fill(32);
+  forecast.hourly.dew_point_2m=Array(6).fill(7);
+  return forecast;
+};
+const snapshotCoast={region:'vendee',stations:gillesObserved};
+const preferred=eligibleExtraRegionStations(snapshotCoast,saintGilles,
+  observationNow,'vendee',265);
+const marine=preferred.find(s=>s.id==='mf-85113004');
+const inland=preferred.find(s=>s.id==='mf-85191003');
+assert.ok(marine && (!inland||marine.weight>inland.weight),
+  'Marine stations must outweigh or eliminate less relevant inland stations');
+const gillesForecast=withCoastalWeather();
+const gillesResult=applyExtraRegionObservations(gillesForecast,saintGilles,
+  snapshotCoast,observationNow,'vendee');
+assert.ok(gillesResult?.applied,'Coastal observations should correct near-term temperature');
+assert.equal(gillesForecast.localCoastal?.active,true);
+assert.equal(gillesForecast.localCoastal?.humidityAdjusted,true);
+assert.equal(gillesForecast.localCoastal?.windAdjusted,true);
+assert.ok(gillesForecast.current.relative_humidity_2m>65,
+  'Actual coastal humidities above model should raise local forecast humidity');
+assert.ok(gillesForecast.current.wind_speed_10m>14,
+  'Observed coastal wind above the co-located model should raise mean wind');
+assert.ok(gillesForecast.current.wind_speed_10m<=gillesForecast.current.wind_gusts_10m,
+  'Mean observed-wind correction must not exceed uncorrected gust forecast');
+assert.equal(gillesForecast.current.wind_gusts_10m,32,'Never invent or alter gust measurements');
+assert.equal(gillesForecast.daily.snowfall_sum[0],3,'Never change snowfall by coastal heuristic');
+assert.equal(gillesForecast.hourly.precipitation[0],1,'Never invent extra coastal rainfall');
+assert.ok(gillesForecast.hourly.relative_humidity_2m[5]<
+  gillesForecast.hourly.relative_humidity_2m[0],
+  'Observed coastal humidity anomaly must fade with forecast horizon');
+assert.ok(gillesForecast.hourly.wind_speed_10m[5]<
+  gillesForecast.hourly.wind_speed_10m[0],
+  'Observed coastal wind anomaly must fade with forecast horizon');
+const unchangedInland=withCoastalWeather();
+applyExtraRegionObservations(unchangedInland,sables,snapshotCoast,observationNow,'vendee');
+assert.equal(unchangedInland.current.relative_humidity_2m,65);
+assert.equal(unchangedInland.current.wind_speed_10m,14);
+assert.equal(unchangedInland.localCoastal,undefined);
+const withoutWindHum=withCoastalWeather();
+const noSensors={region:'vendee',stations:gillesObserved.map(({humidity,modelHumidity,
+  windSpeedMs,modelWindSpeed,...station})=>station)};
+applyExtraRegionObservations(withoutWindHum,saintGilles,noSensors,observationNow,'vendee');
+assert.equal(withoutWindHum.current.relative_humidity_2m,65,
+  'No wind/humidity sensors -> preserve original model fields');
+assert.equal(withoutWindHum.current.wind_speed_10m,14);
+assert.equal(withoutWindHum.localCoastal,undefined);
+const staleCoastal=withCoastalWeather();
+applyExtraRegionObservations(staleCoastal,saintGilles,snapshotCoast,
+  observationNow+120*60000,'vendee');
+assert.equal(staleCoastal.current.relative_humidity_2m,65);
+assert.equal(staleCoastal.current.wind_speed_10m,14);
+const badSensor=withCoastalWeather();
+const invalidMarine={region:'vendee',stations:[{
+  ...gillesObserved[0],humidity:500,windSpeedMs:100,
+  modelHumidity:65,modelWindSpeed:10
+}]};
+applyExtraRegionObservations(badSensor,saintGilles,invalidMarine,observationNow,'vendee');
+assert.equal(badSensor.current.relative_humidity_2m,65);
+assert.equal(badSensor.current.wind_speed_10m,14);
+const marineCode=fs.readFileSync(new URL('./scripts/france-extra-regions.mjs',import.meta.url),'utf8');
+const coastalSW=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
+assert.ok(marineCode.includes("'temperature_2m,relative_humidity_2m,wind_speed_10m'"),
+  'Station baseline must include wind and humidity only for the Vendée');
+assert.ok(marineCode.includes('modelHumidity')&&marineCode.includes('modelWindSpeed'),
+  'The hourly snapshot must include station-specific model baselines');
+assert.ok(coastalSW.includes("'./js/coastal-vendee.js'"),'PWA offline must cache coastal module');
+console.log('✓ Saint-Gilles coast: maritime weighting, observed RH/wind, onshore flow, wind/sea fallbacks');

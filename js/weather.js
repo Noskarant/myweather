@@ -1,6 +1,6 @@
 import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.8.2';
 import { applySnowFusion, isFrance, SNOWFUSION_MODELS, SNOWFUSION_ENSEMBLE } from './snowfusion.js?v=1.8.7';
-import { inRhoneArea, inSavoieArea, inQuebecArea, inIleDeFranceArea, inVendeeArea, inReunionArea, loadRhoneObservations, loadSavoieObservations, loadQuebecObservations, loadExtraRegionObservations, applyRhoneObservations, applySavoieObservations, applyQuebecObservations, applyExtraRegionObservations } from './rhone-observations.js?v=1.8.14';
+import { inRhoneArea, inSavoieArea, inQuebecArea, inIleDeFranceArea, inVendeeArea, inReunionArea, loadRhoneObservations, loadSavoieObservations, loadQuebecObservations, loadExtraRegionObservations, applyRhoneObservations, applySavoieObservations, applyQuebecObservations, applyExtraRegionObservations } from './rhone-observations.js?v=1.8.15';
 import {searchCustomPlaces} from './custom-places.js?v=1.8.12';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';

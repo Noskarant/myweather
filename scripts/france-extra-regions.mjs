@@ -36,7 +36,7 @@ async function modelBaselines(stations,now,fetcher,region){
     const q=new URLSearchParams({latitude:batch.map(x=>x.lat).join(','),
       longitude:batch.map(x=>x.lon).join(','),
       elevation:batch.map(x=>x.elevation).join(','),
-      current:'temperature_2m',timezone:'UTC',forecast_days:'1'});
+      current:region==='vendee'?'temperature_2m,relative_humidity_2m,wind_speed_10m':'temperature_2m',timezone:'UTC',forecast_days:'1'});
     try{
       const response=await fetcher(MODEL_URL+'?'+q,{headers:{accept:'application/json'},
         signal:AbortSignal.timeout(14000)});
@@ -50,7 +50,13 @@ async function modelBaselines(stations,now,fetcher,region){
         if(model===null||!Number.isFinite(time)||Math.abs(now-time)>90*60_000||
           Math.abs(Date.parse(station.measuredAt)-time)>95*60_000||
           Math.abs(station.temperature-model)>7)continue;
-        valid.push({...station,modelTemperature:model});
+        valid.push({...station,modelTemperature:model,
+          ...(region==='vendee'?{
+            modelHumidity:(()=>{const x=finite(point?.current?.relative_humidity_2m);
+              return x!==null&&x>=0&&x<=100?x:null;})(),
+            modelWindSpeed:(()=>{const x=finite(point?.current?.wind_speed_10m);
+              return x!==null&&x>=0&&x<=160?x:null;})()
+          }:{})});
       }
     }catch(e){console.warn('Regional model baseline unavailable',region,e?.name||'error');}
   }
