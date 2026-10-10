@@ -22,6 +22,7 @@ function classify(entry,minutes){
   const snowFlag=snowLikely||validWet&&WMO_SNOW.has(code);
   const rainLikely=!snowFlag&&(rain!==null?rain>=(minutes===15?0.07:0.14):validWet);
   return {
+    known:amount!==null||snow!==null||rain!==null,
     snow:snowFlag,rain:rainLikely,wet:snowFlag||rainLikely,
     snowAmount:snow===null?null:number(snow),
     rainAmount:rain!==null?number(rain):snowFlag?0:amount!==null?number(amount):null
@@ -80,7 +81,7 @@ function finishWhen(steps,kind,resolution){
     if(steps[i][kind])hadWet=true;
     if(!hadWet||steps[i][kind])continue;
     const dry=steps.slice(i,i+need);
-    if(dry.length===need&&dry.every((s,j)=>!s[kind]&&(j===0||s.epoch-dry[j-1].epoch<=resolution*60000+1000)))
+    if(dry.length===need&&dry.every((s,j)=>s.known&&!s[kind]&&(j===0||s.epoch-dry[j-1].epoch<=resolution*60000+1000)))
       return steps[i];
   }
   return null;
@@ -159,8 +160,12 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
   items.sort((a,b)=>a.priority-b.priority);
   if(!items.length){
     const next=steps.filter(s=>s.epoch>=now&&s.epoch<=now+6*3600_000);
-    if(next.length)items.push({kind:'calm',priority:6,
+    const coverage=next.length?next.at(-1).epoch-now:0;
+    const known=next.length&&next.every(s=>s.known);
+    if(known&&coverage>=5.5*3600_000)items.push({kind:'calm',priority:6,
       text:'Pas de pluie ni de neige significative prévue dans les 6 prochaines heures.'});
+    else if(known&&coverage>=1.5*3600_000)items.push({kind:'calm',priority:6,
+      text:'Pas de précipitations significatives sur la période prévisionnelle disponible.'});
   }
   return {items:items.slice(0,3),source,resolution,radarUsed:false};
 }
