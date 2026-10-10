@@ -27,15 +27,15 @@ const dateTime=v=>{
 export function rscqLocalTimestamp(value){
   const raw=String(value??'').trim();
   if(!raw)return null;
-  if(/[zZ]$|[+-]\\d\\d:?\\d\\d$/.test(raw))return dateTime(raw);
+  if(/[zZ]$|[+-]\d\d:?\d\d$/.test(raw))return dateTime(raw);
   const wall=raw.replace(' ','T');
-  if(!/^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d(?::\\d\\d)?$/.test(wall))return null;
+  if(!/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?$/.test(wall))return null;
   const utc=Date.parse(wall+'Z');
   if(!Number.isFinite(utc))return null;
   const zone=new Intl.DateTimeFormat('en-US',{
     timeZone:'America/Toronto',timeZoneName:'shortOffset'
   }).formatToParts(new Date(utc)).find(p=>p.type==='timeZoneName')?.value;
-  const m=String(zone||'').match(/GMT([+-])(\\d{1,2})(?::(\\d{2}))?/);
+  const m=String(zone||'').match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
   if(!m)return null;
   const offset=(m[1]==='+'?1:-1)*(Number(m[2])*60+Number(m[3]||0));
   return new Date(utc-offset*60_000).toISOString();
