@@ -74,7 +74,7 @@ function finishWhen(steps,kind,resolution){
   // Require at least two consecutive dry 15m intervals after the wet period.
   const need=resolution===15?3:2;
   const first=steps[0]?.epoch??0;
-  let hadWet=false;
+  let hadWet=true;
   for(let i=0;i<steps.length;i++){
     if(steps[i].epoch-first>6*3600_000)break;
     if(steps[i][kind])hadWet=true;
