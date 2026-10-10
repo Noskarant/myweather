@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "region": "quebec",
+  "generatedAt": null,
+  "stations": [],
+  "sources": {
+    "swob": 0,
+    "rscq": 0,
+    "metar": 0,
+    "unique": 0,
+    "validated": 0
+  },
+  "checks": {
+    "swob": "not_yet_collected",
+    "rscq": "not_yet_collected",
+    "metar": "not_yet_collected"
+  },
+  "note": "Collecte gratuite de stations Québec, générée au déploiement."
+}

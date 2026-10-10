@@ -1,6 +1,6 @@
 import { estimateSnowLevel, snowfallFor, weatherCodeInfo } from './utils.js?v=1.8.2';
 import { applySnowFusion, isFrance, SNOWFUSION_MODELS, SNOWFUSION_ENSEMBLE } from './snowfusion.js?v=1.8.7';
-import { inRhoneArea, inSavoieArea, loadRhoneObservations, loadSavoieObservations, applyRhoneObservations, applySavoieObservations } from './rhone-observations.js?v=1.8.11';
+import { inRhoneArea, inSavoieArea, inQuebecArea, loadRhoneObservations, loadSavoieObservations, loadQuebecObservations, applyRhoneObservations, applySavoieObservations, applyQuebecObservations } from './rhone-observations.js?v=1.8.13';
 import {searchCustomPlaces} from './custom-places.js?v=1.8.12';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
@@ -588,8 +588,10 @@ export async function getForecast(location) {
 
   const local=isFrance(location);
   const rhone=inRhoneArea(location),savoie=!rhone&&inSavoieArea(location);
+  const quebec=!rhone&&!savoie&&inQuebecArea(location);
   const observationPromise=rhone?loadRhoneObservations():
-    savoie?loadSavoieObservations():Promise.resolve(null);
+    savoie?loadSavoieObservations():
+      quebec?loadQuebecObservations():Promise.resolve(null);
   const terrainPromise=optionalWithTimeout(assessLocalTerrain(location), 1500, null);
   // Parallel, time-bounded extras keep the old Best Match forecast usable.
   const modelsPromise=local?optionalWithTimeout(fetchSnowFusionModels(location), 3800, null):Promise.resolve(null);
@@ -615,12 +617,13 @@ export async function getForecast(location) {
     data.localConsensus = mergeLocalConsensus(terrain, models, spatial);
   }
 
-  if (rhone||savoie) {
+  if (rhone||savoie||quebec) {
     try {
       const observations=await observationPromise;
       const stationLocation={...location,elevation:location.elevation??data.elevation};
       if(rhone)applyRhoneObservations(data,stationLocation,observations);
-      else applySavoieObservations(data,stationLocation,observations);
+      else if(savoie)applySavoieObservations(data,stationLocation,observations);
+      else applyQuebecObservations(data,stationLocation,observations);
     } catch (err) {
       console.warn('Observations locales indisponibles, modèle standard conservé',err);
     }
