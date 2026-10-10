@@ -962,7 +962,7 @@ const rscqWideHours='NO_STATION,NOM_STATION,DATE_RECUEILLIE,TINS,TMOY,LONGITUDE,
 const rscqWide=parseRscqObservations(rscqWideHours,rscqWideStations,qcNow);
 assert.equal(rscqWide.length,1,'Official RSCQ wide-format hourly CSV must be parsed');
 assert.equal(rscqWide[0].temperature,2.9,'Use instantaneous TINS, not rain or hourly average');
-assert.equal(rscqWide[0].measuredAt,qcObserved);
+assert.equal(rscqWide[0].measuredAt,new Date(qcObserved).toISOString());
 assert.equal(parseRscqObservations(rscqWideHours,rscqWideStations,
   qcNow+3*3600e3).length,0,'Never assimilate stale RSCQ data after conversion');
 assert.equal(identifyRscqResources([
