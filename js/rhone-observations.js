@@ -1,12 +1,20 @@
-// Observations assimilées Rhône, Savoie et Québec : snapshots publics séparés.
+// Observations assimilées Rhône, Savoie, Québec, Île-de-France, Vendée et La Réunion.
 // Same-origin snapshot generated for GitHub Pages; never requires browser API keys.
 const SNAPSHOT_URL = new URL('../data/rhone-observations.json', import.meta.url);
 const SAVOIE_SNAPSHOT_URL = new URL('../data/savoie-observations.json',import.meta.url);
 const QUEBEC_SNAPSHOT_URL = new URL('../data/quebec-observations.json',import.meta.url);
+const EXTRA_URLS={
+  idf:new URL('../data/ile-de-france-observations.json',import.meta.url),
+  vendee:new URL('../data/vendee-observations.json',import.meta.url),
+  reunion:new URL('../data/reunion-observations.json',import.meta.url)
+};
 const MAX_AGE_MINUTES = 100;
 const MAX_DISTANCE_KM = 30;
 const SAVOIE_DISTANCE_KM = 25;
 const QUEBEC_DISTANCE_KM = 45;
+const EXTRA_RADIUS={idf:38,vendee:43,reunion:18};
+const EXTRA_ALT_SCALE={idf:400,vendee:320,reunion:170};
+const EXTRA_DIST_SCALE={idf:13,vendee:16,reunion:7};
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 const numeric=x=>(x===null||x===undefined||x===''||!Number.isFinite(Number(x)))?null:Number(x);
 
@@ -29,6 +37,25 @@ export function inQuebecArea(location) {
   const country=String(location?.country_code||location?.countryCode||location?.country||'').toLowerCase();
   if(country&&!['ca','canada'].includes(country))return false;
   return lat!==null&&lon!==null&&lat>=46.35&&lat<=47.45&&lon>=-72.15&&lon<=-70.15;
+}
+const isFrenchPlace=loc=>{
+  const country=String(loc?.country_code||loc?.countryCode||loc?.country||'').toLowerCase();
+  return !country||['fr','france','réunion','reunion','la réunion','la reunion'].includes(country);
+};
+export function inIleDeFranceArea(location){
+  const lat=numeric(location?.lat),lon=numeric(location?.lon);
+  return isFrenchPlace(location)&&lat!==null&&lon!==null&&
+    lat>=48.1&&lat<=49.25&&lon>=1.42&&lon<=3.57;
+}
+export function inVendeeArea(location){
+  const lat=numeric(location?.lat),lon=numeric(location?.lon);
+  return isFrenchPlace(location)&&lat!==null&&lon!==null&&
+    lat>=46.22&&lat<=47.18&&lon>=-2.55&&lon<=-0.5;
+}
+export function inReunionArea(location){
+  const lat=numeric(location?.lat),lon=numeric(location?.lon);
+  return isFrenchPlace(location)&&lat!==null&&lon!==null&&
+    lat>=-21.43&&lat<=-20.85&&lon>=55.18&&lon<=55.89;
 }
 export function stationDistanceKm(a,b) {
   const r=Math.PI/180, dlat=(b.lat-a.lat)*r, dlon=(b.lon-a.lon)*r;
@@ -77,6 +104,26 @@ export async function loadQuebecObservations(fetchImpl=fetch,now=Date.now()){
     cachedQuebec=data;return data;
   }catch{return null;}
 }
+const regionalCaches=new Map();
+export async function loadExtraRegionObservations(region,fetchImpl=fetch,now=Date.now()){
+  const url=EXTRA_URLS[region];
+  if(!url)return null;
+  const stored=regionalCaches.get(region);
+  if(stored&&now-stored.time<8*60*1000)return stored.value;
+  try{
+    const r=await fetchImpl(url.href,{cache:'no-store',signal:AbortSignal.timeout(2000)});
+    if(!r.ok)return null;
+    const data=await r.json();
+    const expected={idf:'ile-de-france',vendee:'vendee',reunion:'reunion'}[region];
+    if(data?.region!==expected||!Array.isArray(data.stations))return null;
+    if(fetchImpl===fetch)regionalCaches.set(region,{value:data,time:now});
+    return data;
+  }catch{return null;}
+}
+export function eligibleExtraRegionStations(snapshot,location,now=Date.now(),region='idf'){
+  if(!EXTRA_URLS[region])return [];
+  return eligibleRegionalStations(snapshot,location,now,region);
+}
 export function eligibleQuebecStations(snapshot,location,now=Date.now()){
   return eligibleRegionalStations(snapshot,location,now,'quebec');
 }
@@ -87,7 +134,9 @@ export function eligibleSavoieStations(snapshot,location,now=Date.now()){
   return eligibleRegionalStations(snapshot,location,now,'savoie');
 }
 function eligibleRegionalStations(snapshot, location, now, region) {
-  const allowed=region==='savoie'?inSavoieArea(location):
+  const extra={idf:inIleDeFranceArea,vendee:inVendeeArea,reunion:inReunionArea};
+  const allowed=extra[region]?extra[region](location):
+    region==='savoie'?inSavoieArea(location):
     region==='quebec'?inQuebecArea(location):inRhoneArea(location);
   if(!allowed||!Array.isArray(snapshot?.stations))return [];
   const alpine=region==='savoie',canadian=region==='quebec';
@@ -100,16 +149,16 @@ function eligibleRegionalStations(snapshot, location, now, region) {
        !Number.isFinite(age)||age< -5*60*1000||age>MAX_AGE_MINUTES*60*1000||
        temp < -42||temp > 48||Math.abs(temp-model)>7) return [];
     const distance=stationDistanceKm(target,{lat,lon});
-    if(distance>(alpine?SAVOIE_DISTANCE_KM:canadian?QUEBEC_DISTANCE_KM:MAX_DISTANCE_KM)) return [];
+    if(distance>(EXTRA_RADIUS[region]??(alpine?SAVOIE_DISTANCE_KM:canadian?QUEBEC_DISTANCE_KM:MAX_DISTANCE_KM)))return [];
     const alt=numeric(station.elevation),targetAlt=numeric(location.elevation);
     const elevationDiff=alt!==null&&targetAlt!==null?Math.abs(alt-targetAlt):null;
     // Unknown altitude -> lower confidence. Large relief contrast -> much lower confidence.
-    const altitudeFactor=elevationDiff!==null?Math.exp(-elevationDiff/(alpine?250:canadian?320:360)):(alpine?0.3:0.55);
-    const distanceFactor=Math.exp(-distance/(alpine?9:canadian?13:11));
+    const altitudeFactor=elevationDiff!==null?Math.exp(-elevationDiff/(EXTRA_ALT_SCALE[region]??(alpine?250:canadian?320:360))):(alpine?0.3:region==='reunion'?0.2:0.55);
+    const distanceFactor=Math.exp(-distance/(EXTRA_DIST_SCALE[region]??(alpine?9:canadian?13:11)));
     const ageFactor=clamp(1-age/(MAX_AGE_MINUTES*60*1000),0,1);
     const sourceFactor=station.source==='Météo-France'?1.55:station.source==='Grand Lyon / Météo-France'?1.25:station.source==='Environnement Canada (SWOB)'?1.5:station.source==='RSCQ Québec'?1.4:station.source==='METAR aviation'?1.15:0.8;
     const weight=distanceFactor*altitudeFactor*(0.45+0.55*ageFactor)*sourceFactor;
-    if(weight<(alpine?0.035:0.025)) return [];
+    if(weight<(alpine||region==='reunion'?0.035:0.025)) return [];
     return [{...station,lat,lon,temperature:temp,modelTemperature:model,
       distance,age,elevationDiff,weight,residual:temp-model}];
   }).sort((a,b)=>b.weight-a.weight).slice(0,12);
@@ -145,6 +194,10 @@ function updateDailyTemperature(base) {
  * Snow quantities/precipitation stay untouched; no invented observation for
  * a village without a station. No long-range bias claims.
  */
+export function applyExtraRegionObservations(base,location,snapshot,now=Date.now(),region='idf'){
+  if(!EXTRA_URLS[region])return null;
+  return applyRegionalObservations(base,location,snapshot,now,region);
+}
 export function applyQuebecObservations(base,location,snapshot,now=Date.now()){
   return applyRegionalObservations(base,location,snapshot,now,'quebec');
 }
@@ -155,7 +208,8 @@ export function applySavoieObservations(base,location,snapshot,now=Date.now()) {
   return applyRegionalObservations(base,location,snapshot,now,'savoie');
 }
 function applyRegionalObservations(base,location,snapshot,now,region) {
-  const stations=region==='savoie'?eligibleSavoieStations(snapshot,location,now):
+  const stations=EXTRA_URLS[region]?eligibleExtraRegionStations(snapshot,location,now,region):
+    region==='savoie'?eligibleSavoieStations(snapshot,location,now):
     region==='quebec'?eligibleQuebecStations(snapshot,location,now):
       eligibleRhoneStations(snapshot,location,now);
   if(!stations.length || !base?.hourly?.time?.length) return null;
