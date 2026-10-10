@@ -1,4 +1,5 @@
 // Observations assimilées Rhône, Savoie, Québec, Île-de-France, Vendée et La Réunion.
+import {isSaintGillesCoastalLocation,coastalStationWeight,applySaintGillesCoastalWindHumidity} from './coastal-vendee.js';
 // Same-origin snapshot generated for GitHub Pages; never requires browser API keys.
 const SNAPSHOT_URL = new URL('../data/rhone-observations.json', import.meta.url);
 const SAVOIE_SNAPSHOT_URL = new URL('../data/savoie-observations.json',import.meta.url);
@@ -120,9 +121,9 @@ export async function loadExtraRegionObservations(region,fetchImpl=fetch,now=Dat
     return data;
   }catch{return null;}
 }
-export function eligibleExtraRegionStations(snapshot,location,now=Date.now(),region='idf'){
+export function eligibleExtraRegionStations(snapshot,location,now=Date.now(),region='idf',windDirection=null){
   if(!EXTRA_URLS[region])return [];
-  return eligibleRegionalStations(snapshot,location,now,region);
+  return eligibleRegionalStations(snapshot,location,now,region,windDirection);
 }
 export function eligibleQuebecStations(snapshot,location,now=Date.now()){
   return eligibleRegionalStations(snapshot,location,now,'quebec');
@@ -133,7 +134,7 @@ export function eligibleRhoneStations(snapshot,location,now=Date.now()){
 export function eligibleSavoieStations(snapshot,location,now=Date.now()){
   return eligibleRegionalStations(snapshot,location,now,'savoie');
 }
-function eligibleRegionalStations(snapshot, location, now, region) {
+function eligibleRegionalStations(snapshot, location, now, region, windDirection=null) {
   const extra={idf:inIleDeFranceArea,vendee:inVendeeArea,reunion:inReunionArea};
   const allowed=extra[region]?extra[region](location):
     region==='savoie'?inSavoieArea(location):
@@ -157,7 +158,8 @@ function eligibleRegionalStations(snapshot, location, now, region) {
     const distanceFactor=Math.exp(-distance/(EXTRA_DIST_SCALE[region]??(alpine?9:canadian?13:11)));
     const ageFactor=clamp(1-age/(MAX_AGE_MINUTES*60*1000),0,1);
     const sourceFactor=station.source==='Météo-France'?1.55:station.source==='Grand Lyon / Météo-France'?1.25:station.source==='Environnement Canada (SWOB)'?1.5:station.source==='RSCQ Québec'?1.4:station.source==='METAR aviation'?1.15:0.8;
-    const weight=distanceFactor*altitudeFactor*(0.45+0.55*ageFactor)*sourceFactor;
+    const maritime=region==='vendee'?coastalStationWeight(station,location,windDirection):1;
+    const weight=distanceFactor*altitudeFactor*(0.45+0.55*ageFactor)*sourceFactor*maritime;
     if(weight<(alpine||region==='reunion'?0.035:0.025)) return [];
     return [{...station,lat,lon,temperature:temp,modelTemperature:model,
       distance,age,elevationDiff,weight,residual:temp-model}];
@@ -208,7 +210,8 @@ export function applySavoieObservations(base,location,snapshot,now=Date.now()) {
   return applyRegionalObservations(base,location,snapshot,now,'savoie');
 }
 function applyRegionalObservations(base,location,snapshot,now,region) {
-  const stations=EXTRA_URLS[region]?eligibleExtraRegionStations(snapshot,location,now,region):
+  const stations=EXTRA_URLS[region]?eligibleExtraRegionStations(snapshot,location,now,region,
+      base?.current?.wind_direction_10m):
     region==='savoie'?eligibleSavoieStations(snapshot,location,now):
     region==='quebec'?eligibleQuebecStations(snapshot,location,now):
       eligibleRhoneStations(snapshot,location,now);
@@ -223,7 +226,11 @@ function applyRegionalObservations(base,location,snapshot,now,region) {
     && Math.abs(lead.residual)<=5;
   const localityFactor=direct?1:clamp(total/(total+0.25),0.15,0.87);
   const correction=bias*localityFactor;
-  if(Math.abs(correction)<0.05&&!direct)return null;
+  const coastal=region==='vendee'&&isSaintGillesCoastalLocation(location);
+  if(Math.abs(correction)<0.05&&!direct){
+    if(coastal)applySaintGillesCoastalWindHumidity(base,location,stations,now);
+    return null;
+  }
   const attenuation=hours=>hours<=0?1:hours>=30?0:Math.max(0,(1-hours/30)**1.6);
   let adjusted=0;
   const dateNow=new Date(now);
@@ -256,8 +263,11 @@ function applyRegionalObservations(base,location,snapshot,now,region) {
   }
   if(!adjusted&&!base.current)return null;
   updateDailyTemperature(base);
+  // Real coastal station anomalies refine wind/humidity separately.
+  // No rain, cloud, gust, sea-temperature or snow values are manufactured.
+  const marine=coastal?applySaintGillesCoastalWindHumidity(base,location,stations,now):null;
   base.localObservation={
-    applied:true,direct,region,sourceCount:stations.length,
+    applied:true,direct,region,coastal:coastal&&Boolean(marine),sourceCount:stations.length,
     station:lead.name||'Station locale',stationSource:lead.source,
     measuredAt:lead.measuredAt,nearestKm:Math.round(lead.distance*10)/10,
     correction:Math.round(correction*10)/10,
