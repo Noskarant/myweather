@@ -7,6 +7,7 @@ import {fileURLToPath} from 'node:url';
 import {collectMeteoFranceStations} from './meteo-france-observations.mjs';
 import {collectMeteoFrancePackage} from './meteo-france-package.mjs';
 import {collectSavoieObservations} from './savoie-observations.mjs';
+import {collectQuebecObservations} from './quebec-observations.mjs';
 
 const AREA={west:4.24,south:45.38,east:5.24,north:46.35};
 const MAX_AGE_MS=100*60*1000;
@@ -298,4 +299,18 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
   console.log('Savoie stations:',JSON.stringify(savoie.sources),
     'sources:',JSON.stringify(savoie.checks));
   if(savoie.stations.length===0)console.warn('No fresh usable Savoie stations: unmodified forecast fallback.');
+  // Free public Canadian sources; no secrets or user account required.
+  let quebec;
+  try{quebec=await collectQuebecObservations();}
+  catch(err){
+    console.warn('Quebec station collection unavailable',err?.name||'error');
+    quebec={version:1,region:'quebec',generatedAt:new Date().toISOString(),
+      stations:[],sources:{swob:0,rscq:0,metar:0,unique:0,validated:0},
+      checks:{swob:'unavailable',rscq:'unavailable',metar:'unavailable'}};
+  }
+  await writeFile('data/quebec-observations.json',JSON.stringify(quebec,null,2)+'\n');
+  console.log('Quebec stations:',JSON.stringify(quebec.sources),
+    'sources:',JSON.stringify(quebec.checks));
+  if(quebec.stations.length===0)console.warn('No fresh usable Quebec stations: forecast fallback.');
+
 }
