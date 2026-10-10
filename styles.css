@@ -1718,6 +1718,8 @@ body{
 .nowcast-messages p:last-child{margin-bottom:0}
 .nowcast-messages .nowcast-icon{display:inline-block;width:19px;text-align:center;margin-right:4px;
   font-size:13px;vertical-align:baseline}
+.nowcast-messages .nowcast-amount{margin:4px 0 0;padding-left:23px;
+  font-size:10px;font-weight:500;line-height:1.35;color:#afcede}
 .nowcast-radar{flex:0 0 auto;white-space:nowrap;align-self:center;
   background:rgba(127,198,235,.13);color:#def4ff;
   border:1px solid rgba(147,210,243,.22);border-radius:9px;

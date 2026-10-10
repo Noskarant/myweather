@@ -1258,6 +1258,9 @@ assert.ok(nextRain.items.find(i=>i.kind==='rain')?.text.includes('dans environ 3
   'Forecast of a rain arrival in two consecutive 15-minute buckets');
 assert.ok(nextRain.items.find(i=>i.kind==='rain-total')?.text.includes('0,9 mm'),
   '3h rain sum must be actual 15-minute interval mm totals, not 4x rate');
+assert.equal(nextRain.items.find(i=>i.kind==='rain')?.amountText,
+  'Pluie prévue sur 3 h : 0,9 mm.',
+  'A quantified 3h rain amount must be attached directly to the main alert');
 assert.equal(nextRain.radarUsed,false,'Model outlook must never claim to read radar imagery');
 const snowQuarter=outlookTimes.map((_,i)=>i>=3&&i<=4?0.4:0);
 const snowForecast={
@@ -1269,6 +1272,9 @@ const snowForecast={
 const nextSnow=buildNextHoursMessages(snowForecast,outlookNow);
 assert.ok(nextSnow.items.some(x=>x.kind==='snow'&&/flocons|neige/.test(x.text)));
 assert.ok(nextSnow.items.some(x=>x.kind==='snow-total'&&x.text.includes('0,8 cm')));
+assert.equal(nextSnow.items.find(i=>i.kind==='snow')?.amountText,
+  'Neige prévue sur 3 h : 0,8 cm.',
+  'The main snow alert must show centimetres, not precipitation in mm');
 assert.ok(!nextSnow.items.some(x=>x.kind==='rain'),'Snow water equivalent is not liquid rain');
 const rainStopsForecast={
   ...rainForecast,current:{...rainForecast.current,precipitation:0.4,rain:0.4,weather_code:61},
@@ -1377,6 +1383,16 @@ assert.ok(fineRain.items.some(i=>i.kind==='rain'&&i.text.includes('pluie fine'))
   'A single realistic 0.025mm/15min drizzle slot must be useful to someone going outside');
 assert.equal(fineRain.items.some(i=>i.kind==='rain-total'),false,
   'Do not invent visible rainfall totals for trace precipitation');
+assert.equal(fineRain.items.find(i=>i.kind==='rain')?.amountText,
+  'Pluie prévue sur 3 h : moins de 0,1 mm.',
+  'Light drizzle still deserves a truthful trace-precipitation amount');
+const traceSnow=buildNextHoursMessages({
+ ...snowForecast,minutely_15:{...snowForecast.minutely_15,
+   snowfall:outlookTimes.map((_,i)=>i===3?.05:0)}
+},outlookNow);
+assert.equal(traceSnow.items.find(i=>i.kind==='snow')?.amountText,
+  'Neige prévue sur 3 h : moins de 0,1 cm.',
+  'A few snowflakes must show trace snowfall without rounding it to zero');
 const thunderForecast={
  ...rainForecast,current:{...rainForecast.current,weather_code:3},
  minutely_15:{
@@ -1434,6 +1450,9 @@ assert.ok(chaletAlert.items.some(i=>i.kind==='rain'&&
   /arriver/.test(i.text)), 'Le Meiller: later showers should be announced as arriving');
 assert.ok(!chaletAlert.items.some(i=>/arrêter/.test(i.text)),
   'Le Meiller: past 15min precipitation must NEVER trigger rain-stop before predicted showers');
+assert.equal(chaletAlert.items.find(i=>i.kind==='rain')?.amountText,
+  'Pluie prévue sur 3 h : 0,5 mm.',
+  'Hourly-only showers must preserve the amount even if 15-minute forecasts miss them');
 assert.ok(chaletAlert.items.some(i=>i.kind==='rain-total'&&i.text.includes('0,5 mm')),
   'Le Meiller: light showers on 14h and 15h still count toward the 3h total');
 const chaletActive={
@@ -1464,6 +1483,8 @@ const genuineDry={
 const dryEnd=buildNextHoursMessages(genuineDry,chaletNow);
 assert.ok(dryEnd.items.some(i=>/arrêter/.test(i.text)),
   'A credible active rain and two hours of agreed dry forecast may announce rain ending');
+assert.equal(dryEnd.items.find(i=>i.kind==='rain')?.amountText,undefined,
+  'No precipitation amount should appear underneath a stopping-rain alert');
 const heavySnowNow={
   ...chaletForecast,
   current:{...chaletForecast.current,weather_code:71,precipitation:.12,

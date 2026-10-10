@@ -1,5 +1,5 @@
 import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.16';
-import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.18';
+import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.20';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -458,9 +458,11 @@ function renderNowcast(){
   refs.nowcast.hidden=false;
   if(signature===lastNowcastSignature)return;
   lastNowcastSignature=signature;
-  refs.nowcastMessages.innerHTML=outlook.items.slice(0,1).map(item=>
-    '<p><span class="nowcast-icon" aria-hidden="true">'+(nowcastIcons[item.kind]||'◎')+
-    '</span>'+escapeHtml(item.text)+'</p>').join('');
+  const primary=outlook.items[0];
+  refs.nowcastMessages.innerHTML=
+    '<p><span class="nowcast-icon" aria-hidden="true">'+(nowcastIcons[primary.kind]||'◎')+
+    '</span>'+escapeHtml(primary.text)+'</p>'+
+    (primary.amountText?'<p class="nowcast-amount">'+escapeHtml(primary.amountText)+'</p>':'');
 }
 
 function renderAll() {

@@ -281,6 +281,17 @@ export function buildNextHoursMessages(forecast,now=Date.now()){
     text:'Neige fraîche possible sur 3 h : '+printAmount(snow,'cm')+'.'});
   if(rain>=.12)items.push({kind:'rain-total',priority:6,
     text:'Pluie estimée sur 3 h : '+printAmount(rain,'mm')+'.'});
+  // Show the 3-hour accumulation directly below a precipitation alert,
+  // including trace amounts. Never invent a total when models give none,
+  // and never put an accumulation below a 'rain/snow stopping' message.
+  for(const item of items){
+    if(!['rain','snow','thunder'].includes(item.kind)||
+      item.text.includes('s’arrêter'))continue;
+    const isSnow=item.kind==='snow';
+    const amount=isSnow?snow:rain;
+    if(amount>0)item.amountText=(isSnow?'Neige':'Pluie')+
+      ' prévue sur 3 h : '+printAmount(amount,isSnow?'cm':'mm')+'.';
+  }
   // No filler "Pas de pluie ni neige": leave room for the forecast below.
   items.sort((a,b)=>a.priority-b.priority||((a.epoch??Infinity)-(b.epoch??Infinity)));
   return {items:items.slice(0,3),source:containsHourlyContradiction?'mixed':source,
