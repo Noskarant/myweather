@@ -23,6 +23,39 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
+## Microclimat littoral : Saint-Gilles-Croix-de-Vie
+
+Pour **Saint-Gilles-Croix-de-Vie et ses environs immédiats**, MyWeather
+privilégie les stations Météo-France exposées au littoral : **Île d’Yeu,
+Château-d’Olonne, Noirmoutier et Le Perrier**, par rapport aux stations plus
+continentales. Le poids diminue selon la distance, l'altitude et la direction
+du vent : un flux d'ouest/sud-ouest renforce la représentativité maritime,
+tandis qu'un vent d'est la réduit.
+
+Aucun refroidissement ou réchauffement marin forfaitaire n'est créé. La
+correction de **température** reste fondée sur l'écart entre chaque station
+et le modèle météo au même emplacement. L'altitude et les limites de
+plausibilité habituelles restent appliquées.
+
+Pour la **Vendée**, la collecte récupère également les estimations Open-Meteo
+d'humidité relative (%) et de vent moyen à 10 m (km/h) **à l'emplacement et
+à l'altitude exacts de chaque station**. Dans le secteur de Saint-Gilles,
+les anomalies mesurées (humidité de la station vs modèle, et vent observé
+`ff` converti de m/s à km/h vs modèle) corrigent modérément l'humidité
+(jusqu'à 15 points au maximum avant pondération) et le vent moyen
+(jusqu'à 9 km/h avant pondération), uniquement si les deux données
+comparées sont disponibles et plausibles. L'effet décroît sur **12 heures
+pour l'humidité, 9 heures pour le vent**. Le ressenti et le point de rosée
+horaire sont ajustés pour rester cohérents.
+
+Les **rafales**, la direction du vent, la pluie, la pression et les
+accumulations de neige ne sont pas inventées ni directement modifiées.
+Le traitement est géographiquement limité autour de Saint-Gilles et n'altère
+pas les autres localités, y compris Les Sables-d'Olonne, le Rhône ou La
+Réunion. Sans relevé côtier récent, le modèle météo est conservé tel quel.
+Cette méthode renforce la cohérence locale mais n'établit pas à elle seule
+une amélioration statistiquement prouvée de l'exactitude des prévisions.
+
 ## Île-de-France, Vendée et La Réunion : stations officielles locales
 
 MyWeather exploite désormais les **deux clés Météo-France déjà présentes dans GitHub
