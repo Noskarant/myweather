@@ -1377,7 +1377,7 @@ const immediateStop=buildNextHoursMessages({
    snowfall:outlookTimes.map(()=>0)},
  hourly:hourlyOutlook.map(h=>({...h,precipitation:0,rain:0,snowfall:0}))
 },outlookNow);
-assert.ok(immediateStop.items.some(i=>i.kind==='rain'&&i.text.includes('arrêter')),
+assert.ok(immediateStop.items.some(i=>i.kind==='rain'&&i.text.includes('arrête')),
   'When raining now and next two quarter-hour slots are dry, signal imminent end');
 const fineRain=buildNextHoursMessages(tinyDrizzle,outlookNow);
 assert.ok(fineRain.items.some(i=>i.kind==='rain'&&i.text.includes('pluie fine')),
