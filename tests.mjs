@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
 import { sampleRoute } from './js/route.js';
 import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations, inSavoieArea, eligibleSavoieStations, applySavoieObservations, loadSavoieObservations } from './js/rhone-observations.js';
+import {inQuebecArea,eligibleQuebecStations,applyQuebecObservations,loadQuebecObservations} from './js/rhone-observations.js';
+import {parseSwobObservations,parseMetarQuebec,parseRscqObservations,identifyRscqResources,dedupeQuebecStations,collectQuebecObservations} from './scripts/quebec-observations.mjs';
 import { parseSenseBoxes, parseGrandLyon, parseMetars, collectRhoneObservations } from './scripts/update-rhone-observations.mjs';
 import { parseMeteoFranceStationList, selectMeteoFranceStations, parseMeteoFranceObservation, collectMeteoFranceStations } from './scripts/meteo-france-observations.mjs';
 import {parsePackageObservations, collectMeteoFrancePackage} from './scripts/meteo-france-package.mjs';
@@ -240,13 +242,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.12', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.13', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.12'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.13'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -256,8 +258,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.12'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.12'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.13'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.13'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -738,7 +740,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.12'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.13'));
 assert.ok(pagesSavoie.includes('Fetch Rhône and Savoie station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
@@ -820,3 +822,129 @@ assert.ok(sourcePagesNamed.includes('node scripts/resolve-custom-places.mjs'));
 assert.ok(sourceSWNamed.includes("'./data/custom-places.json'"));
 assert.ok(sourceSWNamed.includes("'./js/custom-places.js'"));
 console.log('✓ Exact home search: accents, strict BAN housenumbers, search integration and safe fallback passed');
+
+
+// Québec / Lévis / Stoneham: anonymous official observations and no impact in France.
+const qcNow=Date.parse('2026-10-10T09:15:00Z');
+const qcObserved='2026-10-10T09:00:00Z';
+const quebecCity={lat:46.8139,lon:-71.208,elevation:70,country:'Canada'};
+const levis={lat:46.803,lon:-71.177,elevation:75,countryCode:'CA'};
+const stoneham={lat:47.07,lon:-71.37,elevation:280,country:'Canada'};
+assert.equal(inQuebecArea(quebecCity),true);
+assert.equal(inQuebecArea(levis),true);
+assert.equal(inQuebecArea(stoneham),true);
+assert.equal(inQuebecArea(lyon),false);
+assert.equal(inQuebecArea({...quebecCity,country:'France'}),false);
+const swobFixture={type:'FeatureCollection',features:[
+ {type:'Feature',geometry:{coordinates:[-71.209,46.814]},
+  properties:{'stn_id-value':'7016283','stn_nam-value':'Québec – Parc Duberger',
+    air_temp:2.5,'air_temp-uom':'Cel','date_tm-value':qcObserved}},
+ {type:'Feature',geometry:{coordinates:[-71.209,46.814]},
+  properties:{'stn_id-value':'7016283',air_temp:19,'date_tm-value':'2020-01-01T00:00:00Z'}},
+ {type:'Feature',geometry:{coordinates:[-71.19,46.80]},
+  properties:{'stn_id-value':'BAD',air_temp:999,'date_tm-value':qcObserved}},
+ {type:'Feature',geometry:{coordinates:[4.8,45.7]},
+  properties:{'stn_id-value':'LYON',air_temp:15,'date_tm-value':qcObserved}}
+]};
+assert.equal(parseSwobObservations(swobFixture,qcNow).length,1);
+assert.equal(parseSwobObservations(swobFixture,qcNow)[0].temperature,2.5);
+const epochMetar=Math.floor(Date.parse(qcObserved)/1000);
+const metarFixture=[
+ {icaoId:'CYQB',lat:46.7916,lon:-71.3933,elev:74,temp:3.1,obsTime:epochMetar,
+  name:'Quebec/Jean Lesage'},
+ {icaoId:'KJFK',lat:40.64,lon:-73.78,temp:10,obsTime:epochMetar},
+ {icaoId:'CYQB',lat:46.7916,lon:-71.3933,elev:74,temp:3,obsTime:1000}
+];
+assert.equal(parseMetarQuebec(metarFixture,qcNow).length,1);
+assert.equal(parseMetarQuebec(metarFixture,qcNow)[0].elevation,74);
+const rscqStations='NO_STATION;NOM_STATION;LATITUDE;LONGITUDE;ALTITUDE\n'+
+ '7016283;Quebec Duberger;46.82;-71.23;13\n7019999;Station Montréal;45.52;-73.6;20\n';
+const rscqHours='NO_STATION;DATE_HEURE;PHENOMENE;VALEUR;UNITE\n'+
+ '7016283;'+qcObserved+';Température de l air;2.9;°C\n'+
+ '7016283;'+qcObserved+';Précipitation;25;mm\n'+
+ '7016283;2020-01-01T00:00:00Z;Température de l air;-9;°C\n';
+assert.equal(parseRscqObservations(rscqHours,rscqStations,qcNow).length,1,
+ 'Do not confuse a rainfall quantity with observed air temperature');
+assert.equal(parseRscqObservations(rscqHours,rscqStations,qcNow)[0].temperature,2.9);
+const resources=[
+ {name:'Liste des stations',format:'CSV',url:'https://www.environnement.gouv.qc.ca/stations.csv'},
+ {name:'Données horaires des 24 dernières heures groupées',format:'CSV',
+  url:'https://www.environnement.gouv.qc.ca/h24.csv'},
+ {name:'Données horaires des 30 derniers jours groupées',format:'CSV',
+  url:'https://www.environnement.gouv.qc.ca/d30.csv'},
+ {name:'Données horaires des 24 dernières heures',format:'CSV',
+  url:'http://evil.example/24.csv'}
+];
+assert.deepEqual(identifyRscqResources(resources),{
+ stations:'https://www.environnement.gouv.qc.ca/stations.csv',
+ hourly:'https://www.environnement.gouv.qc.ca/h24.csv'
+});
+const qcObservedStations=[
+ {...parseSwobObservations(swobFixture,qcNow)[0],modelTemperature:1.1,elevation:20},
+ {...parseMetarQuebec(metarFixture,qcNow)[0],modelTemperature:2.2}
+];
+const qcEligible=eligibleQuebecStations({region:'quebec',stations:qcObservedStations},
+  quebecCity,qcNow);
+assert.equal(qcEligible.length,2);
+const qcForecast=baseObs();
+qcForecast.utc_offset_seconds=-14400;
+qcForecast.hourly.time=Array.from({length:6},(_,i)=>
+  '2026-10-10T'+String(i+5).padStart(2,'0')+':00');
+qcForecast.current.time=qcForecast.hourly.time[0];
+qcForecast.daily.time=['2026-10-10'];
+const qcMeta=applyQuebecObservations(qcForecast,quebecCity,
+  {region:'quebec',stations:qcObservedStations},qcNow);
+assert.ok(qcMeta?.applied && qcMeta.region==='quebec');
+assert.ok(qcForecast.current.temperature_2m>13);
+assert.equal(qcForecast.daily.snowfall_sum[0],3);
+assert.equal(applyQuebecObservations(baseObs(),lyon,
+  {region:'quebec',stations:qcObservedStations},qcNow),null);
+assert.equal(applyQuebecObservations(baseObs(),quebecCity,
+  {region:'quebec',stations:qcObservedStations},qcNow+110*60000),null);
+assert.equal(dedupeQuebecStations([[qcObservedStations[0],{
+  ...qcObservedStations[0],id:'metar-CYQB',source:'METAR aviation'}]]).length,1);
+const qcMock=async(url)=>{
+  const u=new URL(url);
+  const respond=data=>({ok:true,headers:{get:()=>null},text:async()=>JSON.stringify(data)});
+  if(u.host==='api.weather.gc.ca'){
+    assert.ok(u.searchParams.get('bbox').startsWith('-72.15'));
+    assert.ok(u.searchParams.has('datetime'));
+    return respond(swobFixture);
+  }
+  if(u.host==='aviationweather.gov')return respond(metarFixture);
+  if(u.host==='www.donneesquebec.ca')return respond({
+    success:true,result:{resources}});
+  if(u.pathname==='/stations.csv')return {ok:true,headers:{get:()=>null},
+    text:async()=>rscqStations};
+  if(u.pathname==='/h24.csv')return {ok:true,headers:{get:()=>null},
+    text:async()=>rscqHours};
+  if(u.host==='api.open-meteo.com'){
+    const latitude=u.searchParams.get('latitude').split(',');
+    return respond(latitude.map((_,i)=>({
+      current:{time:'2026-10-10T09:00',temperature_2m:i?2.2:1.1},
+      elevation:i?74:20
+    })));
+  }
+  throw new Error('Unexpected anonymous source '+u.host);
+};
+const qcBuild=await collectQuebecObservations(qcNow,qcMock);
+assert.equal(qcBuild.region,'quebec');
+assert.equal(qcBuild.sources.swob,1);
+assert.equal(qcBuild.sources.rscq,1);
+assert.equal(qcBuild.sources.metar,1);
+assert.equal(qcBuild.sources.unique,3);
+assert.equal(qcBuild.sources.validated,3);
+assert.ok(qcBuild.stations.every(s=>Number.isFinite(s.modelTemperature)));
+const qcFail=await collectQuebecObservations(qcNow,async()=>({
+  ok:false,status:503,headers:{get:()=>null},text:async()=>''}));
+assert.equal(qcFail.stations.length,0,'All APIs down -> normal model fallback, not fake observations');
+const qcCode=fs.readFileSync(new URL('./js/weather.js',import.meta.url),'utf8');
+const qcCollector=fs.readFileSync(new URL('./scripts/update-rhone-observations.mjs',import.meta.url),'utf8');
+const qcSW=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
+const qcPages=fs.readFileSync(new URL('./.github/workflows/pages.yml',import.meta.url),'utf8');
+assert.ok(qcCode.includes('applyQuebecObservations(data,stationLocation,observations)'));
+assert.ok(qcCode.includes('quebec?loadQuebecObservations()'));
+assert.ok(qcCollector.includes("writeFile('data/quebec-observations.json'"));
+assert.ok(qcSW.includes("'./data/quebec-observations.json'"));
+assert.ok(qcPages.includes('Fetch Rhône, Savoie and Québec station observations'));
+console.log('✓ Quebec: open SWOB/RSCQ/METAR, verified readings, altitude weighting, fallback & PWA passed');
