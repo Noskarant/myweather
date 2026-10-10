@@ -31,12 +31,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fetch Rhône and Savoie station observations
+      - name: Fetch Rhône, Savoie and Québec station observations
         env:
           METEOFRANCE_API_KEY: ${{ secrets.METEOFRANCE_API_KEY }}
           METEOFRANCE_PACKAGE_API_KEY: ${{ secrets.METEOFRANCE_PACKAGE_API_KEY }}
         run: node scripts/update-rhone-observations.mjs
-        timeout-minutes: 3
+        timeout-minutes: 4
       - name: Resolve verified household addresses from BAN
         run: node scripts/resolve-custom-places.mjs
         timeout-minutes: 1
