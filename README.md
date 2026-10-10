@@ -23,6 +23,41 @@ Cockpit météo scientifique et visuel conçu pour fonctionner directement sur G
 - Windy Embed : cartes météo interactives.
 - OpenStreetMap : cartographie sous-jacente via les services intégrés.
 
+## Québec City, Lévis, Beauport, Sainte-Foy et Stoneham : stations gratuites sans compte
+
+MyWeather collecte en parallèle trois sources publiques **sans inscription ni clé** :
+
+- **Environnement et Changement climatique Canada (SWOB / GeoMet OGC API)** :
+  données d'observation de surface récentes, filtrées par emprise et heure.
+  [Documentation GeoMet](https://api.weather.gc.ca/collections/swob-realtime?f=html).
+- **Gouvernement du Québec (RSCQ)** : métadonnées du jeu « Données
+  météorologiques horaires récentes », téléchargement du CSV horaire groupé
+  et du catalogue des stations, lorsque les ressources sont publiquement
+  disponibles via Données Québec. [Jeu de données](https://donneesquebec.ca/recherche/dataset/rscq-donnees-meteorologiques-horaires-recentes).
+- **METAR aéronautiques** : observations de CYQB (Québec–Jean-Lesage)
+  et aéroports voisins dans la zone. [AviationWeather](https://aviationweather.gov/data/api/).
+
+Le collecteur produit `data/quebec-observations.json` séparément des fichiers
+Rhône et Savoie. Il dédoublonne les stations, garde les relevés de moins de
+100 minutes et vérifie la température contre la prévision Open-Meteo au
+même endroit. La zone s'étend approximativement de 46,35 à 47,45° N,
+et de 72,15 à 70,15° O (Québec, Lévis, Beauport, Charlesbourg,
+Sainte-Foy, Stoneham, Île d'Orléans, Forêt-Montmorency).
+
+Pour ces localités, les anomalies observées alimentent la température actuelle
+et les **30 premières heures** de prévision, avec influence décroissante
+en fonction de la distance, de l'altitude et de la fraîcheur. **Aucune donnée
+observée ne modifie directement les quantités de neige, le manteau neigeux
+ou les précipitations**. Si aucune station récente/fiable n'est disponible
+ou si un service est indisponible, les prévisions de base sont conservées.
+
+Les sources sont indépendantes. Le journal d'Actions indique les comptes
+`Quebec stations:` et les états `swob / rscq / metar`, sans publier
+d'informations d'authentification. La disponibilité effective des sources
+et la précision des corrections ne sont pas garanties sans validation
+comparative en conditions réelles. Les flux peuvent être interrompus,
+et les déclenchements GitHub Actions restent best-effort.
+
 ## Extension Savoie (73) : stations officielles et microclimats alpins
 
 MyWeather utilise aussi les **deux API Météo-France déjà configurées**, sans
