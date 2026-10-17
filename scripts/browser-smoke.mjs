@@ -28,8 +28,11 @@ try{
  page.on('requestfailed',req=>{if(req.url().includes('open-meteo.com'))failures.push(req.url().split('?')[0]+' '+req.failure()?.errorText);});
  page.on('response',r=>{if(r.url().includes('open-meteo.com'))weatherResponses.push({status:r.status(),url:r.url().split('?')[0]});});
  await page.goto(base,{waitUntil:'domcontentloaded',timeout:15000});
- await page.waitForFunction(()=>document.querySelector('#currentCondition')?.textContent?.includes('indisponible')||
-   (document.querySelector('#currentTemp')?.textContent||'—°')!=='—°',{timeout:45000}).catch(()=>{});
+ await page.waitForFunction(()=>{
+   const condition=document.querySelector('#currentCondition')?.textContent||'';
+   return condition.includes('indisponible')|| (!condition.includes('Chargement') &&
+      document.querySelector('#currentTemp')?.textContent?.trim()!=='--°');
+  },{timeout:45000}).catch(()=>{});
  console.log(JSON.stringify({browser:'webkit',result:{
    condition:await page.locator('#currentCondition').innerText().catch(()=>'missing'),
    temperature:await page.locator('#currentTemp').innerText().catch(()=>'missing'),
