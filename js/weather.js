@@ -604,7 +604,65 @@ async function fetchMinutelyForecast(location) {
   }catch{return null;}
 }
 
+// A same-origin backup is useful if Safari cannot reach the API even while
+// GitHub Pages itself loads. It contains only genuinely fetched public data.
+export function selectPublishedForecast(payload, location, now = Date.now()) {
+  if(payload?.version!==1 || !Array.isArray(payload.forecasts))return null;
+  const lat=Number(location?.lat),lon=Number(location?.lon),alt=Number(location?.elevation);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon))return null;
+  const haversine=(a,b,c,d)=>{
+    const rad=Math.PI/180;
+    const p=(c-a)*rad,q=(d-b)*rad;
+    return 12742*Math.asin(Math.min(1,Math.sqrt(Math.sin(p/2)**2+
+      Math.cos(a*rad)*Math.cos(c*rad)*Math.sin(q/2)**2)));
+  };
+  return payload.forecasts.map(entry=>{
+    const stamp=Date.parse(entry?.at);
+    const ref=entry?.location||{};
+    const distance=haversine(lat,lon,Number(ref.lat),Number(ref.lon));
+    const altitudeDifference=Number.isFinite(alt)&&Number.isFinite(Number(ref.elevation))?
+      Math.abs(alt-Number(ref.elevation)):Infinity;
+    if(!Number.isFinite(stamp)||stamp>now+60000||now-stamp>3*3600000||
+       !Number.isFinite(distance)||distance>1.5||altitudeDifference>90||
+       !Array.isArray(entry?.data?.hourly?.time)||!entry.data.hourly.time.length||
+       !Array.isArray(entry?.data?.daily?.time)||!entry.data.daily.time.length||
+       !Number.isFinite(Number(entry.data?.current?.temperature_2m)))return null;
+    return {entry, distance,score:distance+altitudeDifference/500};
+  }).filter(Boolean).sort((a,b)=>a.score-b.score)[0]||null;
+}
+
+async function getPublishedForecast(location) {
+  try {
+    const url=new URL('../data/forecast-fallback.json',import.meta.url);
+    const response=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(5000)});
+    if(!response.ok)return null;
+    const selected=selectPublishedForecast(await response.json(),location);
+    if(!selected)return null;
+    const {entry,distance}=selected;
+    const data=entry.data;
+    data.location={...location,elevation:location.elevation??data.elevation,
+      timezone:data.timezone,timezoneAbbreviation:data.timezone_abbreviation};
+    data.weatherFallback={at:entry.at,nearbyKm:Math.round(distance*10)/10,source:'Open-Meteo via GitHub Pages'};
+    data.snowFusion={active:false,probabilistic:false,days:{},
+      explanation:'Prévisions Open-Meteo de secours. Fusion avancée momentanément indisponible.'};
+    console.warn('Prévision météo de secours activée',entry.location.name);
+    return normalizeForecast(data);
+  } catch (err) {
+    console.warn('Secours météo GitHub Pages indisponible',err);
+    return null;
+  }
+}
+
 export async function getForecast(location) {
+  try {
+    return await getDirectForecast(location);
+  } catch(err) {
+    console.warn('Prévisions directes indisponibles, essai de secours',err);
+    return (await getPublishedForecast(location)) || Promise.reject(err);
+  }
+}
+
+async function getDirectForecast(location) {
   const params = new URLSearchParams({
     latitude:String(location.lat), longitude:String(location.lon), timezone:'auto', forecast_days:'16',
     // Hourly history only: at any local time it includes the complete previous day.
