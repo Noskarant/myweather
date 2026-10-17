@@ -255,8 +255,8 @@ for (const required of [
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
 assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.23'"), true, 'PWA cache version not bumped');
-assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
-assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
+assert.equal(swSource.includes("fetch(event.request,{cache:'no-store',signal:AbortSignal.timeout(6000)})"), true, 'PWA fresh-network strategy missing');
+assert.equal(swSource.includes("caches.match(event.request,{ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
 
 const manifestSource = fs.readFileSync(new URL('./manifest.webmanifest', import.meta.url), 'utf8');
