@@ -33,14 +33,26 @@ let lastNominatimRequest = 0;
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-async function fetchWithRetry(url, options = {}, attempts = 2) {
+// Per-attempt deadline applies to both connection and response-body consumption.
+export async function fetchWithRetry(url, options = {}, attempts = 2, timeoutMs = 8500) {
   let lastError;
   for (let attempt = 0; attempt < attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const external = options.signal;
+    const abort = () => controller.abort();
+    if (external?.aborted) controller.abort();
+    else external?.addEventListener('abort', abort, {once:true});
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, {...options, signal:controller.signal});
       if (response.ok || (response.status < 500 && response.status !== 429)) return response;
       lastError = new Error(`HTTP ${response.status}`);
     } catch (err) { lastError = err; }
+    finally {
+      clearTimeout(timer);
+      external?.removeEventListener('abort', abort);
+    }
+    if (external?.aborted) break;
     if (attempt < attempts - 1) await sleep(450 * (attempt + 1));
   }
   throw lastError || new Error('Service réseau indisponible');
@@ -75,7 +87,7 @@ async function terrainElevations(points) {
     longitude: points.map(p => Number(p.lon).toFixed(6)).join(',')
   });
   try {
-    const r = await fetch(`${ELEVATION}?${q}`);
+    const r = await fetch(`${ELEVATION}?${q}`,{signal:AbortSignal.timeout(3000)});
     if (!r.ok) return points.map(() => null);
     const data = await r.json();
     const values = Array.isArray(data.elevation) ? data.elevation : [data.elevation];
@@ -122,7 +134,7 @@ export async function getTerrainProfile(location, options = {}) {
 
 async function openMeteoGeocode(name, count) {
   const q = new URLSearchParams({ name, count:String(count), language:'fr', format:'json' });
-  const r = await fetch(`${GEOCODE}?${q}`);
+  const r = await fetch(`${GEOCODE}?${q}`,{signal:AbortSignal.timeout(6000)});
   if (!r.ok) throw new Error(`Géocodage indisponible (${r.status})`);
   const data = await r.json();
   return (data.results || []).map(x => ({
@@ -607,6 +619,11 @@ export async function getForecast(location) {
   const response = await fetchWithRetry(`${FORECAST}?${params}`, {}, 2);
   if (!response.ok) throw new Error(`Prévisions indisponibles (${response.status})`);
   const data = await response.json();
+  if (!Array.isArray(data?.hourly?.time) || !data.hourly.time.length ||
+      !Array.isArray(data?.daily?.time) || !data.daily.time.length ||
+      !data.current || !Number.isFinite(Number(data.current.temperature_2m))) {
+    throw new Error('Prévisions incomplètes : réponse météo inexploitable');
+  }
 
   // Optional high-frequency forecast. A failed 15-minute request must never
   // interrupt the proven global hourly/16-day forecast.

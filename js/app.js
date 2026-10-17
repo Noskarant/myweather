@@ -1,5 +1,5 @@
-import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.22';
-import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.22';
+import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.23';
+import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.23';
 import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
 import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
 import { analyzeRoute } from './route.js?v=1.6.1';
@@ -28,6 +28,9 @@ const state = {
   favorites:loadFavorites(),
   searchHistory:loadSearchHistory(),
   loading:false,
+  weatherError:false,
+  staleSince:null,
+  forecastFetchedAt:null,
   demo:false,
   mountainPeriod:'today',
   snowPanelOpen:false
@@ -378,55 +381,137 @@ async function useLocationPickerSelection() {
   await loadLocation(place);
 }
 
+
+const WEATHER_CACHE_KEY = 'myweather:last-good-forecast:v1';
+const WEATHER_CACHE_MAX_AGE = 6 * 60 * 60 * 1000;
+let weatherRetryTimer = null;
+let weatherRetryCount = 0;
+
+function sameForecastLocation(a,b) {
+  return Number.isFinite(Number(a?.lat)) && Number.isFinite(Number(a?.lon)) &&
+    Number.isFinite(Number(b?.lat)) && Number.isFinite(Number(b?.lon)) &&
+    Math.abs(Number(a.lat)-Number(b.lat)) < 0.0005 &&
+    Math.abs(Number(a.lon)-Number(b.lon)) < 0.0005;
+}
+function storeLastGoodForecast(data) {
+  try {
+    localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({savedAt:Date.now(),forecast:data}));
+  } catch (err) {
+    // Storage can be unavailable (private mode/quota); the live forecast still works.
+    console.warn('Sauvegarde locale de prévisions indisponible',err);
+  }
+}
+function restoreLastGoodForecast(location) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WEATHER_CACHE_KEY) || 'null');
+    if (!saved || !Number.isFinite(saved.savedAt) ||
+        Date.now()-saved.savedAt > WEATHER_CACHE_MAX_AGE ||
+        saved.savedAt > Date.now()+60000 ||
+        !sameForecastLocation(saved.forecast?.location,location) ||
+        !saved.forecast?.current || !saved.forecast?.daily?.length ||
+        !saved.forecast?.hourly?.length) return null;
+    return saved;
+  } catch { return null; }
+}
+async function getBoundedForecast(location, timeoutMs=26000) {
+  let timer;
+  try {
+    return await Promise.race([
+      getForecast(location),
+      new Promise((_,reject) => {
+        timer=setTimeout(()=>reject(new Error('Délai maximal de chargement météo dépassé')),timeoutMs);
+      })
+    ]);
+  } finally { clearTimeout(timer); }
+}
+function scheduleWeatherRetry() {
+  clearTimeout(weatherRetryTimer);
+  const delay = Math.min(5*60000, 30000*2**Math.min(weatherRetryCount++,4));
+  weatherRetryTimer=setTimeout(()=>{
+    if (document.visibilityState==='visible' && !state.loading && state.weatherError)
+      loadLocation(state.location,{silent:true});
+  },delay);
+}
+function renderWeatherUnavailable(location) {
+  refs.locationName.textContent=location?.name || 'Lieu sélectionné';
+  const elevation=Number(location?.elevation);
+  refs.locationElevation.textContent=Number.isFinite(elevation) ? `${Math.round(elevation)} m` : 'alt. —';
+  refs.locationMeta.textContent=[location?.admin1,location?.country].filter(Boolean).join(' · ');
+  refs.currentTemp.textContent='—°';
+  refs.currentCondition.textContent='Données météo temporairement indisponibles';
+  refs.feelsLike.textContent='Ressenti —';
+  refs.lastUpdated.textContent='Nouvelle tentative automatique prévue · ↻ pour réessayer';
+  refs.hourlyRail.replaceChildren();
+  refs.dailyGrid.replaceChildren();
+  refs.quickMetrics.replaceChildren();
+  refs.insight.textContent='Connexion météo indisponible. Aucune prévision fictive affichée.';
+  if(refs.futureTemp) refs.futureTemp.textContent='—°';
+  if(refs.futureCondition) refs.futureCondition.textContent='Indisponible';
+  if(refs.futureMeta) refs.futureMeta.textContent='—';
+  if(refs.nowcast) refs.nowcast.hidden=true;
+  if(refs.mountainStats) refs.mountainStats.replaceChildren();
+  if(refs.snowFusionHighlights) refs.snowFusionHighlights.replaceChildren();
+  if(refs.snowFusionTable) refs.snowFusionTable.replaceChildren();
+}
+
 async function loadLocation(location, {silent=false,asBase=false}={}) {
   if (state.loading) return;
+  const previousLocation=state.location;
+  const previousForecast=state.forecast;
+  const previousSavedAt=state.forecastFetchedAt;
   state.loading = true;
   radarTicket++;
   state.radarNowcast=null;
   refs.refreshBtn.classList.add('spinning');
   try {
     if (OFFLINE_TEST) throw new Error('offline test mode');
-    const data = await getForecast(location);
+    const data = await getBoundedForecast(location);
     state.location = data.location;
     if (asBase) { state.baseLocation = data.location; saveBaseLocation(); }
     state.forecast = data;
+    state.forecastFetchedAt=Date.now();
+    state.staleSince=null;
+    state.weatherError=false;
+    clearTimeout(weatherRetryTimer);
+    weatherRetryCount=0;
     state.demo = false;
     state.selectedDate = data.daily[0]?.time || null;
     saveLastLocation();
+    storeLastGoodForecast(data);
   } catch (err) {
-    console.warn(err);
+    console.warn('Chargement météo indisponible',err);
     const requestedLocation = location?.name ? location : state.location;
+    state.location = requestedLocation;
+    if (asBase) { state.baseLocation = requestedLocation; saveBaseLocation(); }
     if (OFFLINE_TEST) {
-      state.location = requestedLocation;
-      if (asBase) { state.baseLocation = requestedLocation; saveBaseLocation(); }
       state.forecast = createDemoForecast(requestedLocation);
       state.demo = true;
+      state.weatherError=false;
+      state.staleSince=null;
       state.selectedDate = state.forecast.daily[0]?.time || null;
       saveLastLocation();
     } else {
-      state.location = requestedLocation;
-      if (asBase) { state.baseLocation = requestedLocation; saveBaseLocation(); }
-      state.demo = false;
-      if (!state.forecast) {
-        refs.locationName.textContent = requestedLocation.name || 'Lieu sélectionné';
-        const elevation = Number(requestedLocation.elevation);
-        refs.locationElevation.textContent = Number.isFinite(elevation) ? `${Math.round(elevation)} m` : 'alt. —';
-        refs.locationMeta.textContent = [requestedLocation.type && requestedLocation.type !== 'Localité' ? requestedLocation.type : '', requestedLocation.admin1, requestedLocation.country].filter(Boolean).join(' · ');
-        refs.currentTemp.textContent = '—°';
-        refs.currentCondition.textContent = 'Données météo momentanément indisponibles';
-        refs.feelsLike.textContent = 'Ressenti —';
-        refs.lastUpdated.textContent = 'Réessaie dans quelques instants';
-        refs.weatherGlyph.innerHTML = weatherIcon(3, 1);
-        refs.hourlyRail.innerHTML = '';
-        refs.dailyGrid.innerHTML = '';
-      }
-      if (!silent) showToast('Données météo indisponibles : aucune donnée fictive n’est affichée.', 'warn');
+      const validPrevious=sameForecastLocation(previousLocation,requestedLocation) &&
+        previousForecast && previousSavedAt && Date.now()-previousSavedAt < WEATHER_CACHE_MAX_AGE;
+      const cached=validPrevious ? null : restoreLastGoodForecast(requestedLocation);
+      state.forecast=validPrevious ? previousForecast : (cached?.forecast || null);
+      state.forecastFetchedAt=validPrevious ? previousSavedAt : (cached?.savedAt || null);
+      state.staleSince=state.forecast ? state.forecastFetchedAt : null;
+      state.weatherError=true;
+      state.demo=false;
+      state.selectedDate=state.forecast?.daily?.[0]?.time || null;
+      saveLastLocation();
+      if(!state.forecast) renderWeatherUnavailable(requestedLocation);
+      if(!silent) showToast(state.forecast
+        ? 'Service météo indisponible : dernières prévisions enregistrées affichées.'
+        : 'Service météo indisponible : nouvelle tentative automatique prévue.', 'warn');
+      scheduleWeatherRetry();
     }
   } finally {
     state.loading = false;
     refs.refreshBtn.classList.remove('spinning');
     if (state.forecast) renderAll();
-    if(!OFFLINE_TEST&&!state.demo&&state.forecast)refreshRadarNowcast();
+    if(!OFFLINE_TEST&&!state.demo&&!state.weatherError&&state.forecast)refreshRadarNowcast();
   }
 }
 
@@ -505,7 +590,9 @@ function renderAll() {
   const uvNow = Number(hNow.uv_index);
   refs.currentCondition.textContent = Number.isFinite(uvNow) ? `${info.label} · UV ${round(uvNow,1)}` : info.label;
   refs.feelsLike.textContent = `Ressenti ${Math.round(c.apparent_temperature ?? hNow.apparent_temperature ?? 0)}°C`;
-  refs.lastUpdated.textContent = formatUpdateAge(c.time || hNow.time);
+  refs.lastUpdated.textContent = state.staleSince
+    ? `Prévisions enregistrées le ${new Date(state.staleSince).toLocaleString('fr-FR')} · actualisation indisponible`
+    : formatUpdateAge(c.time || hNow.time);
 
   // Tiny provenance antenna on the current-temperature card; no permanent caption.
   const local=f.localObservation;
@@ -1974,7 +2061,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.22', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.23', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -1999,8 +2086,13 @@ async function init(){
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
   setInterval(()=>{updateNowClock();if(state.forecast)renderNowcast();},30000);
+  registerServiceWorker();
+  window.addEventListener('online',()=>{if(state.weatherError&&!state.loading)loadLocation(state.location,{silent:true});});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'&&state.weatherError&&!state.loading)
+      loadLocation(state.location,{silent:true});
+  });
   await loadLocation(state.location,{silent:true});
   if(!OFFLINE_TEST) setInterval(()=>{if(document.visibilityState==='visible'&&!state.loading) loadLocation(state.location,{silent:true})},15*60*1000);
-  registerServiceWorker();
 }
 init();
