@@ -20,10 +20,13 @@ jobs:
         run: |
           npm run check
           node --check sw.js
+          node --check scripts/build-forecast-fallback.mjs
       - name: Probe production forecast API (diagnostic)
         run: node scripts/diagnose-live-weather.mjs
       - name: Run application and network-failure regression tests
         run: npm test
+      - name: Prepare real fallback snapshots for WebKit test
+        run: node scripts/build-forecast-fallback.mjs
       - name: Install browser for iPhone WebKit smoke
         run: |
           npm install --no-save playwright@1.57.0
