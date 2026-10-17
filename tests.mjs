@@ -18,7 +18,7 @@ import {buildNextHoursMessages,tomorrowPrecipitation} from './js/weather-nowcast
 import {estimateRadarMotion} from './js/radar-nowcast.js';
 import {inIleDeFranceArea,inVendeeArea,inReunionArea,loadExtraRegionObservations,eligibleExtraRegionStations,applyExtraRegionObservations} from './js/rhone-observations.js';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
-import { createDemoForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
+import { createDemoForecast, fetchWithRetry, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
 assert.ok(HOURLY_VARS.length >= 20);
 assert.ok(CURRENT_VARS.includes('temperature_2m'));
@@ -248,13 +248,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.22', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.23', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.22'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.23'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request, {cache:'no-store'})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request, {ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -264,8 +264,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.22'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.22'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.23'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.23'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -746,7 +746,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.22'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.23'));
 assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
@@ -1628,3 +1628,34 @@ assert.ok(railAppCode.includes('previousFirstHour===items[0]?.time')&&
 assert.ok(cacheCode.includes("'./js/hourly-navigation.js'"),
   'The offline PWA must cache the restored rail-navigation module');
 console.log('✓ Past-hour carousel: previous full day, current focus, refresh retention and PWA');
+
+
+const loadedWeatherSource=fs.readFileSync(new URL('./js/weather.js',import.meta.url),'utf8');
+const loadedAppSource=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
+assert.ok(loadedWeatherSource.includes('AbortController'), 'Main forecast requests need an abortable timeout');
+assert.ok(loadedWeatherSource.includes('Prévisions incomplètes'), 'Incomplete API payload must not be presented as valid');
+assert.ok(loadedAppSource.includes('getBoundedForecast(location)'), 'App must have a final loading watchdog');
+assert.ok(loadedAppSource.includes('sameForecastLocation(previousLocation,requestedLocation)'), 'Never label another place with old weather');
+assert.ok(loadedAppSource.includes('restoreLastGoodForecast(requestedLocation)'), 'Use only stored real forecasts for the matching location');
+assert.ok(loadedAppSource.includes('scheduleWeatherRetry()'), 'Failure needs bounded automatic retries');
+assert.ok(swSource.includes('Promise.allSettled(ASSETS.map'), 'PWA should tolerate one optional asset failing at install');
+assert.ok(swSource.includes('if(!response.ok)'), 'PWA must not replace cached assets with error responses');
+assert.ok(swSource.includes('Response.error()'), 'Never serve HTML in place of missing JavaScript');
+const previousFetchForReliability=globalThis.fetch;
+try {
+  let calls=0;
+  globalThis.fetch=async (_url,{signal}={})=>{
+    calls++;
+    return new Promise((_,reject)=>{
+      if(signal?.aborted)return reject(new Error('aborted'));
+      signal?.addEventListener('abort',()=>reject(new Error('aborted')),{once:true});
+    });
+  };
+  await assert.rejects(fetchWithRetry('https://example.invalid/forecast',{},2,25),/abort/i);
+  assert.equal(calls,2,'Hanging network must be aborted and retried at most twice');
+  globalThis.fetch=async()=>new Response('temporary failure',{status:503});
+  await assert.rejects(fetchWithRetry('https://example.invalid/forecast',{},1,50),/503/);
+  globalThis.fetch=async()=>new Response('ok',{status:200});
+  assert.equal((await fetchWithRetry('https://example.invalid/forecast',{},1,50)).status,200);
+} finally { globalThis.fetch=previousFetchForReliability; }
+console.log('✓ weather loading recovery regression checks passed');
