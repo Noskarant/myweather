@@ -1,5 +1,5 @@
-import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.23';
-import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.23';
+import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.24';
+import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.24';
 import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
 import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
 import { analyzeRoute } from './route.js?v=1.6.1';
@@ -395,7 +395,9 @@ function sameForecastLocation(a,b) {
 }
 function storeLastGoodForecast(data) {
   try {
-    localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({savedAt:Date.now(),forecast:data}));
+    const fromBackup=Date.parse(data.weatherFallback?.at);
+    const savedAt=Number.isFinite(fromBackup)?fromBackup:Date.now();
+    localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({savedAt,forecast:data}));
   } catch (err) {
     // Storage can be unavailable (private mode/quota); the live forecast still works.
     console.warn('Sauvegarde locale de prévisions indisponible',err);
@@ -432,7 +434,7 @@ function scheduleWeatherRetry() {
       loadLocation(state.location,{silent:true});
   },delay);
 }
-function renderWeatherUnavailable(location) {
+function renderWeatherUnavailable(location, error) {
   refs.locationName.textContent=location?.name || 'Lieu sélectionné';
   const elevation=Number(location?.elevation);
   refs.locationElevation.textContent=Number.isFinite(elevation) ? `${Math.round(elevation)} m` : 'alt. —';
@@ -440,7 +442,8 @@ function renderWeatherUnavailable(location) {
   refs.currentTemp.textContent='—°';
   refs.currentCondition.textContent='Données météo temporairement indisponibles';
   refs.feelsLike.textContent='Ressenti —';
-  refs.lastUpdated.textContent='Nouvelle tentative automatique prévue · ↻ pour réessayer';
+  const reason=String(error?.message||'Erreur réseau').slice(0,110);
+  refs.lastUpdated.textContent=`Nouvelle tentative prévue · ↻ Réessayer · ${reason}`;
   refs.hourlyRail.replaceChildren();
   refs.dailyGrid.replaceChildren();
   refs.quickMetrics.replaceChildren();
@@ -469,11 +472,13 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
     state.location = data.location;
     if (asBase) { state.baseLocation = data.location; saveBaseLocation(); }
     state.forecast = data;
-    state.forecastFetchedAt=Date.now();
-    state.staleSince=null;
-    state.weatherError=false;
+    const isBackup=Boolean(data.weatherFallback);
+    state.forecastFetchedAt=isBackup?Date.parse(data.weatherFallback.at):Date.now();
+    state.staleSince=isBackup?state.forecastFetchedAt:null;
+    state.weatherError=isBackup;
     clearTimeout(weatherRetryTimer);
-    weatherRetryCount=0;
+    if(isBackup) scheduleWeatherRetry();
+    else weatherRetryCount=0;
     state.demo = false;
     state.selectedDate = data.daily[0]?.time || null;
     saveLastLocation();
@@ -501,7 +506,7 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
       state.demo=false;
       state.selectedDate=state.forecast?.daily?.[0]?.time || null;
       saveLastLocation();
-      if(!state.forecast) renderWeatherUnavailable(requestedLocation);
+      if(!state.forecast) renderWeatherUnavailable(requestedLocation,err);
       if(!silent) showToast(state.forecast
         ? 'Service météo indisponible : dernières prévisions enregistrées affichées.'
         : 'Service météo indisponible : nouvelle tentative automatique prévue.', 'warn');
@@ -591,7 +596,9 @@ function renderAll() {
   refs.currentCondition.textContent = Number.isFinite(uvNow) ? `${info.label} · UV ${round(uvNow,1)}` : info.label;
   refs.feelsLike.textContent = `Ressenti ${Math.round(c.apparent_temperature ?? hNow.apparent_temperature ?? 0)}°C`;
   refs.lastUpdated.textContent = state.staleSince
-    ? `Prévisions enregistrées le ${new Date(state.staleSince).toLocaleString('fr-FR')} · actualisation indisponible`
+    ? (f.weatherFallback
+      ? `Secours Open-Meteo · ${new Date(state.staleSince).toLocaleString('fr-FR')} · point à ${f.weatherFallback.nearbyKm} km`
+      : `Prévisions enregistrées le ${new Date(state.staleSince).toLocaleString('fr-FR')} · actualisation indisponible`)
     : formatUpdateAge(c.time || hNow.time);
 
   // Tiny provenance antenna on the current-temperature card; no permanent caption.
@@ -2061,7 +2068,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.23', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.24', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {

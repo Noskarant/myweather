@@ -40,6 +40,9 @@ jobs:
       - name: Resolve verified household addresses from BAN
         run: node scripts/resolve-custom-places.mjs
         timeout-minutes: 1
+      - name: Publish backup forecast snapshots
+        run: node scripts/build-forecast-fallback.mjs
+        timeout-minutes: 3
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static site
