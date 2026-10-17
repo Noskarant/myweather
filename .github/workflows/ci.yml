@@ -21,8 +21,6 @@ jobs:
           npm run check
           node --check sw.js
           node --check scripts/build-forecast-fallback.mjs
-      - name: Probe production forecast API (diagnostic)
-        run: node scripts/diagnose-live-weather.mjs
       - name: Run application and network-failure regression tests
         run: npm test
       - name: Prepare real fallback snapshots for WebKit test
