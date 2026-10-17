@@ -18,7 +18,7 @@ import {buildNextHoursMessages,tomorrowPrecipitation} from './js/weather-nowcast
 import {estimateRadarMotion} from './js/radar-nowcast.js';
 import {inIleDeFranceArea,inVendeeArea,inReunionArea,loadExtraRegionObservations,eligibleExtraRegionStations,applyExtraRegionObservations} from './js/rhone-observations.js';
 import { isFrance, applySnowFusion, ensembleSnowDaily } from './js/snowfusion.js';
-import { createDemoForecast, fetchWithRetry, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
+import { createDemoForecast, fetchWithRetry, selectPublishedForecast, HOURLY_VARS, CURRENT_VARS, DAILY_VARS, estimateEffectiveSunshineSeconds, precipitationSignal, presentationWeatherCode } from './js/weather.js';
 
 assert.ok(HOURLY_VARS.length >= 20);
 assert.ok(CURRENT_VARS.includes('temperature_2m'));
@@ -248,13 +248,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.23', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.24', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.23'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.24'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request,{cache:'no-store',signal:AbortSignal.timeout(6000)})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request,{ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -264,8 +264,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.23'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.23'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.24'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.24'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -746,7 +746,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.23'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.24'));
 assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
@@ -1659,3 +1659,22 @@ try {
   assert.equal((await fetchWithRetry('https://example.invalid/forecast',{},1,50)).status,200);
 } finally { globalThis.fetch=previousFetchForReliability; }
 console.log('✓ weather loading recovery regression checks passed');
+
+const snapLocation={name:'Oullins',lat:45.714,lon:4.807,elevation:190};
+const realBackup={version:1,forecasts:[{
+ location:snapLocation,at:'2026-10-17T10:00:00.000Z',
+ data:{current:{temperature_2m:14},hourly:{time:['2026-10-17T10:00']},daily:{time:['2026-10-17']}}
+}]};
+const validBackup=selectPublishedForecast(realBackup,snapLocation,Date.parse('2026-10-17T11:00:00.000Z'));
+assert.ok(validBackup,'A matching real forecast backup should be accepted');
+assert.equal(validBackup.distance,0);
+assert.equal(selectPublishedForecast(realBackup,snapLocation,Date.parse('2026-10-17T14:01:00.000Z')),null,
+ 'Never display forecast backup older than 3h');
+assert.equal(selectPublishedForecast(realBackup,{...snapLocation,lat:46.0},Date.parse('2026-10-17T11:00:00.000Z')),null,
+ 'Never display another location forecast');
+assert.equal(selectPublishedForecast(realBackup,{...snapLocation,elevation:550},Date.parse('2026-10-17T11:00:00.000Z')),null,
+ 'Never present low-elevation weather as mountain data');
+assert.ok(loadedAppSource.includes('Secours Open-Meteo'), 'UI must disclose fallback data');
+assert.ok(loadedAppSource.includes('renderWeatherUnavailable(requestedLocation,err)'),
+ 'Unrecoverable failures should show useful error text');
+console.log('✓ Published real forecast fallback source/age/geographic checks passed');
