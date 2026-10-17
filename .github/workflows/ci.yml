@@ -20,5 +20,7 @@ jobs:
         run: |
           npm run check
           node --check sw.js
+      - name: Probe production forecast API (diagnostic)
+        run: node scripts/diagnose-live-weather.mjs
       - name: Run application and network-failure regression tests
         run: npm test
