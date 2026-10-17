@@ -24,3 +24,9 @@ jobs:
         run: node scripts/diagnose-live-weather.mjs
       - name: Run application and network-failure regression tests
         run: npm test
+      - name: Install browser for iPhone WebKit smoke
+        run: |
+          npm install --no-save playwright@1.57.0
+          npx playwright install --with-deps webkit
+      - name: Check live MyWeather in Safari WebKit
+        run: node scripts/browser-smoke.mjs
