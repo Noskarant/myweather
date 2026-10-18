@@ -93,7 +93,16 @@ export function weatherVisualProfile(data = {}) {
   const cape = positive(source.cape);
   const freezing = [56,57,66,67].includes(code);
   const hail = [96,99].includes(code);
-  const mixed = !freezing && rain > 0 && snowfall > 0;
+  // A snow WMO code should not turn into sleet just because independently
+  // blended hourly/current models retain a trace of liquid precipitation.
+  // Show both phases only with meaningful simultaneous amounts; for a
+  // snow-specific code also require near-freezing air.
+  const snowCode = [71,73,75,77,85,86].includes(code);
+  const rawTemperature = source.temperature_2m ?? source.temperature;
+  const temperature = rawTemperature == null ? NaN : Number(rawTemperature);
+  const genuineMixedAmounts = rain >= 0.2 && snowfall >= 0.2;
+  const nearFreezing = Number.isFinite(temperature) && temperature > -1.5 && temperature <= 3;
+  const mixed = !freezing && genuineMixedAmounts && (!snowCode || nearFreezing);
 
   let kind = 'cloud';
   if ([0,1].includes(code)) kind = 'clear';
