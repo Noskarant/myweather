@@ -1,4 +1,4 @@
-const CACHE = 'myweather-v1.8.24';
+const CACHE = 'myweather-v1.8.25';
 const ASSETS = ['./','./index.html','./styles.css','./js/app.js','./js/hourly-navigation.js','./js/weather.js','./js/weather-nowcast.js','./js/radar-nowcast.js','./js/snowfusion.js','./js/rhone-observations.js','./js/coastal-vendee.js','./data/rhone-observations.json','./data/savoie-observations.json','./data/quebec-observations.json','./data/ile-de-france-observations.json','./data/vendee-observations.json','./data/reunion-observations.json','./js/custom-places.js','./data/custom-places.json','./js/route.js','./js/utils.js','./assets/favicon.svg','./manifest.webmanifest'];
 self.addEventListener('install', event => event.waitUntil((async () => {
   const cache=await caches.open(CACHE);

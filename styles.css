@@ -528,6 +528,9 @@ main{padding-top:0}.home-current{padding-top:24px}.current-card{max-width:920px;
 .hero-scene.intensity-1 .scene-rain,.hero-scene.intensity-1 .scene-snow,.hero-scene.intensity-1 .scene-hail{opacity:.62}
 .hero-scene.intensity-2 .scene-rain,.hero-scene.intensity-2 .scene-snow,.hero-scene.intensity-2 .scene-hail{opacity:.84}
 .hero-scene.intensity-3 .scene-rain,.hero-scene.intensity-3 .scene-snow,.hero-scene.intensity-3 .scene-hail{opacity:1}
+/* Intensity must never reveal precipitation of the wrong physical phase. */
+.hero-scene.snow .scene-rain,.hero-scene.snow .scene-rain-curtain{opacity:0}
+.hero-scene.rain .scene-snow,.hero-scene.ice .scene-snow,.hero-scene.storm .scene-snow{opacity:0}
 .hero-scene.intensity-3.storm .scene-glow{background:linear-gradient(120deg,rgba(92,132,170,.23),rgba(6,18,33,.17) 64%)}
 
 @keyframes mwSunBreathe{0%,100%{transform:translateY(-50%) scale(.96)}50%{transform:translateY(-50%) scale(1.04)}}

@@ -6,7 +6,7 @@ import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
   formatHour, formatPrecipitation, isSnowForecast, nearestIndex, precipitationLabel, round, seasonFor, svgPath, weatherCodeInfo, weatherVisualProfile
-} from './utils.js?v=1.8.2';
+} from './utils.js?v=1.8.25';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -621,7 +621,7 @@ function renderAll() {
     }
   }
 
-  refs.weatherGlyph.innerHTML = weatherIcon({...hNow,...c,display_weather_code:currentCode,weather_code:currentCode}, c.is_day);
+  refs.weatherGlyph.innerHTML = weatherIcon(currentVisualWeather({...c,weather_code:currentCode},hNow), c.is_day);
   try { renderHeroScene({...c, weather_code:currentCode},hNow); } catch (err) { console.warn('Scene météo actuelle',err); }
   try { renderFutureWeather(); } catch (err) { console.warn('Scène météo future',err); }
 
@@ -936,8 +936,19 @@ function renderWeatherScene(container,data={}){
   container.style.setProperty('--storm-flash-alpha',intensity===3?'1':intensity===2?'.72':'.48');
   container.innerHTML='<div class="scene-glow"></div><div class="scene-twilight"></div><div class="scene-stars">'+stars+'</div><div class="scene-sun"><span></span></div><div class="scene-moon">'+sceneMoonSvg(moon)+'</div><div class="scene-horizon"></div><div class="scene-cloud scene-cloud-a"><b></b><em></em></div><div class="scene-cloud scene-cloud-b"><b></b><em></em></div><div class="scene-cloud scene-cloud-c"><b></b><em></em></div><div class="scene-rain">'+drops+'</div><div class="scene-snow">'+flakes+'</div><div class="scene-hail">'+pellets+'</div><div class="scene-snow-haze"><i></i><i></i><i></i></div><div class="scene-rain-curtain"><i></i><i></i><i></i></div><div class="scene-fog"><i></i><i></i><i></i></div>'+(kind==='storm'?'<div class="scene-lightning"></div>'+(intensity===3?'<div class="scene-lightning scene-lightning-secondary"></div>':''):'');
 }
+function currentVisualWeather(current={},hourly={}){
+  // Do not merge the current precipitation phase with another hourly model:
+  // it can create fictitious rain + snow, even when the WMO code says snow.
+  const useCurrent=Number(current.precipitation ?? 0)>=0.1;
+  const phase=useCurrent?current:hourly;
+  const code=current.weather_code ?? hourly.display_weather_code ?? hourly.weather_code;
+  return {...hourly,...current,weather_code:code,display_weather_code:code,
+    rain:phase.rain ?? 0,showers:phase.showers ?? 0,snowfall:phase.snowfall ?? 0};
+}
 function renderHeroScene(current={},hourly={}){
-  renderWeatherScene(refs.heroScene,{...hourly,...current,time:forecastNowLocal(),weather_code:current.weather_code ?? hourly.display_weather_code ?? hourly.weather_code,is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),uv_index:hourly.uv_index,cape:hourly.cape,cloud_cover:current.cloud_cover ?? hourly.cloud_cover});
+  renderWeatherScene(refs.heroScene,{...currentVisualWeather(current,hourly),
+    time:forecastNowLocal(),is_day:current.is_day ?? isDayAt(hourly.time ?? new Date().toISOString()),
+    uv_index:hourly.uv_index,cape:hourly.cape,cloud_cover:current.cloud_cover ?? hourly.cloud_cover});
 }
 function futureHourly(offset=state.futureOffset){
   const hours=state.forecast?.hourly||[]; if(!hours.length)return null; const now=currentHourly(); let i=now?hours.indexOf(now):-1; if(i<0)i=nearestIndex(hours.map(x=>x.time),forecastNowLocal()); return hours[Math.min(hours.length-1,Math.max(0,i+Number(offset||0)))]||null;

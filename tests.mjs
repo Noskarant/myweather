@@ -98,6 +98,16 @@ assert.equal(weatherVisualProfile({weather_code:95,precipitation:.8,cape:300}).i
 assert.equal(weatherVisualProfile({weather_code:95,precipitation:4,cape:900}).intensity, 'moderate', 'Moderate thunderstorm signal must be visually moderate');
 assert.equal(weatherVisualProfile({weather_code:95,precipitation:8,cape:1600}).intensity, 'heavy', 'Strong thunderstorm signal must be visually heavy');
 assert.equal(weatherVisualProfile({weather_code:61,rain:.5,snowfall:.2}).kind, 'mixed', 'Simultaneous rain and snow must use a mixed icon');
+assert.equal(weatherVisualProfile({weather_code:71,temperature_2m:-6,rain:.7,snowfall:.6}).kind,'snow',
+  'Aiguille du Midi: subfreezing WMO snow must not show artificial rain');
+assert.equal(weatherVisualProfile({weather_code:73,temperature_2m:0.5,rain:.5,snowfall:.6}).kind,'mixed',
+  'Genuine near-freezing mixed precipitation must retain both phases');
+assert.equal(weatherVisualProfile({weather_code:71,temperature_2m:0,rain:.02,snowfall:.6}).kind,'snow',
+  'Trace liquid values must not trigger mixed animations');
+assert.equal(weatherVisualProfile({weather_code:71,rain:.5,snowfall:.7}).kind,'snow',
+  'Unknown temperature on a snow code must not invent mixed conditions');
+assert.equal(weatherVisualProfile({weather_code:61,temperature_2m:1,rain:.5,snowfall:.03}).kind,'rain',
+  'Trace snowfall must not add flakes to a rain animation');
 assert.ok(haversineKm({lat:45.75,lon:4.85},{lat:45.9,lon:6.1}) > 90);
 assert.equal(nearestIndex(['2026-09-22T10:00','2026-09-22T11:00'], new Date('2026-09-22T10:40')), 1);
 
@@ -157,6 +167,12 @@ for (const required of [
 ]) {
   assert.equal(stylesSceneSource.includes(required), true, 'Intensity-aware hero scene CSS missing: ' + required);
 }
+assert.ok(appSource.includes('currentVisualWeather({...c,weather_code:currentCode},hNow)'),
+  'Current hero glyph must use coherent-phase values');
+assert.ok(appSource.includes('display_weather_code:code'),
+  'Current scene must not accidentally prefer a stale hourly WMO code');
+assert.ok(stylesSceneSource.includes('.hero-scene.snow .scene-rain,.hero-scene.snow .scene-rain-curtain{opacity:0}'),
+  'Snow scene must hide stray rain animation even at nonzero intensity');
 console.log('✓ intensity-aware hero scene regression checks passed');
 
 for (const required of [
