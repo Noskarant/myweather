@@ -72,7 +72,7 @@ export function computeDayHazards(hours,location={},date=''){
   const rainSeverity=Math.max(level(rain24,[20,50,100]),level(rain3,[15,35,70]),level(rain1,[9,20,40]));
   add('rain',rainSeverity,'Cumul et intensité des pluies modélisés sur la journée',rounded(rain24,'mm')+' · pic '+rounded(rain1,'mm/h'));
   const stormSeverity=thunders.length
-    ? (thunders.some(h=>getCode(h)===99)&&highCape>=900?3:thunders.length>=3||highCape>=600?2:1)
+    ? (thunders.some(h=>getCode(h)===99)&&highCape>=2200&&gust>=120&&rain1>=15?3:thunders.length>=3||highCape>=600?2:1)
     : (highCape>=1500&&rain1>=7?1:0);
   add('thunder',stormSeverity,thunders.length?'Orages explicitement prévus par le modèle':'Instabilité et fortes précipitations : orages localisés possibles',highCape?Math.round(highCape)+' J/kg de CAPE':'Signal orageux');
   // No hail forecast without a dedicated WMO hail code. High CAPE alone is insufficient.
