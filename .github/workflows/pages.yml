@@ -43,6 +43,15 @@ jobs:
       - name: Publish backup forecast snapshots
         run: node scripts/build-forecast-fallback.mjs
         timeout-minutes: 3
+      - name: Collect optional official vigilance (France, J and J+1)
+        env:
+          METEOFRANCE_VIGILANCE_TOKEN: ${{ secrets.METEOFRANCE_VIGILANCE_TOKEN }}
+        run: node scripts/update-vigilance.mjs
+        timeout-minutes: 1
+      - name: Static checks and vigilance regressions
+        run: |
+          npm run check
+          node tests-vigilance.mjs
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static site
