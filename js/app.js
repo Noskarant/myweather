@@ -2,6 +2,7 @@ import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseG
 import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.24';
 import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
 import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
+import { buildVigilance, fetchVigilanceSnapshot, resolveFrenchDepartment, HAZARDS, VIGILANCE_LEVELS } from './weather-vigilance.js?v=1.8.26';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -33,13 +34,17 @@ const state = {
   forecastFetchedAt:null,
   demo:false,
   mountainPeriod:'today',
-  snowPanelOpen:false
+  snowPanelOpen:false,
+  officialVigilance:null,
+  vigilanceDepartment:null,
+  vigilance:null
 };
 
 const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), mapPickerBtn:$('#mapPickerBtn'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
   locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), localObservationIndicator:$('#localObservationIndicator'), localObservationInfo:$('#localObservationInfo'), localObservationTooltip:$('#localObservationTooltip'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'), nowcast:$('#weatherNowcast'), nowcastMessages:$('#weatherNowcastMessages'), nowcastRadar:$('#weatherNowcastRadar'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
+  vigilanceToggle:$('#vigilanceToggle'), vigilanceToggleText:$('#vigilanceToggleText'), vigilanceModal:$('#vigilanceModal'), vigilanceClose:$('#closeVigilanceModal'), vigilanceContent:$('#vigilanceContent'), vigilanceHeading:$('#vigilanceHeading'), vigilanceMeta:$('#vigilanceMeta'),
   snowFusionToggle:$('#snowFusionToggle'), snowFusionPanel:$('#snowFusionPanel'), snowFusionClose:$('#snowFusionClose'), snowFusionSource:$('#snowFusionSource'), snowFusionHighlights:$('#snowFusionHighlights'), snowFusionTable:$('#snowFusionTable'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
   zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mountainPeriodTabs:$('#mountainPeriodTabs'), mountainVisual:$('#mountainVisual'),
@@ -452,6 +457,8 @@ function renderWeatherUnavailable(location, error) {
   if(refs.futureCondition) refs.futureCondition.textContent='Indisponible';
   if(refs.futureMeta) refs.futureMeta.textContent='—';
   if(refs.nowcast) refs.nowcast.hidden=true;
+  if(refs.vigilanceToggle){refs.vigilanceToggle.dataset.level='unknown';refs.vigilanceToggleText.textContent='Indisponible';refs.vigilanceToggle.setAttribute('aria-label','Vigilance indisponible');}
+  if(refs.vigilanceModal)closeVigilance();
   if(refs.mountainStats) refs.mountainStats.replaceChildren();
   if(refs.snowFusionHighlights) refs.snowFusionHighlights.replaceChildren();
   if(refs.snowFusionTable) refs.snowFusionTable.replaceChildren();
@@ -463,6 +470,9 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
   const previousForecast=state.forecast;
   const previousSavedAt=state.forecastFetchedAt;
   state.loading = true;
+  vigilanceTicket++;
+  state.officialVigilance=null;
+  state.vigilanceDepartment=null;
   radarTicket++;
   state.radarNowcast=null;
   refs.refreshBtn.classList.add('spinning');
@@ -516,6 +526,7 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
     state.loading = false;
     refs.refreshBtn.classList.remove('spinning');
     if (state.forecast) renderAll();
+    if(!OFFLINE_TEST&&!state.demo&&state.forecast)refreshOfficialVigilance();
     if(!OFFLINE_TEST&&!state.demo&&!state.weatherError&&state.forecast)refreshRadarNowcast();
   }
 }
@@ -533,6 +544,78 @@ function forecastNowLocal(date=new Date()) {
 function currentHourly() {
   if (!state.forecast?.hourly?.length) return null;
   return state.forecast.hourly[nearestIndex(state.forecast.hourly.map(x=>x.time), forecastNowLocal())];
+}
+
+
+let vigilanceTicket=0;
+async function refreshOfficialVigilance(){
+  const ticket=++vigilanceTicket;
+  const point=state.location;
+  const [snapshot,department]=await Promise.all([
+    fetchVigilanceSnapshot(),resolveFrenchDepartment(point)
+  ]);
+  if(ticket!==vigilanceTicket||point!==state.location)return;
+  state.officialVigilance=snapshot;
+  state.vigilanceDepartment=department;
+  renderVigilance();
+  renderNowcast();
+}
+function closeVigilance(){
+  refs.vigilanceModal?.classList.add('hidden');
+  refs.vigilanceToggle?.setAttribute('aria-expanded','false');
+  document.body.classList.remove('modal-open');
+}
+function openVigilance(){
+  if(!refs.vigilanceModal||!state.forecast||state.demo)return;
+  renderVigilance();
+  refs.vigilanceModal.classList.remove('hidden');
+  refs.vigilanceToggle?.setAttribute('aria-expanded','true');
+  document.body.classList.add('modal-open');
+  refs.vigilanceClose?.focus();
+}
+function renderVigilance(){
+  if(!refs.vigilanceToggle||!state.forecast||state.demo)return;
+  const report=buildVigilance(state.forecast,state.location,state.officialVigilance,state.vigilanceDepartment);
+  state.vigilance=report;
+  const outdated=state.staleSince&&Date.now()-state.staleSince>3*3600_000;
+  const lvl=report.displayLevel;
+  const name=VIGILANCE_LEVELS[lvl];
+  const upcoming=report.displayDay==='tomorrow';
+  refs.vigilanceToggle.dataset.level=outdated?'unknown':String(lvl);
+  refs.vigilanceToggle.dataset.timing=upcoming?'tomorrow':'today';
+  refs.vigilanceToggleText.textContent=outdated?'À actualiser':lvl===0?'Risques · calme':
+    (upcoming?'Demain · ':'Risque · ')+name.toLowerCase();
+  refs.vigilanceToggle.setAttribute('aria-label',
+    outdated?'Risques météorologiques : données à actualiser':
+    (upcoming?'Demain, ':'Aujourd’hui, ')+(lvl===0?'aucun risque marqué estimé':name.toLowerCase()+
+    ', '+(report.primary?HAZARDS[report.primary.kind].name:'vigilance'))+'. Afficher les détails.');
+  refs.vigilanceHeading.textContent='Vigilances · '+(state.location?.name||'lieu sélectionné');
+  const provenance=report.hasOfficial
+    ?'Complément départemental Météo-France disponible (niveau départemental, pas une mesure sur ce point).'
+    :'Données de prévision MyWeather (Open-Meteo et moteur montagne). Vigilance officielle non disponible pour ce point.';
+  refs.vigilanceMeta.textContent=(outdated?'Prévisions enregistrées trop anciennes : actualisation nécessaire. ':'')+
+    'Codes couleur MyWeather indicatifs, distincts des vigilances officielles. '+provenance;
+  const renderDay=(d,label)=>{
+    const header='<div class="vigilance-day-head"><strong>'+label+'</strong><span class="vigilance-level" data-level="'+
+      d.level+'">'+VIGILANCE_LEVELS[d.level]+'</span></div>';
+    const rows=d.items.length?d.items.map(item=>{
+      const info=HAZARDS[item.kind];
+      const when=item.official?' · département officiel':' · modèle local';
+      return '<div class="vigilance-risk"><span class="vigilance-risk-icon" aria-hidden="true">'+info.icon+
+        '</span><div><strong>'+escapeHtml(info.name)+'</strong><p>'+escapeHtml(item.detail)+
+        '</p>'+(item.quantity?'<small>'+escapeHtml(item.quantity)+'</small>':'')+
+        '<em>'+escapeHtml(when)+'</em></div><b class="vigilance-level" data-level="'+item.level+
+        '">'+VIGILANCE_LEVELS[item.level]+'</b></div>';
+    }).join(''):'<p class="vigilance-calm">Aucun seuil de risque important détecté dans les données disponibles ; cela n’exclut pas un phénomène local.</p>';
+    return '<section class="vigilance-day">'+header+rows+'</section>';
+  };
+  const main=report.primary?HAZARDS[report.primary.kind]?.name:'Pas de risque dominant';
+  refs.vigilanceContent.innerHTML='<p class="vigilance-lead"><strong>Risque principal : '+
+    escapeHtml(main)+'</strong><span>'+(report.displayDay==='tomorrow'?'Demain':'Aujourd’hui')+
+    ' · '+VIGILANCE_LEVELS[lvl]+(outdated?' · données anciennes':'')+
+    '</span></p>'+renderDay(report.today,'Aujourd’hui')+renderDay(report.tomorrow,'Demain')+
+    '<p class="vigilance-disclaimer">Quantités : prévisions localisées, non mesures. Seuils de couleur internes, non homologués. Grêle uniquement si signal météo explicite. Pour toute décision de sécurité, consulte la '+
+    '<a href="https://vigilance.meteofrance.fr/" target="_blank" rel="noopener noreferrer">vigilance officielle Météo-France ↗</a>.</p>';
 }
 
 const nowcastIcons={thunder:'⚡',rain:'☂',snow:'❄',sun:'☀','rain-total':'◌','snow-total':'❄'};
@@ -554,8 +637,9 @@ function renderNowcast(){
     return;
   }
   const outlook=buildNextHoursMessages(state.forecast,Date.now(),state.radarNowcast);
-  const signature=JSON.stringify(outlook);
-  if(!outlook.items.length&&!outlook.tomorrowItems?.length){
+  const riskMessage=buildVigilance(state.forecast,state.location,state.officialVigilance,state.vigilanceDepartment).tomorrowMessage;
+  const signature=JSON.stringify([outlook,riskMessage]);
+  if(!outlook.items.length&&!outlook.tomorrowItems?.length&&!riskMessage){
     refs.nowcast.hidden=true;
     lastNowcastSignature='';
     return;
@@ -573,7 +657,9 @@ function renderNowcast(){
     (nowcastIcons[item.kind]||'◎')+'</span>'+escapeHtml(item.text)+'</p>').join('');
   const attribution=outlook.radarUsed?
     '<a class="nowcast-attribution" href="https://www.rainviewer.com/" target="_blank" rel="noopener noreferrer">Radar : RainViewer</a>':'';
-  refs.nowcastMessages.innerHTML=headline+tomorrow+attribution;
+  const riskUpcoming=riskMessage?'<p class="nowcast-tomorrow nowcast-vigilance"><span class="nowcast-icon" aria-hidden="true">⚠</span>'+escapeHtml(riskMessage)+' <button type="button" id="upcomingVigilanceDetails">Détails ↗</button></p>':'';
+  refs.nowcastMessages.innerHTML=headline+tomorrow+riskUpcoming+attribution;
+  refs.nowcastMessages.querySelector('#upcomingVigilanceDetails')?.addEventListener('click',openVigilance);
 }
 
 function renderAll() {
@@ -652,6 +738,7 @@ function renderAll() {
   ];
   refs.quickMetrics.innerHTML = metrics.map(([k,v,i])=>`<div><i>${i}</i><span>${k}<strong>${v}</strong></span></div>`).join('');
   refs.insight.innerHTML = weatherInsight(c,hNow,loc);
+  renderVigilance();
   renderNowcast();
 
   renderCockpit(c,hNow);
@@ -2060,6 +2147,9 @@ function bindEvents(){
       if(document.activeElement===refs.localObservationInfo)refs.localObservationInfo.blur();
     }
   });
+  refs.vigilanceToggle?.addEventListener('click',openVigilance);
+  refs.vigilanceClose?.addEventListener('click',closeVigilance);
+  refs.vigilanceModal?.addEventListener('click',e=>{if(e.target===refs.vigilanceModal)closeVigilance()});
   refs.snowFusionToggle?.addEventListener('click',()=>toggleSnowFusion(!state.snowPanelOpen));
   refs.snowFusionClose?.addEventListener('click',()=>toggleSnowFusion(false));
   refs.expertToggle.addEventListener('click',()=>{state.expert=!state.expert;refs.expertToggle.setAttribute('aria-pressed',String(state.expert));refs.expertToggle.classList.toggle('active',state.expert);renderCockpit(state.forecast.current,currentHourly())});
@@ -2071,7 +2161,7 @@ function bindEvents(){
     $('#mapsSection')?.scrollIntoView({behavior:'smooth',block:'start'});
   });
   $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
-  refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(refs.locationPickerModal && !refs.locationPickerModal.classList.contains('hidden')) closeLocationPicker(); else if(!refs.modal.classList.contains('hidden')) closeHour(); else if(refs.bulletinModal && !refs.bulletinModal.classList.contains('hidden')) closeBulletin(); else if(addingFavorite)closeFavoriteSearch(); else closeDayDetail();}});
+  refs.closeModal.addEventListener('click',closeHour);refs.modal.addEventListener('click',e=>{if(e.target===refs.modal)closeHour()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(refs.locationPickerModal && !refs.locationPickerModal.classList.contains('hidden')) closeLocationPicker(); else if(!refs.modal.classList.contains('hidden')) closeHour(); else if(refs.vigilanceModal && !refs.vigilanceModal.classList.contains('hidden')) closeVigilance(); else if(refs.bulletinModal && !refs.bulletinModal.classList.contains('hidden')) closeBulletin(); else if(addingFavorite)closeFavoriteSearch(); else closeDayDetail();}});
   refs.routeForm.addEventListener('submit',handleRoute);refs.swapRoute.addEventListener('click',()=>{const a=refs.routeFrom.value;refs.routeFrom.value=refs.routeTo.value;refs.routeTo.value=a});
 }
 
@@ -2079,7 +2169,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.25', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.26', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -2103,7 +2193,7 @@ async function init(){
   refs.expertToggle?.setAttribute('aria-pressed', String(state.expert));
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
-  setInterval(()=>{updateNowClock();if(state.forecast)renderNowcast();},30000);
+  setInterval(()=>{updateNowClock();if(state.forecast){renderVigilance();renderNowcast();}},30000);
   registerServiceWorker();
   window.addEventListener('online',()=>{if(state.weatherError&&!state.loading)loadLocation(state.location,{silent:true});});
   document.addEventListener('visibilitychange',()=>{
