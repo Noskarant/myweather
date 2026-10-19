@@ -26,7 +26,7 @@ assert.equal(tomorrow.today.level,0);
 assert.equal(tomorrow.tomorrow.level,2);
 assert.equal(tomorrow.displayDay,'tomorrow');
 assert.match(tomorrow.tomorrowMessage,/Demain/);
-assert.equal(tomorrow.primary.kind,'thunder');
+assert.equal(tomorrow.primary.kind,'hail'); // The leading local hazard is hail when hail-coded storms are forecast.
 const extreme=buildVigilance({...plain,hourly:[...hourly('2026-10-19'),
   ...hourly('2026-10-20',{weather_code:99,cape:2600,precipitation:25,rain:25,wind_gusts_10m:130})]},p,null,null,now);
 assert.equal(extreme.tomorrow.level,3,'Red storm requires truly exceptional combined evidence');
