@@ -388,3 +388,17 @@ Pour forcer le mode démo hors ligne : `?offline=1`.
 ## GitHub Pages
 
 Le workflow `.github/workflows/pages.yml` publie le contenu statique du dépôt sur GitHub Pages à chaque push sur `main`.
+
+
+## Panneau « Vigilances » (v1.8.26)
+
+Le bouton coloré placé **à gauche du flocon** ouvre la synthèse de risques pour le lieu recherché, **aujourd’hui et demain**. La couleur met en avant le niveau le plus élevé ; lorsque ce niveau ne concerne que demain, le bouton porte explicitement « Demain ». Le message **À VENIR** annonce également une aggravation prévue le lendemain. Pluie, intensité horaire, orages, grêle (uniquement codes météo explicites), neige fraîche, verglas indicatif, rafales, chaleur et froid sont analysés avec les prévisions horaires localisées Open-Meteo / SnowFusion. Les quantités affichées sont des prévisions, jamais des mesures ni des garanties.
+
+**Très important :** les couleurs et seuils produits par MyWeather sont **des indices locaux estimés**, et ne constituent **pas** la carte officielle de Vigilance de Météo-France. La vigilance officielle, lorsqu'elle est disponible, est identifiée comme telle et rapportée à l'échelle départementale. Depuis septembre 2026, Météo-France publie aussi un zonage infra-départemental par phénomène : notre instantané par département **n’en reproduit pas les polygones**. Les risques de crues, avalanches et vagues-submersion sont repris du flux officiel lorsqu’il est disponible, **pas estimés à partir de la pluie ou de la neige seule**.
+
+L'intégration authentifiée est optionnelle : dans les Secrets GitHub Actions, configurer `METEOFRANCE_VIGILANCE_TOKEN` avec un jeton OAuth valide et autorisé sur `DPVigilance`. `scripts/update-vigilance.mjs` télécharge la carte officielle du jour et du lendemain pendant le déploiement GitHub Pages, extrait les niveaux départementaux et écrit `data/vigilance.json` sans aucun jeton. En l'absence de droit d'accès, en cas d'erreur ou de données datant de plus de 14 heures, **l'application n'invente pas de vigilance officielle** et maintient uniquement son indice modèle clairement identifié. Le département est localisé par l'API Géo française lorsque disponible.
+
+La Chaîne Météo et les autres plateformes tierces **ne sont pas intégrées** tant qu'un flux technique documenté et un droit de réutilisation ne sont pas disponibles ; aucun scraping ou niveau attribué à tort à ces fournisseurs. Sur mobile (iPhone / Android / tablette) et sur PC, le bouton et la fenêtre sont navigables au clavier, et la fenêtre est fermable au toucher, par Échap, par sa croix et en cliquant hors du contenu.
+
+Documentation de la source officielle : https://www.data.gouv.fr/dataservices/api-bulletin-vigilance
+
