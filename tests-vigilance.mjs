@@ -23,10 +23,13 @@ const storm={...plain,hourly:[
 ]};
 const tomorrow=buildVigilance(storm,p,null,null,now);
 assert.equal(tomorrow.today.level,0);
-assert.equal(tomorrow.tomorrow.level,3);
+assert.equal(tomorrow.tomorrow.level,2);
 assert.equal(tomorrow.displayDay,'tomorrow');
 assert.match(tomorrow.tomorrowMessage,/Demain/);
 assert.equal(tomorrow.primary.kind,'thunder');
+const extreme=buildVigilance({...plain,hourly:[...hourly('2026-10-19'),
+  ...hourly('2026-10-20',{weather_code:99,cape:2600,precipitation:25,rain:25,wind_gusts_10m:130})]},p,null,null,now);
+assert.equal(extreme.tomorrow.level,3,'Red storm requires truly exceptional combined evidence');
 assert.equal(tomorrow.tomorrow.items.find(i=>i.kind==='hail')?.level,2);
 // Positive CAPE alone must not claim hail.
 assert.equal(computeDayHazards(hourly('2026-10-19',{cape:1900}),p,'2026-10-19').some(i=>i.kind==='hail'),false);
