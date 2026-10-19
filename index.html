@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://api.open-meteo.com" />
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="./styles.css?v=1.8.25" />
+  <link rel="stylesheet" href="./styles.css?v=1.8.26" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -56,6 +56,9 @@
               <p id="locationMeta">Rhône, France</p>
             </div>
             <div class="current-top-actions">
+              <button id="vigilanceToggle" class="vigilance-toggle" data-level="unknown" data-timing="today" type="button" aria-expanded="false" aria-controls="vigilanceModal" title="Risques météorologiques estimés pour ce lieu">
+                <span class="vigilance-icon" aria-hidden="true">⚠</span><span id="vigilanceToggleText">Analyse…</span>
+              </button>
               <button id="snowFusionToggle" class="snowfusion-icon-button" type="button" aria-label="Prévisions de neige et manteau neigeux" title="Prévisions de neige et manteau neigeux" aria-expanded="false" aria-controls="snowFusionPanel">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93 4.93 19.07"/>
@@ -357,6 +360,16 @@
     </article>
   </div>
 
+  <div id="vigilanceModal" class="modal-backdrop hidden vigilance-backdrop" role="dialog" aria-modal="true" aria-labelledby="vigilanceHeading">
+    <article class="vigilance-modal glass">
+      <button id="closeVigilanceModal" class="modal-close" type="button" aria-label="Fermer les vigilances">×</button>
+      <div class="eyebrow">MYWEATHER · ANALYSE LOCALE</div>
+      <h2 id="vigilanceHeading">Vigilances météo</h2>
+      <p id="vigilanceMeta" class="vigilance-source">Prévisions analysées par MyWeather.</p>
+      <div id="vigilanceContent" class="vigilance-content"></div>
+    </article>
+  </div>
+
   <div id="bulletinModal" class="modal-backdrop hidden bulletin-backdrop" role="dialog" aria-modal="true" aria-labelledby="bulletinTitle">
     <article class="bulletin-modal glass">
       <button id="closeBulletinModal" class="modal-close" aria-label="Fermer">×</button>
@@ -378,6 +391,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="./js/app.js?v=1.8.25"></script>
+  <script type="module" src="./js/app.js?v=1.8.26"></script>
 </body>
 </html>
