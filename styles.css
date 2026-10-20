@@ -1799,3 +1799,132 @@ body{
   .vigilance-toggle{min-width:36px;width:36px;padding:0}
   .vigilance-toggle #vigilanceToggleText{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden;white-space:nowrap}
 }
+
+
+/* V1.8.28 — pages Explorer et Station météo, indépendantes de l'accueil */
+.mw-tool-page,.station-page{padding-top:30px;padding-bottom:85px}
+.mw-tool-page>.simple-hero,.station-page>.station-header{max-width:1120px;margin:0 auto 20px}
+.mw-tool-page .simple-hero{padding:15px 0 8px}
+.mw-tool-page .simple-hero p,.station-header p{max-width:760px;color:#a3bbc9;line-height:1.6}
+.discovery-controls{max-width:1120px;margin:0 auto 14px;padding:20px;border-radius:18px}
+.discovery-origin-row{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-bottom:16px}
+.discovery-origin{color:#d5eefa;font-weight:650;font-size:14px}
+.discovery-switch{display:flex;gap:4px;background:#0c2940;border:1px solid var(--line);border-radius:12px;padding:4px}
+.discovery-switch button{border:0;border-radius:9px;padding:10px 13px;color:#acc4d1;background:transparent;cursor:pointer;font:inherit;font-size:12px}
+.discovery-switch button.active{background:#175980;color:#fff}
+.discovery-form-row{display:grid;grid-template-columns:1fr 1fr minmax(190px,1.2fr);align-items:end;gap:14px}
+.discovery-form-row label,.station-toolbar label{display:grid;gap:7px;color:#a8c0ce;font-size:11px}
+.discovery-form-row select,.station-toolbar select{width:100%;border:1px solid #28566f;border-radius:11px;min-height:45px;padding:9px 12px;color:#f1f9fc;background:#0c3652;font:inherit;font-size:13px;color-scheme:dark}
+.discovery-form-row .primary-btn{min-height:45px;font-size:13px;padding:10px 15px;white-space:normal}
+.discovery-form-row .primary-btn:disabled{opacity:.65;cursor:wait}
+.discovery-status{max-width:1120px;margin:12px auto 18px;font-size:12px;color:#afc6d1;min-height:1.8em}
+#discoverResults{max-width:1120px;margin:auto}
+.discovery-result-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.discovery-result-label{font-size:11px;letter-spacing:1px;color:#91c6df;margin:0 0 9px;font-weight:700}
+.discovery-result{padding:23px;border-radius:18px;min-height:242px}
+.discovery-result-top{display:flex;align-items:center;gap:15px}
+.discovery-symbol{width:50px;height:50px;display:grid;place-items:center;border-radius:13px;background:#164a6c;color:#a5e9ff;font-size:28px}
+.discovery-result-top small,.discovery-result-top strong{display:block}
+.discovery-result-top small{color:#a3bcca;font-size:11px}
+.discovery-result-top strong{color:#f3fbff;font-size:30px;line-height:1.35;font-weight:600}
+.discovery-result h3{font-size:19px;margin:18px 0 7px;font-weight:600;overflow-wrap:anywhere}
+.discovery-result p{font-size:12px;color:#afc6d1;margin:0 0 12px}
+.discovery-facts{display:flex;flex-wrap:wrap;gap:10px;color:#d4e7f0;font-size:12px;margin:0 0 18px}
+.discovery-facts>span{background:#143e5a;padding:8px 10px;border-radius:8px}
+.discovery-open{border:1px solid #448eb0;color:#aeeaff;background:transparent;border-radius:10px;padding:10px 13px;cursor:pointer;text-align:left;font-size:12px}
+.discovery-open:hover{background:#124b70}
+.discovery-empty{background:#0b314f;border:1px solid var(--line);padding:27px;border-radius:17px;font-size:13px;color:#acc4d1}
+.discovery-method{color:#92adbc;font-size:11px;line-height:1.6;margin:13px 0}
+.discovery-map-panel{max-width:1120px;margin:26px auto;padding:20px;border-radius:18px}
+.discovery-map-panel h2{font-size:19px;margin:3px 0 13px}
+.discovery-map{height:360px;min-height:230px;background:#0d2b45;border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;z-index:0}
+.discovery-map .leaflet-pane{z-index:1}
+.station-page{max-width:1440px}
+.station-header{max-width:none!important;display:flex;justify-content:space-between;align-items:end;gap:25px}
+.station-header h1{font-size:clamp(30px,4vw,40px);letter-spacing:-1px;margin:6px 0}
+.station-toolbar{display:flex;align-items:end;gap:9px;flex-wrap:wrap}
+.station-toolbar label{min-width:132px}
+.station-toolbar .chip-btn{padding:12px 15px;min-height:45px;white-space:nowrap;cursor:pointer}
+.station-display{border-radius:22px;overflow:hidden;padding:26px;background:linear-gradient(135deg,#08243b,#0b3758 70%,#0a2944);color:#eefaff}
+.station-status{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px;padding-bottom:20px;border-bottom:1px solid rgba(180,220,242,.16)}
+.station-status strong,.station-status span{display:block}
+.station-status strong{font-size:clamp(16px,2vw,23px);margin-bottom:7px}
+.station-status span{font-size:12px;color:#96b5c8}
+.station-live{white-space:nowrap;font-size:10px;letter-spacing:1px;color:#8fe5c4}
+.station-live i{display:inline-block;width:7px;height:7px;background:#87d8b6;border-radius:50%;margin-right:7px;box-shadow:0 0 10px #3bb386}
+.station-lead{display:grid;grid-template-columns:minmax(250px,.9fr) 2fr;gap:22px;margin-bottom:22px}
+.station-main-temp{padding:25px 20px;border-radius:18px;background:rgba(11,51,78,.88);border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;justify-content:center}
+.station-main-temp>span{font-size:11px;letter-spacing:1.2px;color:#89c8e3}
+.station-main-temp>strong{font-weight:400;font-variant-numeric:tabular-nums;font-size:clamp(60px,7.5vw,104px);letter-spacing:-5px;line-height:1.35}
+.station-main-temp>strong small{font-size:.35em;letter-spacing:0;color:#addbed}
+.station-main-temp p{font-size:12px;color:#c7dce7;line-height:1.5}
+.station-divider{padding:0 5px;color:#7194a8}
+.station-gauges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.station-gauge{background:rgba(10,42,65,.78);border:1px solid rgba(185,220,240,.1);border-radius:18px;padding:18px 10px;text-align:center}
+.station-dial{width:min(100%,170px);aspect-ratio:1;margin:auto;border-radius:50%;padding:10px;background:conic-gradient(#67d2fa var(--dial-angle),rgba(125,175,198,.18) var(--dial-angle));box-shadow:0 4px 25px rgba(0,6,20,.18)}
+.station-dial-inner{width:100%;height:100%;border-radius:50%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#0b2b45;padding:7px}
+.station-dial-inner span{font-size:10px;color:#8bb2c5}
+.station-dial-inner strong{font-variant-numeric:tabular-nums;font-size:clamp(18px,2.6vw,32px);font-weight:550;line-height:1.3}
+.station-dial-inner small{font-size:10px;color:#abc4d1}
+.station-gauge p{font-size:11px;line-height:1.45;color:#aac6d3;margin:14px 0 0}
+.station-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.station-metric{background:rgba(11,43,68,.72);border:1px solid rgba(175,215,240,.1);border-radius:14px;padding:16px;display:flex;align-items:flex-start;gap:11px;min-width:0}
+.station-metric-icon{font-size:23px;line-height:1.2;color:#8ed5f4;width:27px;text-align:center;flex:0 0 auto}
+.station-metric small,.station-metric strong,.station-metric>div>span{display:block}
+.station-metric small{font-size:10px;color:#a4c0ce;line-height:1.3}
+.station-metric strong{font-size:clamp(14px,1.6vw,22px);font-weight:600;margin-top:5px;overflow-wrap:anywhere}
+.station-metric>div>span{font-size:10px;color:#95b8c9;margin-top:4px}
+.station-chart{border:1px solid rgba(180,220,240,.10);border-radius:16px;background:rgba(5,29,48,.45);margin-top:14px;padding:19px 20px}
+.station-chart-title{display:flex;justify-content:space-between;gap:15px;font-size:14px;margin-bottom:5px}
+.station-chart-title span{color:#98bdcf;font-size:11px}
+.station-chart svg{width:100%;height:110px;display:block}
+.station-chart-axis{display:flex;justify-content:space-between;color:#8caebf;font-size:11px}
+.station-provenance{font-size:11px;color:#91b0c1;margin:16px 0 0;line-height:1.5}
+.station-no-data{padding:35px;text-align:center;color:#b7cedb}
+.station-page.station-night .station-display{background:#030e1a;border-color:#224157}
+.station-page.station-night .station-main-temp,.station-page.station-night .station-metric,.station-page.station-night .station-gauge{background:#061b2c}
+.station-page[data-orientation="vertical"] .station-display{max-width:610px;margin:auto}
+.station-page[data-orientation="vertical"] .station-lead{grid-template-columns:1fr}
+.station-page[data-orientation="vertical"] .station-gauges{grid-template-columns:repeat(3,minmax(0,1fr))}
+.station-page[data-orientation="vertical"] .station-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+.station-page[data-orientation="vertical"] .station-main-temp{text-align:center;align-items:center}
+.station-page:fullscreen,.station-page.station-immersive{background:#061b2e;width:100%;max-width:none;height:100dvh;overflow-y:auto;padding:18px 20px 36px;z-index:200}
+.station-page.station-immersive{position:fixed;inset:0}
+body.station-immersive-open{overflow:hidden}
+.station-page:fullscreen .station-header,.station-page.station-immersive .station-header{margin-bottom:12px}
+.station-page:fullscreen .station-display,.station-page.station-immersive .station-display{max-width:1600px;margin:auto}
+.station-page:fullscreen .station-header h1,.station-page.station-immersive .station-header h1{font-size:24px}
+.station-page:fullscreen .station-header p,.station-page.station-immersive .station-header p{display:none}
+@media(max-width:900px){
+  .station-header{align-items:flex-start;flex-direction:column}
+  .station-lead{grid-template-columns:1fr}
+  .station-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .mw-tool-page,.station-page{padding-top:13px}
+  .discovery-origin-row{align-items:stretch;flex-direction:column}
+  .discovery-form-row{grid-template-columns:1fr 1fr}
+  .discovery-form-row .primary-btn{grid-column:1/-1}
+  .discovery-result-grid{grid-template-columns:1fr}
+  .station-display{padding:14px}
+  .station-main-temp>strong{font-size:70px}
+  .station-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .station-gauge{padding:12px 7px}
+  .station-dial{padding:7px}
+  .station-dial-inner span{font-size:8px}
+  .station-dial-inner strong{font-size:19px}
+  .bottom-nav{gap:0;overflow-x:auto;justify-content:space-between}
+  .bottom-nav [data-nav]{padding-inline:3px;min-width:45px}
+  .bottom-nav [data-nav] small{font-size:9px}
+}
+@media(max-width:390px){
+  .discovery-form-row{grid-template-columns:1fr}
+  .discovery-form-row .primary-btn{grid-column:1}
+  .station-toolbar{gap:5px}
+  .station-toolbar .chip-btn{font-size:10px;padding:8px}
+  .station-dial-inner strong{font-size:16px}
+  .station-gauge p{font-size:9px}
+  .station-metric{gap:7px;padding:11px 8px}
+  .station-metric strong{font-size:14px}
+  .bottom-nav [data-nav] small{font-size:8px}
+}
