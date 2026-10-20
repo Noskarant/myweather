@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {buildVigilance,computeDayHazards,officialForDay,parseOfficialSnapshot,resolveFrenchDepartment} from './js/weather-vigilance.js';
 import {sanitizeVigilance,collectVigilance} from './scripts/update-vigilance.mjs';
 
@@ -61,3 +62,14 @@ assert.equal(await collectVigilance(''),null);
 assert.equal(await resolveFrenchDepartment({...p,country:'Canada'}),null);
 assert.equal(await resolveFrenchDepartment(p,async()=>({ok:true,json:async()=>[{codeDepartement:'69'}]})),'69');
 console.log('✓ vigilance local, official, geographic, today/tomorrow, stale data and hail tests passed');
+
+const appSource=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
+const indexSource=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
+const cssSource=fs.readFileSync(new URL('./styles.css',import.meta.url),'utf8');
+assert.match(indexSource,/id="vigilanceToggle"[^>]*\bhidden\b/,'Vigilance button must be hidden before first forecast load');
+assert.ok(appSource.includes('const showAlert=lvl>=1&&!outdated;'));
+assert.ok(appSource.includes('refs.vigilanceToggle.hidden=!showAlert;'));
+assert.ok(appSource.includes('if(d.level<1)return'), 'Calm days must not show a green section in alert details');
+assert.ok(cssSource.includes('.vigilance-toggle[hidden]{display:none!important}'),
+  'CSS display:flex must not override the hidden attribute');
+console.log('✓ Calm weather hides the badge, and the detail panel only shows alert days');
