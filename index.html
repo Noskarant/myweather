@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://api.open-meteo.com" />
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="./styles.css?v=1.8.27" />
+  <link rel="stylesheet" href="./styles.css?v=1.8.28" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -297,6 +297,44 @@
       </div>
     </section>
 
+    <section id="exploreView" class="view page-width mw-tool-page">
+      <div class="simple-hero"><div class="eyebrow">EXPLORER LA MÉTÉO AUTOUR DE TOI</div><h1>Où trouver la neige et le soleil ?</h1>
+        <p>Compare les prévisions de points autour du lieu choisi ou de ta position GPS. Résultats indicatifs, jamais une mesure exhaustive du terrain.</p></div>
+      <div class="discovery-controls glass">
+        <div class="discovery-origin-row">
+          <span id="discoverOrigin" class="discovery-origin">Lieu sélectionné</span>
+          <div class="discovery-switch"><button id="discoverUseSelected" type="button" class="active">Lieu choisi</button><button id="discoverUseGps" type="button">◎ Ma position GPS</button></div>
+        </div>
+        <div class="discovery-form-row">
+          <label>Rayon de recherche<select id="discoverRadius"><option value="25">25 km</option><option value="50">50 km</option><option value="100" selected>100 km</option><option value="200">200 km</option></select></label>
+          <label>Période<select id="discoverPeriod"><option value="today">Aujourd’hui</option><option value="tomorrow">Demain</option><option value="48h">48 prochaines heures</option></select></label>
+          <button type="button" id="discoverRun" class="primary-btn">Rechercher les meilleurs points →</button>
+        </div>
+      </div>
+      <p id="discoverStatus" class="discovery-status" role="status">Choisis un rayon puis lance la recherche.</p>
+      <div id="discoverResults" aria-live="polite"></div>
+      <section class="discovery-map-panel glass"><div class="card-heading"><div class="eyebrow">REPÈRES GÉOGRAPHIQUES</div><h2>Points trouvés sur la carte</h2></div>
+        <div id="discoverMap" class="discovery-map" aria-label="Carte des meilleurs points neige et soleil"></div>
+        <p class="discovery-method">Carte basée sur OpenStreetMap. Les distances sont calculées à vol d’oiseau et les épaisseurs de neige sont modélisées.</p></section>
+    </section>
+
+    <section id="stationView" class="view page-width station-page" data-orientation="horizontal">
+      <div class="station-header">
+        <div><div class="eyebrow">ÉCRAN DE STATION MÉTÉOROLOGIQUE</div><h1>Station météo</h1><p>Lecture instrumentale des données météorologiques disponibles, avec origine des valeurs clairement indiquée.</p></div>
+        <div class="station-toolbar">
+          <label for="stationOrientation">Disposition<select id="stationOrientation"><option value="horizontal">Horizontale</option><option value="vertical">Verticale</option></select></label>
+          <button id="stationTheme" type="button" class="chip-btn">☾ Mode nuit</button>
+          <button id="stationFullscreen" type="button" class="chip-btn">⛶ Plein écran</button>
+        </div>
+      </div>
+      <div class="station-display glass">
+        <div class="station-status"><div><strong id="stationLocation">Lieu choisi</strong><span id="stationUpdate">Prévisions météo</span></div>
+          <div class="station-live"><i></i> TABLEAU MÉTÉO</div></div>
+        <div id="stationDashboard" aria-live="polite"></div>
+        <p id="stationSource" class="station-provenance">Prévisions de modèles météo : aucune mesure de capteur local n’est présumée.</p>
+      </div>
+    </section>
+
     <section id="favoritesView" class="view page-width">
       <div class="simple-hero"><div class="eyebrow">TES LIEUX</div><h1>Favoris</h1><p>Retrouve instantanément tes villes, stations et spots météo.</p></div>
       <div id="favoritesGrid" class="favorites-grid"></div>
@@ -307,6 +345,8 @@
     <button class="active" data-nav="forecast"><span>⌂</span><small>Prévisions</small></button>
     <button data-nav="maps"><span>▧</span><small>Cartes</small></button>
     <button data-nav="route"><span>⌁</span><small>Trajet</small></button>
+    <button data-nav="explore"><span>◈</span><small>Explorer</small></button>
+    <button data-nav="station"><span>◉</span><small>Station</small></button>
     <button data-nav="favorites"><span>♡</span><small>Favoris</small></button>
   </nav>
 
@@ -391,6 +431,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="./js/app.js?v=1.8.27"></script>
+  <script type="module" src="./js/app.js?v=1.8.28"></script>
 </body>
 </html>
