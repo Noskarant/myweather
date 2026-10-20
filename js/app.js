@@ -4,6 +4,8 @@ import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
 import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
 import { buildVigilance, fetchVigilanceSnapshot, resolveFrenchDepartment, HAZARDS, VIGILANCE_LEVELS } from './weather-vigilance.js?v=1.8.27';
 import { analyzeRoute } from './route.js?v=1.6.1';
+import { createDiscoveryController } from './discovery.js?v=1.8.28';
+import { createStationController } from './weather-station.js?v=1.8.28';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
   formatHour, formatPrecipitation, isSnowForecast, nearestIndex, precipitationLabel, round, seasonFor, svgPath, weatherCodeInfo, weatherVisualProfile
@@ -49,13 +51,26 @@ const refs = {
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
   zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mountainPeriodTabs:$('#mountainPeriodTabs'), mountainVisual:$('#mountainVisual'),
   mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
-  forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
+  forecastView:$('#forecastView'), routeView:$('#routeView'), exploreView:$('#exploreView'), stationView:$('#stationView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
   modal:$('#hourModal'), closeModal:$('#closeHourModal'), modalTitle:$('#hourModalTitle'), modalSub:$('#hourModalSub'), modalGlyph:$('#hourModalGlyph'), modalMain:$('#hourModalMain'), hourDetailGrid:$('#hourDetailGrid'),
   routeForm:$('#routeForm'), routeFrom:$('#routeFrom'), routeTo:$('#routeTo'), routeDate:$('#routeDate'), routeTime:$('#routeTime'), swapRoute:$('#swapRoute'), routeLoading:$('#routeLoading'), routeEmpty:$('#routeEmpty'), routeResults:$('#routeResults'), routeSummary:$('#routeSummary'), routeRisk:$('#routeRisk'), routeSketch:$('#routeSketch'), routeTimeline:$('#routeTimeline'),
   bulletinBtn:$('#bulletinBtn'), bulletinModal:$('#bulletinModal'), closeBulletin:$('#closeBulletinModal'), bulletinContent:$('#bulletinContent'), bulletinUpdated:$('#bulletinUpdated'),
   locationPickerModal:$('#locationPickerModal'), closeLocationPicker:$('#closeLocationPicker'), locationPickerMap:$('#locationPickerMap'), locationPickerCoords:$('#locationPickerCoords'), locationPickerMeta:$('#locationPickerMeta'), locationPickerName:$('#locationPickerName'), locationPickerUse:$('#locationPickerUse'), locationPickerSearchInput:$('#locationPickerSearchInput'), locationPickerSearchResults:$('#locationPickerSearchResults'), locationPickerLocate:$('#locationPickerLocate'), locationPickerLayers:$('#locationPickerLayers'),
   toast:$('#toast'), canvas:$('#weatherFx')
 };
+
+const discoveryController = createDiscoveryController({
+  getContext:()=>({location:state.location,favorites:state.favorites}),
+  onOpenLocation:async point=>{showView('forecast');await loadLocation(point);},
+  escapeHtml,showToast
+});
+const stationController = createStationController({
+  getContext:()=>({
+    location:state.location,forecast:state.forecast,staleSince:state.staleSince,
+    demo:state.demo,forecastFetchedAt:state.forecastFetchedAt
+  }),
+  escapeHtml
+});
 
 function normalizeFavorites(value) {
   if (!Array.isArray(value)) return [];
@@ -527,6 +542,8 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
     state.loading = false;
     refs.refreshBtn.classList.remove('spinning');
     if (state.forecast) renderAll();
+    discoveryController.refresh();
+    if(refs.stationView?.classList.contains('active'))stationController.render();
     if(!OFFLINE_TEST&&!state.demo&&state.forecast)refreshOfficialVigilance();
     if(!OFFLINE_TEST&&!state.demo&&!state.weatherError&&state.forecast)refreshRadarNowcast();
   }
@@ -1922,6 +1939,10 @@ function closeBulletin(){ refs.bulletinModal?.classList.add('hidden'); document.
 
 function showView(name){
   refs.forecastView.classList.toggle('active',name==='forecast'); refs.routeView.classList.toggle('active',name==='route'); refs.favoritesView.classList.toggle('active',name==='favorites');
+  refs.exploreView?.classList.toggle('active',name==='explore');
+  refs.stationView?.classList.toggle('active',name==='station');
+  if(name==='explore')discoveryController.show();
+  if(name==='station')stationController.show(); else stationController.hide();
   $$('.bottom-nav [data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===(name==='forecast'?'forecast':name)));
   if(name==='maps'){refs.forecastView.classList.add('active');refs.routeView.classList.remove('active');refs.favoritesView.classList.remove('active');setTimeout(()=>$('#mapsSection').scrollIntoView({behavior:'smooth'}),50);$$('.bottom-nav [data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav==='maps'));}
   if(name!=='maps')scrollTo({top:0,behavior:'smooth'});
@@ -2206,7 +2227,7 @@ async function init(){
   refs.expertToggle?.setAttribute('aria-pressed', String(state.expert));
   refs.expertToggle?.classList.toggle('active', state.expert);
   bindEvents();setupRouteDefaults();renderFavorites();renderFavoriteQuickbar();
-  setInterval(()=>{updateNowClock();if(state.forecast){renderVigilance();renderNowcast();}},30000);
+  setInterval(()=>{updateNowClock();if(state.forecast){renderVigilance();renderNowcast();if(refs.stationView?.classList.contains('active'))stationController.render();}},30000);
   registerServiceWorker();
   window.addEventListener('online',()=>{if(state.weatherError&&!state.loading)loadLocation(state.location,{silent:true});});
   document.addEventListener('visibilitychange',()=>{
