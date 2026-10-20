@@ -75,6 +75,15 @@ export function createStationController({getContext,escapeHtml}) {
     const {location,forecast,staleSince,demo,forecastFetchedAt}=getContext();
     apply();
     $('#stationLocation').textContent=location?.name||'Lieu sélectionné';
+    const zone=forecast?.timezone || (location?.timezone==='auto'?null:location?.timezone);
+    const zoneOption=zone?{timeZone:zone}:{};
+    try{
+      $('#stationClock').textContent=new Intl.DateTimeFormat('fr-FR',{...zoneOption,hour:'2-digit',minute:'2-digit'}).format(new Date());
+      $('#stationDate').textContent=new Intl.DateTimeFormat('fr-FR',{...zoneOption,weekday:'long',day:'numeric',month:'long'}).format(new Date());
+    }catch{
+      $('#stationClock').textContent=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+      $('#stationDate').textContent=new Date().toLocaleDateString('fr-FR');
+    }
     const updated=forecastFetchedAt?new Date(forecastFetchedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):'—';
     $('#stationUpdate').textContent=(staleSince?'Données sauvegardées · ':'Prévisions mises à jour · ')+updated+(demo?' · Démonstration':'');
     const metrics=buildStationMetrics(forecast);
