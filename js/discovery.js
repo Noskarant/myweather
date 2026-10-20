@@ -1,4 +1,5 @@
 // Explorateur spatial : points échantillonnés, jamais une mesure exhaustive du terrain.
+import { estimateEffectiveSunshineSeconds } from './weather.js?v=1.8.24';
 const BASE_URL = 'https://api.open-meteo.com/v1/forecast';
 const R = 6371;
 const finite = x => x === null || x === undefined || x === '' ? null : (Number.isFinite(Number(x)) ? Number(x) : null);
@@ -50,11 +51,29 @@ export function evaluateCandidate(point,forecast,period='today') {
   const snowDepth=finite(forecast.hourly.snow_depth?.[idx]);
   const snowCm=snowDepth==null?null:Math.max(0,snowDepth*100);
   const snowfallCm=timeWindow.reduce((sum,h)=>sum+Math.max(0,finite(forecast.hourly.snowfall?.[h.i])||0),0);
-  const sunshineSeconds=timeWindow.reduce((sum,h)=>{
+  const sunshineKnown=timeWindow.some(h=>finite(forecast.hourly.sunshine_duration?.[h.i])!=null);
+  const rawSunshineSeconds=timeWindow.reduce((sum,h)=>{
     const raw=finite(forecast.hourly.sunshine_duration?.[h.i]);
     return sum+(raw==null?0:Math.max(0,Math.min(3600,raw)));
   },0);
-  const sunshineKnown=timeWindow.some(h=>finite(forecast.hourly.sunshine_duration?.[h.i])!=null);
+  const dates=[...new Set(timeWindow.map(h=>h.time.slice(0,10)))];
+  const correctedSunshine=dates.map(date=>{
+    const dayIndex=forecast.daily?.time?.indexOf(date)??-1;
+    const day={time:date,sunrise:forecast.daily?.sunrise?.[dayIndex],
+      sunset:forecast.daily?.sunset?.[dayIndex],sunshineDuration:forecast.daily?.sunshine_duration?.[dayIndex]};
+    const dayHours=timeWindow.filter(h=>h.time.startsWith(date)).map(h=>({
+      time:h.time,sunshine_duration:forecast.hourly.sunshine_duration?.[h.i],
+      cloud_cover:forecast.hourly.cloud_cover?.[h.i],
+      cloud_cover_low:forecast.hourly.cloud_cover_low?.[h.i],
+      cloud_cover_mid:forecast.hourly.cloud_cover_mid?.[h.i],
+      cloud_cover_high:forecast.hourly.cloud_cover_high?.[h.i],
+      precipitation:forecast.hourly.precipitation?.[h.i],
+      weather_code:forecast.hourly.weather_code?.[h.i]
+    }));
+    return estimateEffectiveSunshineSeconds(day,dayHours);
+  });
+  const sunshineSeconds=correctedSunshine.length&&correctedSunshine.every(x=>x!=null)
+    ?correctedSunshine.reduce((sum,n)=>sum+n,0):rawSunshineSeconds;
   const cloud=timeWindow.reduce((sum,h)=>sum+(finite(forecast.hourly.cloud_cover?.[h.i])??0),0);
   const coverage=timeWindow.filter(h=>finite(forecast.hourly.cloud_cover?.[h.i])!=null).length;
   const alt=finite(forecast.elevation);
@@ -139,8 +158,8 @@ export function createDiscoveryController({getContext,onOpenLocation,escapeHtml,
     const responses=await Promise.allSettled(tasks.map(async group=>{
       const q=new URLSearchParams({
         latitude:group.map(p=>p.lat.toFixed(5)).join(','),longitude:group.map(p=>p.lon.toFixed(5)).join(','),
-        current:'temperature_2m',hourly:'snow_depth,snowfall,sunshine_duration,cloud_cover',
-        daily:'sunrise,sunset',timezone:'auto',forecast_days:'3',wind_speed_unit:'kmh'
+        current:'temperature_2m',hourly:'snow_depth,snowfall,sunshine_duration,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation,weather_code',
+        daily:'sunrise,sunset,sunshine_duration',timezone:'auto',forecast_days:'3',wind_speed_unit:'kmh'
       });
       const response=await fetch(BASE_URL+'?'+q.toString(),{signal:AbortSignal.timeout(14000)});
       if(!response.ok)throw Error('Météo indisponible ('+response.status+')');
