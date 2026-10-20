@@ -17,9 +17,9 @@ export function generateCandidates(origin,radius,favorites=[]) {
     const count=portion<=.10?12:16;
     for(let j=0;j<count;j++) {
       const bearing=(j+.5*(steps.indexOf(portion)%2))*2*Math.PI/count;
-      const lat=origin.lat+Math.cos(bearing)*d/111.195;
-      const cosLat=Math.max(.15,Math.cos(origin.lat*Math.PI/180));
-      const lon=origin.lon+Math.sin(bearing)*d/(111.195*cosLat);
+      const lat=Number(origin.lat)+Math.cos(bearing)*d/111.195;
+      const cosLat=Math.max(.15,Math.cos(Number(origin.lat)*Math.PI/180));
+      const lon=Number(origin.lon)+Math.sin(bearing)*d/(111.195*cosLat);
       if(lat<=-89 || lat>=89) continue;
       result.push({lat,lon,name:null});
     }
@@ -179,7 +179,7 @@ export function createDiscoveryController({getContext,onOpenLocation,escapeHtml,
     const rad=Math.max(25,Math.min(200,Number(radius.value)||100));
     saveStorage('myweather:explore-radius',String(rad));
     saveStorage('myweather:explore-period',period.value);
-    const key=[origin.lat.toFixed(3),origin.lon.toFixed(3),rad,period.value].join(':');
+    const key=[Number(origin.lat).toFixed(3),Number(origin.lon).toFixed(3),rad,period.value].join(':');
     run.disabled=true;run.textContent='Analyse en cours…';
     status.textContent='Comparaison des prévisions sur un maillage géographique…';
     results.innerHTML='';
