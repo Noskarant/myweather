@@ -1748,8 +1748,8 @@ body{
   height:38px;min-width:104px;padding:0 10px;border:1.5px solid rgba(162,212,231,.5);
   border-radius:11px;color:#edf9ff;background:#21495b;box-shadow:0 0 0 2px rgba(255,255,255,.03);
   font-size:10px;font-weight:850;cursor:pointer;transition:background .2s,box-shadow .2s}
+.vigilance-toggle[hidden]{display:none!important}
 .vigilance-icon{font-size:16px;line-height:1;filter:drop-shadow(0 0 3px rgba(255,255,255,.28))}
-.vigilance-toggle[data-level="0"]{background:#15573e;border-color:#50d6a5}
 .vigilance-toggle[data-level="1"]{background:#e8cf43;border-color:#fff083;color:#352d13;box-shadow:0 0 12px rgba(255,211,42,.23)}
 .vigilance-toggle[data-level="2"]{background:#ec8c23;border-color:#ffcf8a;color:#251405;box-shadow:0 0 16px rgba(255,137,35,.38)}
 .vigilance-toggle[data-level="3"]{background:#df303a;border-color:#ffc4c4;color:#fff;box-shadow:0 0 17px rgba(247,56,67,.55)}

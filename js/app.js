@@ -2,7 +2,7 @@ import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseG
 import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.24';
 import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
 import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
-import { buildVigilance, fetchVigilanceSnapshot, resolveFrenchDepartment, HAZARDS, VIGILANCE_LEVELS } from './weather-vigilance.js?v=1.8.26';
+import { buildVigilance, fetchVigilanceSnapshot, resolveFrenchDepartment, HAZARDS, VIGILANCE_LEVELS } from './weather-vigilance.js?v=1.8.27';
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
@@ -457,7 +457,7 @@ function renderWeatherUnavailable(location, error) {
   if(refs.futureCondition) refs.futureCondition.textContent='Indisponible';
   if(refs.futureMeta) refs.futureMeta.textContent='—';
   if(refs.nowcast) refs.nowcast.hidden=true;
-  if(refs.vigilanceToggle){refs.vigilanceToggle.dataset.level='unknown';refs.vigilanceToggleText.textContent='Indisponible';refs.vigilanceToggle.setAttribute('aria-label','Vigilance indisponible');}
+  if(refs.vigilanceToggle)refs.vigilanceToggle.hidden=true;
   if(refs.vigilanceModal)closeVigilance();
   if(refs.mountainStats) refs.mountainStats.replaceChildren();
   if(refs.snowFusionHighlights) refs.snowFusionHighlights.replaceChildren();
@@ -470,6 +470,7 @@ async function loadLocation(location, {silent=false,asBase=false}={}) {
   const previousForecast=state.forecast;
   const previousSavedAt=state.forecastFetchedAt;
   state.loading = true;
+  if(refs.vigilanceToggle)refs.vigilanceToggle.hidden=true;
   vigilanceTicket++;
   state.officialVigilance=null;
   state.vigilanceDepartment=null;
@@ -574,21 +575,32 @@ function openVigilance(){
   refs.vigilanceClose?.focus();
 }
 function renderVigilance(){
-  if(!refs.vigilanceToggle||!state.forecast||state.demo)return;
+  if(!refs.vigilanceToggle)return;
+  if(!state.forecast||state.demo){
+    refs.vigilanceToggle.hidden=true;
+    state.vigilance=null;
+    if(refs.vigilanceModal&&!refs.vigilanceModal.classList.contains('hidden'))closeVigilance();
+    return;
+  }
   const report=buildVigilance(state.forecast,state.location,state.officialVigilance,state.vigilanceDepartment);
   state.vigilance=report;
   const outdated=state.staleSince&&Date.now()-state.staleSince>3*3600_000;
   const lvl=report.displayLevel;
   const name=VIGILANCE_LEVELS[lvl];
   const upcoming=report.displayDay==='tomorrow';
-  refs.vigilanceToggle.dataset.level=outdated?'unknown':String(lvl);
+  // A green/neutral indicator is never useful: show only fresh yellow/orange/red alerts.
+  const showAlert=lvl>=1&&!outdated;
+  refs.vigilanceToggle.hidden=!showAlert;
+  if(!showAlert){
+    if(refs.vigilanceModal&&!refs.vigilanceModal.classList.contains('hidden'))closeVigilance();
+    return;
+  }
+  refs.vigilanceToggle.dataset.level=String(lvl);
   refs.vigilanceToggle.dataset.timing=upcoming?'tomorrow':'today';
-  refs.vigilanceToggleText.textContent=outdated?'À actualiser':lvl===0?'Risques · calme':
-    (upcoming?'Demain · ':'Risque · ')+name.toLowerCase();
+  refs.vigilanceToggleText.textContent=(upcoming?'Demain · ':'Risque · ')+name.toLowerCase();
   refs.vigilanceToggle.setAttribute('aria-label',
-    outdated?'Risques météorologiques : données à actualiser':
-    (upcoming?'Demain, ':'Aujourd’hui, ')+(lvl===0?'aucun risque marqué estimé':name.toLowerCase()+
-    ', '+(report.primary?HAZARDS[report.primary.kind].name:'vigilance'))+'. Afficher les détails.');
+    (upcoming?'Demain, ':'Aujourd’hui, ')+name.toLowerCase()+
+    ', '+(report.primary?HAZARDS[report.primary.kind].name:'vigilance')+'. Afficher les détails.');
   refs.vigilanceHeading.textContent='Vigilances · '+(state.location?.name||'lieu sélectionné');
   const provenance=report.hasOfficial
     ?'Complément départemental Météo-France disponible (niveau départemental, pas une mesure sur ce point).'
@@ -596,6 +608,7 @@ function renderVigilance(){
   refs.vigilanceMeta.textContent=(outdated?'Prévisions enregistrées trop anciennes : actualisation nécessaire. ':'')+
     'Codes couleur MyWeather indicatifs, distincts des vigilances officielles. '+provenance;
   const renderDay=(d,label)=>{
+    if(d.level<1)return '';
     const header='<div class="vigilance-day-head"><strong>'+label+'</strong><span class="vigilance-level" data-level="'+
       d.level+'">'+VIGILANCE_LEVELS[d.level]+'</span></div>';
     const rows=d.items.length?d.items.map(item=>{
@@ -2169,7 +2182,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.26', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.27', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
