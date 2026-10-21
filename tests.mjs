@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
+import { estimateSnowLevel, currentSnowlineBadge, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
 import { hourlyRailWindow } from './js/hourly-navigation.js';
 import { sampleRoute } from './js/route.js';
 import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations, inSavoieArea, eligibleSavoieStations, applySavoieObservations, loadSavoieObservations } from './js/rhone-observations.js';
@@ -78,6 +78,20 @@ assert.equal(
 
 const lpn = estimateSnowLevel({freezingLevel:1600, wetBulb:0, precipitation:2, elevation:900});
 assert.ok(lpn >= 1100 && lpn <= 1400, `LPN plausible attendue, reçu ${lpn}`);
+
+const mountainCol={name:'Col du Mottet',type:'Col',elevation:2374};
+const warmHour={snowLevel:1900,temperature_2m:11,precipitation:0,snowfall:0};
+const coldWet={snowLevel:1900,temperature_2m:1,precipitation:0.5};
+const coldDry={snowLevel:1900,temperature_2m:1,precipitation:0};
+assert.equal(currentSnowlineBadge(mountainCol,warmHour,[warmHour]),1900,'A mountain pass must always show current LPN when available');
+assert.equal(currentSnowlineBadge({name:'Le Meiller',type:'Lieu-dit',elevation:1150},warmHour,[warmHour]),1900,'High-altitude mountain hamlet should display LPN');
+assert.equal(currentSnowlineBadge({name:'Denver',type:'Localité',elevation:1600},warmHour,[warmHour]),null,'High-altitude city alone must not count as a mountain summit');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité',elevation:180},coldDry,[coldDry]),null,'Cold without expected precipitation must hide LPN');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité',elevation:180},warmHour,[warmHour]),null,'Warm and dry locations must hide LPN');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité',elevation:180},warmHour,[coldWet]),1900,'Upcoming cold precipitation allows current LPN to appear');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité',elevation:180},warmHour,[{...coldWet,temperature_2m:6}]),null,'Warm precipitation should not count as snow-compatible');
+assert.equal(currentSnowlineBadge(mountainCol,{...warmHour,snowLevel:null},[coldWet]),null,'Missing current snow line must not be invented');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité'},warmHour,[{...coldWet,precipitation:0,snowfall:0.2}]),1900,'Forecast snowfall without rain should count');
 assert.equal(confidenceForHorizon(6), 94);
 assert.ok(confidenceForHorizon(300) < confidenceForHorizon(24));
 assert.equal(weatherCodeInfo(73).theme, 'snow');
