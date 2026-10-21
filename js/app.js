@@ -6,8 +6,8 @@ import { buildVigilance, fetchVigilanceSnapshot, resolveFrenchDepartment, HAZARD
 import { analyzeRoute } from './route.js?v=1.6.1';
 import {
   cardinal, clamp, confidenceForHorizon, debounce, escapeHtml, formatDateTime, formatDay, formatDuration,
-  formatHour, formatPrecipitation, isSnowForecast, nearestIndex, precipitationLabel, round, seasonFor, svgPath, weatherCodeInfo, weatherVisualProfile
-} from './utils.js?v=1.8.25';
+  formatHour, formatPrecipitation, isSnowForecast, currentSnowlineBadge, nearestIndex, precipitationLabel, round, seasonFor, svgPath, weatherCodeInfo, weatherVisualProfile
+} from './utils.js?v=1.8.29';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -52,7 +52,7 @@ const refs = {
   forecastView:$('#forecastView'), routeView:$('#routeView'), favoritesView:$('#favoritesView'), favoritesGrid:$('#favoritesGrid'),
   modal:$('#hourModal'), closeModal:$('#closeHourModal'), modalTitle:$('#hourModalTitle'), modalSub:$('#hourModalSub'), modalGlyph:$('#hourModalGlyph'), modalMain:$('#hourModalMain'), hourDetailGrid:$('#hourDetailGrid'),
   routeForm:$('#routeForm'), routeFrom:$('#routeFrom'), routeTo:$('#routeTo'), routeDate:$('#routeDate'), routeTime:$('#routeTime'), swapRoute:$('#swapRoute'), routeLoading:$('#routeLoading'), routeEmpty:$('#routeEmpty'), routeResults:$('#routeResults'), routeSummary:$('#routeSummary'), routeRisk:$('#routeRisk'), routeSketch:$('#routeSketch'), routeTimeline:$('#routeTimeline'),
-  bulletinBtn:$('#bulletinBtn'), bulletinModal:$('#bulletinModal'), closeBulletin:$('#closeBulletinModal'), bulletinContent:$('#bulletinContent'), bulletinUpdated:$('#bulletinUpdated'),
+  bulletinBtn:$('#bulletinBtn'), snowlineChip:$('#snowlineChip'), snowlineChipValue:$('#snowlineChipValue'), bulletinModal:$('#bulletinModal'), closeBulletin:$('#closeBulletinModal'), bulletinContent:$('#bulletinContent'), bulletinUpdated:$('#bulletinUpdated'),
   locationPickerModal:$('#locationPickerModal'), closeLocationPicker:$('#closeLocationPicker'), locationPickerMap:$('#locationPickerMap'), locationPickerCoords:$('#locationPickerCoords'), locationPickerMeta:$('#locationPickerMeta'), locationPickerName:$('#locationPickerName'), locationPickerUse:$('#locationPickerUse'), locationPickerSearchInput:$('#locationPickerSearchInput'), locationPickerSearchResults:$('#locationPickerSearchResults'), locationPickerLocate:$('#locationPickerLocate'), locationPickerLayers:$('#locationPickerLayers'),
   toast:$('#toast'), canvas:$('#weatherFx')
 };
@@ -458,6 +458,7 @@ function renderWeatherUnavailable(location, error) {
   if(refs.futureMeta) refs.futureMeta.textContent='—';
   if(refs.nowcast) refs.nowcast.hidden=true;
   if(refs.vigilanceToggle)refs.vigilanceToggle.hidden=true;
+  if(refs.snowlineChip)refs.snowlineChip.hidden=true;
   if(refs.vigilanceModal)closeVigilance();
   if(refs.mountainStats) refs.mountainStats.replaceChildren();
   if(refs.snowFusionHighlights) refs.snowFusionHighlights.replaceChildren();
@@ -683,6 +684,19 @@ function renderAll() {
   const elevation = Number(loc.elevation ?? f.elevation);
   refs.locationElevation.textContent = Number.isFinite(elevation) ? `${Math.round(elevation)} m` : 'alt. —';
   refs.locationMeta.textContent = [loc.type && loc.type !== 'Localité' ? loc.type : '', loc.admin1, loc.country].filter(Boolean).join(' · ');
+  // Current estimated LPN for mountain locations, and only near a plausible
+  // cold precipitation episode (within 12h) for every other location.
+  const forecastHours = f.hourly || [];
+  const currentHourIndex = forecastHours.indexOf(hNow);
+  const nextHours = currentHourIndex >= 0
+    ? forecastHours.slice(currentHourIndex, currentHourIndex + 13)
+    : [hNow];
+  const headerSnowline = currentSnowlineBadge(loc, hNow, nextHours);
+  if (refs.snowlineChip) {
+    refs.snowlineChip.hidden = headerSnowline === null;
+    if (headerSnowline !== null && refs.snowlineChipValue)
+      refs.snowlineChipValue.textContent = '~' + headerSnowline.toLocaleString('fr-FR') + ' m';
+  }
   if (document.activeElement !== refs.searchInput) refs.searchInput.value = loc.name || '';
   refs.currentTemp.textContent = `${Math.round(c.temperature_2m ?? hNow.temperature_2m ?? 0)}°`;
   const uvNow = Number(hNow.uv_index);
@@ -2176,7 +2190,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.28', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.29', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {

@@ -68,6 +68,38 @@ export function estimateSnowLevel({ freezingLevel, wetBulb, precipitation = 0, e
   return Math.max(0, Math.round(result / 50) * 50);
 }
 
+/**
+ * Small current LPN label for the forecast header.
+ * For mountain locations show the estimated current snow line whenever available.
+ * Else show only when cold temperatures and precipitation coincide within 12h.
+ * Never invent a snow line when the current forecast has none.
+ */
+export function currentSnowlineBadge(location = {}, currentHour = {}, upcomingHours = []) {
+  const rawLevel = currentHour?.snowLevel;
+  if (rawLevel === null || rawLevel === undefined || !Number.isFinite(Number(rawLevel))) return null;
+  const level = Number(rawLevel);
+  if (level < 0 || level > 9000) return null;
+
+  const type = String(location?.type || '').toLocaleLowerCase('fr').trim();
+  const name = String(location?.name || '').toLocaleLowerCase('fr').trim();
+  const altitude = location?.elevation == null ? null : Number(location.elevation);
+  const mountainType = /^(sommet|col|volcan|station|refuge|chalet|glacier|montagne|crête|crete|pic|plateau|alpage|massif|arête|arete)$/.test(type);
+  const highMountainPlace = Number.isFinite(altitude) && altitude >= 1000 &&
+    /^(hameau|lieu-dit|lieu|site|point carte)$/.test(type);
+  const mountainName = /^(col (?:du |de |des |d['’])|pic |pointe |aiguille |cime |crêt |cret |glacier |mont |montagne )/.test(name);
+  const mountainLocation = mountainType || highMountainPlace || mountainName;
+
+  const snowPossibleSoon = Array.isArray(upcomingHours) && upcomingHours.some(hour => {
+    const temp = hour?.temperature_2m;
+    if (temp == null || !Number.isFinite(Number(temp)) || Number(temp) > 3) return false;
+    const precipitation = Number(hour?.precipitation ?? 0);
+    const snowfall = Number(hour?.snowfall ?? 0);
+    return (Number.isFinite(precipitation) && precipitation >= 0.1) ||
+      (Number.isFinite(snowfall) && snowfall >= 0.05);
+  });
+  return mountainLocation || snowPossibleSoon ? Math.round(level / 50) * 50 : null;
+}
+
 export function confidenceForHorizon(hoursAhead) {
   if (hoursAhead <= 12) return 94;
   if (hoursAhead <= 24) return 91;

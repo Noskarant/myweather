@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { estimateSnowLevel, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
+import { estimateSnowLevel, currentSnowlineBadge, confidenceForHorizon, riskForPoint, weatherCodeInfo, weatherVisualProfile, haversineKm, nearestIndex } from './js/utils.js';
 import { hourlyRailWindow } from './js/hourly-navigation.js';
 import { sampleRoute } from './js/route.js';
 import { inRhoneArea, eligibleRhoneStations, applyRhoneObservations, inSavoieArea, eligibleSavoieStations, applySavoieObservations, loadSavoieObservations } from './js/rhone-observations.js';
@@ -78,6 +78,20 @@ assert.equal(
 
 const lpn = estimateSnowLevel({freezingLevel:1600, wetBulb:0, precipitation:2, elevation:900});
 assert.ok(lpn >= 1100 && lpn <= 1400, `LPN plausible attendue, reçu ${lpn}`);
+
+const mountainCol={name:'Col du Mottet',type:'Col',elevation:2374};
+const warmHour={snowLevel:1900,temperature_2m:11,precipitation:0,snowfall:0};
+const coldWet={snowLevel:1900,temperature_2m:1,precipitation:0.5};
+const coldDry={snowLevel:1900,temperature_2m:1,precipitation:0};
+assert.equal(currentSnowlineBadge(mountainCol,warmHour,[warmHour]),1900,'A mountain pass must always show current LPN when available');
+assert.equal(currentSnowlineBadge({name:'Le Meiller',type:'Lieu-dit',elevation:1150},warmHour,[warmHour]),1900,'High-altitude mountain hamlet should display LPN');
+assert.equal(currentSnowlineBadge({name:'Denver',type:'Localité',elevation:1600},warmHour,[warmHour]),null,'High-altitude city alone must not count as a mountain summit');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité',elevation:180},coldDry,[coldDry]),null,'Cold without expected precipitation must hide LPN');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité',elevation:180},warmHour,[warmHour]),null,'Warm and dry locations must hide LPN');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité',elevation:180},warmHour,[coldWet]),1900,'Upcoming cold precipitation allows current LPN to appear');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité',elevation:180},warmHour,[{...coldWet,temperature_2m:6}]),null,'Warm precipitation should not count as snow-compatible');
+assert.equal(currentSnowlineBadge(mountainCol,{...warmHour,snowLevel:null},[coldWet]),null,'Missing current snow line must not be invented');
+assert.equal(currentSnowlineBadge({name:'Oullins',type:'Localité'},warmHour,[{...coldWet,precipitation:0,snowfall:0.2}]),1900,'Forecast snowfall without rain should count');
 assert.equal(confidenceForHorizon(6), 94);
 assert.ok(confidenceForHorizon(300) < confidenceForHorizon(24));
 assert.equal(weatherCodeInfo(73).theme, 'snow');
@@ -264,13 +278,13 @@ for (const required of [
   'enableHighAccuracy:true',
   "locationPickerLocate:$('#locationPickerLocate')",
   "refs.locationPickerLocate?.addEventListener('click',locateLocationPickerSelf)",
-  "navigator.serviceWorker.register('./sw.js?v=1.8.28', {updateViaCache:'none'})",
+  "navigator.serviceWorker.register('./sw.js?v=1.8.29', {updateViaCache:'none'})",
   "window.addEventListener('pageshow', checkForUpdate)",
   "document.visibilityState === 'visible'",
   "navigator.serviceWorker.addEventListener('controllerchange'"
 ]) assert.equal(appSource.includes(required), true, 'Geolocation/PWA update logic missing: ' + required);
 const swSource = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
-assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.28'"), true, 'PWA cache version not bumped');
+assert.equal(swSource.includes("const CACHE = 'myweather-v1.8.29'"), true, 'PWA cache version not bumped');
 assert.equal(swSource.includes("fetch(event.request,{cache:'no-store',signal:AbortSignal.timeout(6000)})"), true, 'PWA fresh-network strategy missing');
 assert.equal(swSource.includes("caches.match(event.request,{ignoreSearch:true})"), true, 'PWA offline query fallback missing');
 console.log('✓ picker geolocation and PWA update regression checks passed');
@@ -280,8 +294,8 @@ const manifest = JSON.parse(manifestSource);
 assert.equal(manifest.display, 'fullscreen', 'Installed PWA must request fullscreen display');
 assert.deepEqual(manifest.display_override, ['fullscreen','standalone'], 'Fullscreen must fall back to standalone');
 assert.equal(indexSource.includes('maximum-scale=1,user-scalable=no'), true, 'Mobile page zoom must be disabled');
-assert.equal(indexSource.includes('./styles.css?v=1.8.28'), true, 'Fullscreen CSS cache-bust missing');
-assert.equal(indexSource.includes('./js/app.js?v=1.8.28'), true, 'Fullscreen app cache-bust missing');
+assert.equal(indexSource.includes('./styles.css?v=1.8.29'), true, 'Fullscreen CSS cache-bust missing');
+assert.equal(indexSource.includes('./js/app.js?v=1.8.29'), true, 'Fullscreen app cache-bust missing');
 assert.equal(appSource.includes('function preventDocumentZoom()'), false, 'Global touch interception must stay removed');
 const stylesSource = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 assert.equal(stylesSource.includes('min-height:100dvh'), true, 'Dynamic viewport height hardening missing');
@@ -762,7 +776,7 @@ assert.ok(stationFiles.includes('savoie?loadSavoieObservations()'));
 assert.ok(buildSavoie.includes("writeFile('data/savoie-observations.json'"));
 assert.ok(swSavoie.includes("'./data/savoie-observations.json'"),
   'Offline cache must include the alpine snapshot');
-assert.ok(indexSavoie.includes('./js/app.js?v=1.8.28'));
+assert.ok(indexSavoie.includes('./js/app.js?v=1.8.29'));
 assert.ok(pagesSavoie.includes('Fetch French regions and Québec station observations'));
 assert.equal(saoMissing.sources.validated,0);
 console.log('✓ Savoie 73: authenticated feeds, mountain altitude, locality, freshness, fallbacks, PWA passed');
