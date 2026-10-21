@@ -66,6 +66,10 @@ console.log('✓ vigilance local, official, geographic, today/tomorrow, stale da
 const appSource=fs.readFileSync(new URL('./js/app.js',import.meta.url),'utf8');
 const indexSource=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const cssSource=fs.readFileSync(new URL('./styles.css',import.meta.url),'utf8');
+assert.ok(!indexSource.includes('id="vigilanceMeta"'), 'The vigilance modal must have no verbose source paragraph');
+assert.ok(!appSource.includes('Codes couleur MyWeather indicatifs'), 'Remove the lengthy explanation under the title');
+assert.ok(!appSource.includes('Quantités : prévisions localisées'), 'Remove the lengthy disclaimer at the bottom');
+assert.ok(appSource.includes('<a href="https://vigilance.meteofrance.fr/" target="_blank" rel="noopener noreferrer">+ d’infos sur Météo-France ↗</a>'), 'Keep the short link to official Météo-France information');
 assert.match(indexSource,/id="vigilanceToggle"[^>]*\bhidden\b/,'Vigilance button must be hidden before first forecast load');
 assert.ok(appSource.includes('const showAlert=lvl>=1&&!outdated;'));
 assert.ok(appSource.includes('refs.vigilanceToggle.hidden=!showAlert;'));

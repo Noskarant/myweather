@@ -44,7 +44,7 @@ const refs = {
   searchForm:$('#searchForm'), searchInput:$('#searchInput'), searchResults:$('#searchResults'), mapPickerBtn:$('#mapPickerBtn'), geoBtn:$('#geoBtn'), nowClock:$('#nowClock'), futureClock:$('#futureClock'), favoriteBtn:$('#favoriteBtn'), favoriteIcon:$('#favoriteIcon'), refreshBtn:$('#refreshBtn'), favoriteQuickbar:$('#favoriteQuickbar'),
   locationName:$('#locationName'), locationElevation:$('#locationElevation'), locationMeta:$('#locationMeta'), confidence:$('#confidenceBadge'), currentTemp:$('#currentTemp'), currentCondition:$('#currentCondition'), feelsLike:$('#feelsLike'), lastUpdated:$('#lastUpdated'), localObservationIndicator:$('#localObservationIndicator'), localObservationInfo:$('#localObservationInfo'), localObservationTooltip:$('#localObservationTooltip'), weatherGlyph:$('#weatherGlyph'), heroScene:$('#heroScene'), futurePanel:$('#futureWeatherPanel'), futureScene:$('#futureScene'), futureTemp:$('#futureTemp'), futureCondition:$('#futureCondition'), futureMeta:$('#futureMeta'), quickMetrics:$('#quickMetrics'), sunriseTime:$('#sunriseTime'), sunsetTime:$('#sunsetTime'), insight:$('#weatherInsight'), nowcast:$('#weatherNowcast'), nowcastMessages:$('#weatherNowcastMessages'), nowcastRadar:$('#weatherNowcastRadar'),
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
-  vigilanceToggle:$('#vigilanceToggle'), vigilanceToggleText:$('#vigilanceToggleText'), vigilanceModal:$('#vigilanceModal'), vigilanceClose:$('#closeVigilanceModal'), vigilanceContent:$('#vigilanceContent'), vigilanceHeading:$('#vigilanceHeading'), vigilanceMeta:$('#vigilanceMeta'),
+  vigilanceToggle:$('#vigilanceToggle'), vigilanceToggleText:$('#vigilanceToggleText'), vigilanceModal:$('#vigilanceModal'), vigilanceClose:$('#closeVigilanceModal'), vigilanceContent:$('#vigilanceContent'), vigilanceHeading:$('#vigilanceHeading'),
   snowFusionToggle:$('#snowFusionToggle'), snowFusionPanel:$('#snowFusionPanel'), snowFusionClose:$('#snowFusionClose'), snowFusionSource:$('#snowFusionSource'), snowFusionHighlights:$('#snowFusionHighlights'), snowFusionTable:$('#snowFusionTable'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
   zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mountainPeriodTabs:$('#mountainPeriodTabs'), mountainVisual:$('#mountainVisual'),
@@ -602,11 +602,6 @@ function renderVigilance(){
     (upcoming?'Demain, ':'Aujourd’hui, ')+name.toLowerCase()+
     ', '+(report.primary?HAZARDS[report.primary.kind].name:'vigilance')+'. Afficher les détails.');
   refs.vigilanceHeading.textContent='Vigilances · '+(state.location?.name||'lieu sélectionné');
-  const provenance=report.hasOfficial
-    ?'Complément départemental Météo-France disponible (niveau départemental, pas une mesure sur ce point).'
-    :'Données de prévision MyWeather (Open-Meteo et moteur montagne). Vigilance officielle non disponible pour ce point.';
-  refs.vigilanceMeta.textContent=(outdated?'Prévisions enregistrées trop anciennes : actualisation nécessaire. ':'')+
-    'Codes couleur MyWeather indicatifs, distincts des vigilances officielles. '+provenance;
   const renderDay=(d,label)=>{
     if(d.level<1)return '';
     const header='<div class="vigilance-day-head"><strong>'+label+'</strong><span class="vigilance-level" data-level="'+
@@ -627,8 +622,7 @@ function renderVigilance(){
     escapeHtml(main)+'</strong><span>'+(report.displayDay==='tomorrow'?'Demain':'Aujourd’hui')+
     ' · '+VIGILANCE_LEVELS[lvl]+(outdated?' · données anciennes':'')+
     '</span></p>'+renderDay(report.today,'Aujourd’hui')+renderDay(report.tomorrow,'Demain')+
-    '<p class="vigilance-disclaimer">Quantités : prévisions localisées, non mesures. Seuils de couleur internes, non homologués. Grêle uniquement si signal météo explicite. Pour toute décision de sécurité, consulte la '+
-    '<a href="https://vigilance.meteofrance.fr/" target="_blank" rel="noopener noreferrer">vigilance officielle Météo-France ↗</a>.</p>';
+    '<p class="vigilance-disclaimer"><a href="https://vigilance.meteofrance.fr/" target="_blank" rel="noopener noreferrer">+ d’infos sur Météo-France ↗</a></p>';
 }
 
 const nowcastIcons={thunder:'⚡',rain:'☂',snow:'❄',sun:'☀','rain-total':'◌','snow-total':'❄'};
@@ -2182,7 +2176,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.27', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.28', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
