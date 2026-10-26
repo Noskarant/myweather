@@ -20,6 +20,29 @@ permissions:
   contents: read
 
 jobs:
+  visual-widget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install lightweight browser smoke dependencies
+        run: npm install --no-audit --no-fund --no-save playwright@1.57.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify desktop layout, geolocation and interactions
+        run: node desktop-widget/tests/widget-ui-smoke.mjs
+      - name: Save visual preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyWeather-widget-visual-preview
+          path: desktop-widget/tests/widget-ui-preview.png
+          if-no-files-found: ignore
+          retention-days: 7
+
   package-widget:
     runs-on: windows-latest
     timeout-minutes: 20
