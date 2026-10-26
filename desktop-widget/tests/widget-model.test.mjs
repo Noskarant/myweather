@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
  DEFAULT_WIDGET_PLACE,finite,rounded,isValidPlace,normalizePlace,
- locationLabel,placeSuggestion,chooseHours,shouldShowMountain,futureSnowSum,
+ locationLabel,placeSuggestion,chooseHours,chooseDays,dayLabel,shouldShowMountain,futureSnowSum,
  parseDepartmentCode,mergeUniquePlaces
 } from '../../js/widget-model.js';
 
@@ -53,4 +53,18 @@ test('nearby identical geocodes appear only once while keeping distinct places',
   {name:'C',lat:45.7109,lon:4.800001}
  ];
  assert.deepEqual(mergeUniquePlaces(places).map(p=>p.name),['A','C']);
+});
+
+test('daily preview starts on the weather location date and yields seven future days',()=>{
+ const daily=Array.from({length:12},(_,i)=>({
+  time:new Date(Date.UTC(2026,9,25+i)).toISOString().slice(0,10),
+  max:10+i,min:2+i
+ }));
+ const chosen=chooseDays({current:{time:'2026-10-26T13:00'},daily},7);
+ assert.equal(chosen.length,7);
+ assert.equal(chosen[0].time,'2026-10-26');
+ assert.equal(chosen[6].time,'2026-11-01');
+ assert.equal(dayLabel('2026-10-26'),'lun 26');
+ assert.equal(dayLabel('not-a-day'),'—');
+ assert.deepEqual(chooseDays({daily:[]}),[]);
 });
