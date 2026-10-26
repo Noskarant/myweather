@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https:; img-src 'self' data:; object-src 'none'; base-uri 'none'">
+<title>MyWeather · Widget</title><link rel="stylesheet" href="./js/widget.css"></head>
+<body><main class="widget" aria-label="MyWeather widget météo Windows">
+<header class="drag-handle"><div class="branding"><span class="logo">◈</span><strong>MyWeather</strong></div>
+<div class="actions no-drag"><button id="refresh" title="Actualiser">↻</button><button id="settings" title="Choisir un lieu">⚙</button><button id="open" title="Ouvrir MyWeather">↗</button></div></header>
+<div class="place-line"><span id="place">Oullins</span><span id="altitude" class="muted"></span></div>
+<section class="current" aria-live="polite"><div><div id="temp" class="temperature">--°</div><div id="condition" class="condition">Chargement…</div><div id="feels" class="subtle">Prévisions MyWeather</div></div><div id="glyph" class="glyph" aria-hidden="true">☁</div></section>
+<div class="metrics" id="metrics"><span>Vent —</span><span>Pluie —</span><span>Humidité —</span></div><div id="mountain" class="mountain" hidden></div><div id="hours" class="hours"></div>
+<footer><span id="status" role="status">Synchronisation…</span><span id="updated"></span></footer>
+<section id="picker" class="picker" hidden><div class="picker-header"><strong>Choisir un lieu</strong><button id="close-picker">✕</button></div>
+<label for="recent">Mes lieux enregistrés</label><select id="recent"></select>
+<label for="search">Rechercher dans MyWeather</label><div class="search-row"><input id="search" type="search" placeholder="Ville, col, sommet…" autocomplete="off"><button id="search-btn">OK</button></div><div id="results" class="results"></div></section>
+</main><script type="module" src="./js/widget.js"></script></body></html>
