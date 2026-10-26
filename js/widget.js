@@ -1,104 +1,291 @@
-import {getForecast,geocode} from './weather.js';
+import {getForecast,geocode,reverseGeocodeApprox} from './weather.js';
 import {weatherCodeInfo} from './utils.js';
-const DEFAULT={name:'Oullins',admin1:'Auvergne-Rhône-Alpes',country:'France',lat:45.714,lon:4.807,elevation:180,timezone:'Europe/Paris'};
-const el=id=>document.getElementById(id);
-const num=v=>v==null||!Number.isFinite(Number(v))?null:Number(v);
-const fmt=v=>num(v)==null?'—':String(Math.round(Number(v)));
-const valid=p=>p&&typeof p.name==='string'&&p.name.length<180&&num(p.lat)!=null&&num(p.lon)!=null&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180;
-const read=(key,otherwise)=>{try{return JSON.parse(localStorage.getItem(key))??otherwise}catch{return otherwise}};
-let place=read('myweather:widget-location',DEFAULT);
-if(!valid(place))place=DEFAULT;
-let saved=read('myweather:widget-places',[]);
-saved=Array.isArray(saved)?saved.filter(valid).slice(0,8):[];
-let data=null,fetching=false,nextRefresh=0,generation=0;
-function picker(){
- const select=el('recent');select.replaceChildren();
- const places=[...saved];if(!places.some(p=>Math.abs(p.lat-DEFAULT.lat)<.001))places.push(DEFAULT);
- for(const p of places){const o=document.createElement('option');o.value=JSON.stringify(p);o.textContent=p.name+(p.admin1?' · '+p.admin1:'');select.append(o)}
- const active=places.find(p=>Math.abs(p.lat-place.lat)<.0001&&Math.abs(p.lon-place.lon)<.0001);
- if(active)select.value=JSON.stringify(active);
+import {
+ DEFAULT_WIDGET_PLACE,finite,rounded,isValidPlace,normalizePlace,
+ locationLabel,placeSuggestion,chooseHours,shouldShowMountain,futureSnowSum,
+ parseDepartmentCode,mergeUniquePlaces
+} from './widget-model.js';
+
+const $=id=>document.getElementById(id);
+const KEY_LOCATION='myweather:widget-location';
+const KEY_PLACES='myweather:widget-places';
+const KEY_LOCATION_MODE='myweather:widget-location-mode';
+const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}};
+const safeWrite=(key,data)=>{try{localStorage.setItem(key,JSON.stringify(data))}catch(error){console.warn('Widget storage',error)}};
+const richPlace=p=>normalizePlace({...p,departmentCode:parseDepartmentCode(p)});
+const fallback=richPlace(DEFAULT_WIDGET_PLACE);
+let place=richPlace(read(KEY_LOCATION,null))||fallback;
+let places=mergeUniquePlaces(read(KEY_PLACES,[])).map(richPlace).filter(Boolean).slice(0,12);
+let locationMode=localStorage.getItem(KEY_LOCATION_MODE)||'auto'; // Existing installations become location-aware.
+let forecast=null,refreshToken=0,lastRefresh=0,nextRefresh=0,fetchPending=false;
+let selectedTime=null,lookupToken=0,lookupTimer=0,currentResults=[];
+let locating=false;
+const fmt=(x,unit='')=>finite(x)===null?'—':rounded(x)+unit;
+const decimal=(x,unit='')=>finite(x)===null?'—':Number(x).toFixed(1).replace('.',',')+unit;
+function inform(text){$('status').textContent=text}
+function refreshPlaceHeader(){
+ $('place').textContent=place.name;
+ $('place-meta').textContent=locationLabel(place)||place.country||'Position météo';
+ const alt=finite(place.elevation);
+ $('altitude').hidden=alt===null;
+ if(alt!==null)$('altitude').textContent=Math.round(alt)+' m';
+ $('place-button').title='Changer de lieu · '+place.name+(locationLabel(place)?', '+locationLabel(place):'');
 }
-function setPlace(p){
- if(!valid(p))return;
- place={name:p.name,admin1:p.admin1||'',country:p.country||'',lat:Number(p.lat),lon:Number(p.lon),elevation:num(p.elevation),timezone:p.timezone||'auto'};
- saved=[place,...saved.filter(x=>Math.abs(x.lat-place.lat)>.0001||Math.abs(x.lon-place.lon)>.0001)].slice(0,8);
- localStorage.setItem('myweather:widget-location',JSON.stringify(place));
- localStorage.setItem('myweather:widget-places',JSON.stringify(saved));
- el('picker').hidden=true;el('place').textContent=place.name;el('condition').textContent='Chargement…';el('temp').textContent='--°';
- data=null;generation++;picker();void refresh();
+function savePlace(candidate,mode='manual'){
+ const normalized=richPlace(candidate);
+ if(!normalized)return;
+ place=normalized;
+ locationMode=mode;
+ safeWrite(KEY_LOCATION,place);
+ localStorage.setItem(KEY_LOCATION_MODE,mode);
+ places=mergeUniquePlaces([place,...places]).slice(0,12);
+ safeWrite(KEY_PLACES,places);
+ $('picker').hidden=true;
+ selectedTime=null;forecast=null;
+ refreshToken++;
+ refreshPlaceHeader();
+ $('temp').textContent='--°';
+ $('condition').textContent='Chargement de la météo…';
+ $('hour-detail').hidden=true;
+ $('mountain').hidden=true;
+ $('hours').replaceChildren();
+ inform('Actualisation…');
+ void refresh();
 }
-function nextHours(fc){
- const hours=fc.hourly||[];if(!hours.length)return [];
- const now=String(fc.current?.time||'');
- let i=hours.findIndex(h=>String(h.time).slice(0,13)===now.slice(0,13));
- if(i<0)i=hours.findIndex(h=>String(h.time)>=now);
- return hours.slice(Math.max(i,0),Math.max(i,0)+5);
+function renderPlaces(){
+ const list=$('recent-list');
+ list.replaceChildren();
+ const items=mergeUniquePlaces([place,...places,fallback]).slice(0,9);
+ items.forEach(candidate=>{
+  const p=richPlace(candidate);
+  const b=document.createElement('button');
+  b.type='button';b.className='recent-item';
+  const icon=document.createElement('span');icon.className='result-symbol';icon.textContent='⌖';
+  const copy=document.createElement('span');copy.className='result-copy';
+  const title=document.createElement('strong');title.textContent=p.name;
+  const sub=document.createElement('small');sub.textContent=locationLabel(p)||p.country;
+  copy.append(title,sub);b.append(icon,copy);
+  b.addEventListener('click',()=>savePlace(p,'manual'));
+  list.append(b);
+ });
 }
-function display(fc){
- const current=fc.current||{},hours=nextHours(fc),hour=hours[0]||{};
- const info=weatherCodeInfo(current.weather_code??hour.weather_code,current.is_day??1);
- el('place').textContent=place.name;
- el('altitude').textContent=place.elevation!=null?Math.round(place.elevation)+' m':'';
- el('temp').textContent=fmt(current.temperature_2m??hour.temperature_2m)+'°';
- el('condition').textContent=info.label;el('glyph').textContent=info.glyph;
- el('feels').textContent='Ressenti '+fmt(current.apparent_temperature??hour.apparent_temperature)+' °C';
- el('metrics').replaceChildren();
- const precip=num(current.precipitation??hour.precipitation);
- for(const label of ['Vent '+fmt(current.wind_speed_10m??hour.wind_speed_10m)+' km/h','Pluie '+(precip===null?'—':precip.toFixed(1).replace('.',','))+' mm','Humidité '+fmt(current.relative_humidity_2m??hour.relative_humidity_2m)+' %']){
-   const span=document.createElement('span');span.textContent=label;el('metrics').append(span);
+function setPicker(open){
+ $('picker').hidden=!open;
+ if(open){
+  renderPlaces();
+  $('geo-status').textContent=locating?'Recherche de votre position…':locationMode==='auto'?'Localisation automatique activée':'Autorisation de Windows requise';
+  if($('search').value.trim().length>=2)void lookup();
  }
- const mount=el('mountain');mount.hidden=place.elevation==null||place.elevation<800;
- if(!mount.hidden){
-   const line=num(hour.snowLevel);
-   const snow=hours.reduce((s,h)=>s+Math.max(0,num(h.snowfall)??0),0);
-   mount.textContent='LPN '+(line==null?'—':Math.round(line)+' m')+' · Neige sur 5 h : '+snow.toFixed(1).replace('.',',')+' cm';
+}
+function renderMetrics(current,hour){
+ const entries=[
+  ['Vent',fmt(current.wind_speed_10m??hour.wind_speed_10m,' km/h')],
+  ['Pluie',decimal(current.precipitation??hour.precipitation,' mm')],
+  ['Humidité',fmt(current.relative_humidity_2m??hour.relative_humidity_2m,' %')]
+ ];
+ const container=$('metrics');container.replaceChildren();
+ for(const [label,value] of entries){
+  const item=document.createElement('div');item.className='metric';
+  const name=document.createElement('span');name.textContent=label;
+  const number=document.createElement('strong');number.textContent=value;
+  item.append(name,number);container.append(item);
  }
- el('hours').replaceChildren();
- for(const h of hours){
-   const col=document.createElement('div');col.className='hour';
-   const values=[['hour-time',String(h.time||'').slice(11,16)],['hour-icon',weatherCodeInfo(h.display_weather_code??h.weather_code,1).glyph],['hour-temp',fmt(h.temperature_2m)+'°']];
-   for(const [cls,val] of values){const span=document.createElement('span');span.className=cls;span.textContent=val;col.append(span)}
-   el('hours').append(col);
+}
+function renderMountain(hours){
+ const hour=hours[0]||{};
+ const visible=shouldShowMountain(place,hour);
+ $('mountain').hidden=!visible;
+ if(!visible)return;
+ const lpn=finite(hour.snowLevel);
+ $('snowline').textContent=lpn===null?'Indisponible':Math.round(lpn).toLocaleString('fr-FR')+' m';
+ $('snowline').title=lpn===null?'Limite pluie-neige non estimée':'Estimation du moteur MyWeather, non une mesure';
+ $('snow-amount').textContent=decimal(futureSnowSum(hours,24),' cm');
+}
+function renderHourDetail(hour){
+ const panel=$('hour-detail');
+ panel.replaceChildren();panel.hidden=!hour;
+ if(!hour)return;
+ const values=[
+  ['Pluie',decimal(hour.precipitation,' mm')],
+  ['Risque pluie',fmt(hour.precipitation_probability,' %')],
+  ['Vent',fmt(hour.wind_speed_10m,' km/h')],
+  ['Rafales',fmt(hour.wind_gusts_10m,' km/h')],
+  ['Neige',decimal(hour.snowfall,' cm')],
+  ['LPN',fmt(hour.snowLevel,' m')]
+ ];
+ for(const [key,val] of values){
+  const box=document.createElement('span');
+  const label=document.createElement('span');label.textContent=key+' ';
+  const value=document.createElement('strong');value.textContent=val;
+  box.append(label,value);panel.append(box);
  }
- el('status').textContent='Prévisions MyWeather';
- el('updated').textContent='Actualisé à '+new Intl.DateTimeFormat('fr-FR',{hour:'2-digit',minute:'2-digit'}).format(new Date());
+}
+function renderHours(hours){
+ const rail=$('hours');
+ const oldScroll=rail.scrollLeft;
+ const items=hours.slice(0,36);
+ if(!selectedTime||!items.some(h=>h.time===selectedTime))selectedTime=items[0]?.time||null;
+ rail.replaceChildren();
+ items.forEach((h,i)=>{
+  const day=String(h.time||'').slice(8,10),time=String(h.time||'').slice(11,16);
+  const prevDay=i?String(items[i-1].time||'').slice(8,10):day;
+  const shownTime=i===0?'Maint.':day!==prevDay?day+'/'+String(h.time||'').slice(5,7):time;
+  const b=document.createElement('button');b.type='button';b.className='hour'+(h.time===selectedTime?' selected':'');
+  b.setAttribute('aria-pressed',String(h.time===selectedTime));
+  b.title='Prévision du '+String(h.time||'').replace('T',' ')+' · détails';
+  const glyph=weatherCodeInfo(h.display_weather_code??h.weather_code,1).glyph;
+  for(const [cls,value] of [['hour-time',shownTime],['hour-icon',glyph],['hour-temp',fmt(h.temperature_2m,'°')]]){
+   const span=document.createElement('span');span.className=cls;span.textContent=value;b.append(span);
+  }
+  b.addEventListener('click',()=>{
+   selectedTime=h.time;
+   rail.querySelectorAll('.hour').forEach(x=>{x.classList.remove('selected');x.setAttribute('aria-pressed','false')});
+   b.classList.add('selected');b.setAttribute('aria-pressed','true');
+   renderHourDetail(h);
+  });
+  rail.append(b);
+ });
+ rail.scrollLeft=oldScroll;
+ renderHourDetail(items.find(h=>h.time===selectedTime)||null);
+}
+function display(){
+ if(!forecast)return;
+ const current=forecast.current||{},hours=chooseHours(forecast,36),first=hours[0]||{};
+ const info=weatherCodeInfo(current.display_weather_code??current.weather_code??first.weather_code,current.is_day??1);
+ refreshPlaceHeader();
+ $('temp').textContent=fmt(current.temperature_2m??first.temperature_2m,'°');
+ $('glyph').textContent=info.glyph;
+ $('condition').textContent=info.label;
+ $('feels').textContent='Ressenti '+fmt(current.apparent_temperature??first.apparent_temperature,' °C');
+ renderMetrics(current,first);renderMountain(hours);renderHours(hours);
+ inform('Prévisions MyWeather');
+ $('updated').textContent='Màj '+new Intl.DateTimeFormat('fr-FR',{hour:'2-digit',minute:'2-digit'}).format(new Date(lastRefresh||Date.now()));
 }
 async function refresh(){
- if(fetching)return;
- fetching=true;const request=generation;
- el('status').textContent='Mise à jour…';
+ const generation=++refreshToken;
+ if(!forecast)inform('Connexion au moteur météo…');
+ fetchPending=true;
  try{
-   const forecast=await getForecast(place);
-   if(request!==generation)return;
-   if(!forecast?.current)throw Error('Données incomplètes');
-   data=forecast;display(data);nextRefresh=Date.now()+15*60_000;
+  const result=await getForecast({...place});
+  if(generation!==refreshToken)return;
+  if(!result?.current)throw new Error('Prévision incomplète');
+  forecast=result;lastRefresh=Date.now();nextRefresh=lastRefresh+15*60_000;
+  display();
  }catch(error){
-   if(request!==generation)return;
-   el('status').textContent=data?'Données anciennes · hors ligne':'Connexion indisponible';
-   if(!data){el('condition').textContent='Connexion indisponible';el('updated').textContent='Réessai automatique'}
-   nextRefresh=Date.now()+60_000;console.warn('MyWeather widget',error);
- }finally{fetching=false;if(request!==generation)queueMicrotask(()=>void refresh())}
+  if(generation!==refreshToken)return;
+  inform(forecast?'Hors ligne · dernières données':'Connexion indisponible');
+  if(!forecast){$('condition').textContent='Données indisponibles';$('updated').textContent='Nouvel essai automatique'}
+  nextRefresh=Date.now()+75_000;
+  console.warn('MyWeather forecast widget',error);
+ }finally{if(generation===refreshToken)fetchPending=false}
 }
-el('settings').addEventListener('click',()=>{picker();el('picker').hidden=false});
-el('close-picker').addEventListener('click',()=>el('picker').hidden=true);
-el('refresh').addEventListener('click',()=>{nextRefresh=0;void refresh()});
-el('open').addEventListener('click',()=>window.myWeatherDesktop?.openWebsite());
-el('recent').addEventListener('change',e=>{try{setPlace(JSON.parse(e.target.value))}catch{}});
-let seq=0;
-async function search(){
- const term=el('search').value.trim();if(term.length<2)return;
- const id=++seq;el('results').textContent='Recherche…';
+function renderResults(items){
+ const area=$('results');area.replaceChildren();
+ if(!items.length){
+  const p=document.createElement('p');p.className='search-message';p.textContent='Aucun lieu trouvé. Essaie un nom plus précis.';area.append(p);return;
+ }
+ for(const item of items){
+  const p=richPlace(item);if(!p)continue;
+  const {name,detail}=placeSuggestion(p);
+  const button=document.createElement('button');button.type='button';button.className='result-item';button.setAttribute('role','option');
+  const ico=document.createElement('span');ico.className='result-symbol';ico.textContent='⌖';
+  const copy=document.createElement('span');copy.className='result-copy';
+  const strong=document.createElement('strong');strong.textContent=name;
+  const small=document.createElement('small');small.textContent=detail;
+  copy.append(strong,small);button.append(ico,copy);
+  button.addEventListener('click',()=>savePlace(p,'manual'));
+  area.append(button);
+ }
+}
+async function lookup(){
+ const query=$('search').value.trim();const current=++lookupToken;
+ if(query.length<2){$('results').replaceChildren();currentResults=[];return}
+ $('results').textContent='Recherche des lieux…';
  try{
-   const matches=await geocode(term,6);if(id!==seq)return;
-   el('results').replaceChildren();
-   if(!matches.length){el('results').textContent='Aucun lieu trouvé';return}
-   for(const p of matches.filter(valid)){
-     const b=document.createElement('button');b.textContent=p.name+' · '+(p.admin1||p.country||'');
-     b.addEventListener('click',()=>setPlace(p));el('results').append(b);
-   }
- }catch(error){if(id===seq)el('results').textContent='Recherche indisponible';console.warn(error)}
+  const result=await geocode(query,12);
+  if(current!==lookupToken||$('picker').hidden)return;
+  currentResults=mergeUniquePlaces(result);
+  renderResults(currentResults);
+ }catch(error){
+  if(current===lookupToken)$('results').textContent='Recherche indisponible. Réessaie.';
+  console.warn('Recherche MyWeather',error);
+ }
 }
-el('search-btn').addEventListener('click',()=>void search());
-el('search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();void search()}});
-picker();void refresh();
-setInterval(()=>{if(!fetching&&Date.now()>=nextRefresh)void refresh()},60_000);
+function findThroughBrowser(){
+ return new Promise((resolve,reject)=>{
+  if(!navigator.geolocation){reject(new Error('Géolocalisation non disponible'));return}
+  navigator.geolocation.getCurrentPosition(
+   pos=>resolve({lat:pos.coords.latitude,lon:pos.coords.longitude}),
+   err=>reject(new Error(err.message||'Autorisation Windows refusée')),
+   {enableHighAccuracy:false,timeout:8500,maximumAge:600000}
+  );
+ });
+}
+async function locate(){
+ if(locating)return;
+ locating=true;
+ const status=$('geo-status');
+ status.textContent='Localisation en cours…';
+ const manual=locationMode==='manual';
+ try{
+  let coords=null;
+  // Windows location provider is preferred. Browser geolocation remains a fallback.
+  try{
+   const x=await window.myWeatherDesktop?.getLocation?.();
+   if(x?.ok&&Number.isFinite(x.lat)&&Number.isFinite(x.lon))coords=x;
+  }catch(error){console.warn('Windows location',error)}
+  if(!coords)coords=await findThroughBrowser();
+  if(!Number.isFinite(coords?.lat)||!Number.isFinite(coords?.lon))throw new Error('Coordonnées indisponibles');
+  // A manual location chosen during the async request must never be overwritten.
+  if(manual&&locationMode==='manual'&&$('picker').hidden)return;
+  let found;
+  try{found=await reverseGeocodeApprox(coords.lat,coords.lon)}catch{}
+  const named=richPlace({...found,
+   name:found?.name||'Ma position',lat:coords.lat,lon:coords.lon,
+   department:found?.department||'',country:found?.country||'France'})||
+   richPlace({name:'Ma position',lat:coords.lat,lon:coords.lon,country:'France'});
+  if(named){
+   savePlace(named,'auto');
+   status.textContent='Position actuelle utilisée';
+  }
+ }catch(error){
+  status.textContent='Localisation indisponible · Vérifie Windows > Confidentialité > Localisation';
+  if(!forecast)inform('Position non disponible · lieu conservé');
+  console.warn('Géolocalisation MyWeather',error);
+ }finally{locating=false}
+}
+$('settings').addEventListener('click',()=>setPicker(true));
+$('place-button').addEventListener('click',()=>setPicker(true));
+$('close-picker').addEventListener('click',()=>setPicker(false));
+$('refresh').addEventListener('click',()=>{nextRefresh=0;void refresh()});
+$('open').addEventListener('click',()=>{if(window.myWeatherDesktop?.openWebsite)window.myWeatherDesktop.openWebsite()});
+$('locate').addEventListener('click',()=>void locate());
+$('search').addEventListener('input',()=>{
+ clearTimeout(lookupTimer);
+ lookupTimer=setTimeout(()=>void lookup(),330);
+});
+$('search').addEventListener('keydown',e=>{
+ if(e.key==='Escape')setPicker(false);
+ else if(e.key==='Enter'){
+  e.preventDefault();if(currentResults.length===1)savePlace(currentResults[0],'manual');
+ }
+});
+$('clear-search').addEventListener('click',()=>{$('search').value='';lookupToken++;$('results').replaceChildren();$('search').focus()});
+$('hours-prev').addEventListener('click',()=>$('hours').scrollBy({left:-260,behavior:'smooth'}));
+$('hours-next').addEventListener('click',()=>$('hours').scrollBy({left:260,behavior:'smooth'}));
+$('hours').addEventListener('wheel',e=>{
+ const rail=$('hours');
+ if(rail.scrollWidth<=rail.clientWidth)return;
+ const delta=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;
+ if(delta!==0){rail.scrollLeft+=delta;e.preventDefault()}
+},{passive:false});
+$('hours').addEventListener('keydown',e=>{
+ if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+  $('hours').scrollBy({left:e.key==='ArrowRight'?180:-180,behavior:'smooth'});e.preventDefault();
+ }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('picker').hidden)setPicker(false)});
+refreshPlaceHeader();
+void refresh();
+if(locationMode!=='manual')void locate();
+setInterval(()=>{if(Date.now()>=nextRefresh&&!fetchPending)void refresh()},60_000);
