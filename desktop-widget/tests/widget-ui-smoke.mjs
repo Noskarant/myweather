@@ -101,7 +101,7 @@ try{
  assert.match(await page.locator('#hour-detail').innerText(),/LPN/);
  await page.locator('#settings').click();
  await page.locator('#search').fill('Oullins');
- await page.locator('.result-item').first().waitFor();
+ await page.locator('.result-item').filter({hasText:'Rhône (69)'}).first().waitFor();
  assert.match(await page.locator('.result-item').first().innerText(),/Rhône \(69\)/);
  await page.locator('#locate').click();
  await page.locator('#picker').waitFor({state:'hidden'});
