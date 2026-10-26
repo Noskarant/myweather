@@ -1,15 +1,70 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https:; img-src 'self' data:; object-src 'none'; base-uri 'none'">
-<title>MyWeather · Widget</title><link rel="stylesheet" href="./js/widget.css"></head>
-<body><main class="widget" aria-label="MyWeather widget météo Windows">
-<header class="drag-handle"><div class="branding"><span class="logo">◈</span><strong>MyWeather</strong></div>
-<div class="actions no-drag"><button id="refresh" title="Actualiser">↻</button><button id="settings" title="Choisir un lieu">⚙</button><button id="open" title="Ouvrir MyWeather">↗</button></div></header>
-<div class="place-line"><span id="place">Oullins</span><span id="altitude" class="muted"></span></div>
-<section class="current" aria-live="polite"><div><div id="temp" class="temperature">--°</div><div id="condition" class="condition">Chargement…</div><div id="feels" class="subtle">Prévisions MyWeather</div></div><div id="glyph" class="glyph" aria-hidden="true">☁</div></section>
-<div class="metrics" id="metrics"><span>Vent —</span><span>Pluie —</span><span>Humidité —</span></div><div id="mountain" class="mountain" hidden></div><div id="hours" class="hours"></div>
-<footer><span id="status" role="status">Synchronisation…</span><span id="updated"></span></footer>
-<section id="picker" class="picker" hidden><div class="picker-header"><strong>Choisir un lieu</strong><button id="close-picker">✕</button></div>
-<label for="recent">Mes lieux enregistrés</label><select id="recent"></select>
-<label for="search">Rechercher dans MyWeather</label><div class="search-row"><input id="search" type="search" placeholder="Ville, col, sommet…" autocomplete="off"><button id="search-btn">OK</button></div><div id="results" class="results"></div></section>
-</main><script type="module" src="./js/widget.js"></script></body></html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https:; img-src 'self' data:; object-src 'none'; base-uri 'none'">
+  <meta name="theme-color" content="#091a30">
+  <title>MyWeather · Widget Windows</title>
+  <link rel="stylesheet" href="./js/widget.css">
+</head>
+<body>
+<main class="widget" aria-label="Widget météo MyWeather pour Windows">
+  <header class="top drag-handle">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">◈</span><span>My<span class="brand-light">Weather</span></span><span class="brand-dot" title="Prévisions mises à jour"></span></div>
+    <div class="top-actions no-drag">
+      <button id="refresh" class="icon-btn" type="button" aria-label="Actualiser" title="Actualiser">↻</button>
+      <button id="settings" class="icon-btn" type="button" aria-label="Choisir un lieu" title="Choisir un lieu">⚙</button>
+      <button id="open" class="icon-btn" type="button" aria-label="Ouvrir MyWeather dans le navigateur" title="Ouvrir MyWeather">↗</button>
+    </div>
+  </header>
+  <div class="widget-content" id="widget-content">
+    <button class="location-button" type="button" id="place-button" aria-label="Changer de lieu">
+      <span class="place-icon" aria-hidden="true">⌖</span>
+      <span class="location-copy"><span id="place" class="place-name">Localisation…</span><span id="place-meta" class="place-meta"></span></span>
+      <span id="altitude" class="elevation" hidden></span><span class="chevron" aria-hidden="true">⌄</span>
+    </button>
+
+    <section class="current" aria-live="polite" aria-label="Conditions actuelles">
+      <div class="current-copy">
+        <div class="temp-row"><strong id="temp">--°</strong><span id="glyph" class="weather-glyph" aria-hidden="true">☁</span></div>
+        <div id="condition" class="condition">Chargement des prévisions…</div>
+        <div id="feels" class="feels">Ressenti —</div>
+      </div>
+      <div id="now-extra" class="now-extra" aria-hidden="true"><span class="sky-orbit"></span><span class="sky-glow"></span></div>
+    </section>
+
+    <div class="metrics" id="metrics">
+      <div class="metric"><span>Vent</span><strong>—</strong></div>
+      <div class="metric"><span>Pluie</span><strong>—</strong></div>
+      <div class="metric"><span>Humidité</span><strong>—</strong></div>
+    </div>
+
+    <section id="mountain" class="mountain" hidden aria-label="Prévisions montagne">
+      <div class="mountain-primary"><div class="mountain-icon" aria-hidden="true">❄</div><div class="mountain-text"><span>Limite pluie-neige estimée</span><strong id="snowline">—</strong></div></div>
+      <div class="mountain-secondary"><span>Neige fraîche prévue · 24 h</span><strong id="snow-amount">—</strong></div>
+    </section>
+
+    <section class="hourly-section" aria-label="Prévisions horaires défilables">
+      <div class="section-head"><div><span class="eyebrow">PRÉVISIONS</span><strong>Heure par heure</strong></div>
+        <div class="scroll-controls"><button id="hours-prev" class="scroll-btn" type="button" aria-label="Heures précédentes">‹</button><button id="hours-next" class="scroll-btn" type="button" aria-label="Heures suivantes">›</button></div>
+      </div>
+      <div id="hours" class="hours" role="group" aria-label="Faire défiler les 36 prochaines heures" tabindex="0"></div>
+      <div id="hour-detail" class="hour-detail" hidden role="status" aria-live="polite"></div>
+    </section>
+  </div>
+  <footer class="widget-footer"><span class="live-dot" aria-hidden="true"></span><span id="status" role="status">Connexion à MyWeather…</span><span id="updated" class="updated"></span></footer>
+
+  <section id="picker" class="picker" hidden aria-label="Choisir un lieu météo">
+    <header class="picker-header"><div><span class="eyebrow">MYWEATHER</span><strong>Choisir un lieu</strong></div><button id="close-picker" class="icon-btn" type="button" aria-label="Fermer">✕</button></header>
+    <button id="locate" class="geo-action" type="button"><span class="geo-symbol">⌖</span><span><strong>Utiliser ma position actuelle</strong><small id="geo-status">Avec l'autorisation de Windows</small></span><span class="geo-chevron">›</span></button>
+    <label for="search" class="field-label">Rechercher une ville, un hameau, un col ou un sommet</label>
+    <div class="search-box"><span class="search-icon" aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" spellcheck="false" placeholder="Nom du lieu, département…" aria-label="Rechercher un lieu"><button id="clear-search" class="clear-btn" type="button" aria-label="Effacer la recherche">✕</button></div>
+    <div id="results" class="results" role="listbox" aria-label="Résultats de recherche"></div>
+    <div class="recent-head"><span class="field-label">Derniers lieux</span></div>
+    <div id="recent-list" class="recent-list"></div>
+    <p class="picker-hint">Les lieux sélectionnés sont conservés uniquement sur ce PC.</p>
+  </section>
+</main>
+<script type="module" src="./js/widget.js"></script>
+</body></html>
