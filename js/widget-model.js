@@ -58,7 +58,7 @@ export function chooseDays(forecast,limit=7){
   return days.slice(index<0?0:index,(index<0?0:index)+Math.max(0,limit));
 }
 export function dayLabel(dateStr){
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(dateStr)))return '—';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr)))return '—';
   const date=new Date(String(dateStr)+'T12:00:00Z');
   if(Number.isNaN(date.getTime()))return '—';
   return new Intl.DateTimeFormat('fr-FR',{weekday:'short',day:'numeric',timeZone:'UTC'}).format(date).replace('.','');
