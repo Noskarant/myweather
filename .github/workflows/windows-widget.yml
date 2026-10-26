@@ -37,6 +37,17 @@ jobs:
           node --check main.cjs
           node --check preload.cjs
           node --check ../js/widget.js
+          node --check ../js/widget-model.js
+          node --check ../js/weather.js
+      - name: Test widget presentation model
+        run: node --test tests/widget-model.test.mjs
+      - name: Validate native geolocation PowerShell syntax
+        shell: pwsh
+        run: |
+          $tokens=$null
+          $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path './get-location.ps1'),[ref]$tokens,[ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
       - name: Install packaging dependencies
         run: npm install --no-audit --no-fund
       - name: Build Windows installer
