@@ -2,7 +2,7 @@ import {getForecast,geocode,reverseGeocodeApprox} from './weather.js';
 import {weatherCodeInfo} from './utils.js';
 import {
  DEFAULT_WIDGET_PLACE,finite,rounded,isValidPlace,normalizePlace,
- locationLabel,placeSuggestion,chooseHours,shouldShowMountain,futureSnowSum,
+ locationLabel,placeSuggestion,chooseHours,chooseDays,dayLabel,shouldShowMountain,futureSnowSum,
  parseDepartmentCode,mergeUniquePlaces
 } from './widget-model.js';
 
@@ -18,7 +18,8 @@ let place=richPlace(read(KEY_LOCATION,null))||fallback;
 let places=mergeUniquePlaces(read(KEY_PLACES,[])).map(richPlace).filter(Boolean).slice(0,12);
 let locationMode=localStorage.getItem(KEY_LOCATION_MODE)||'auto'; // Existing installations become location-aware.
 let forecast=null,refreshToken=0,lastRefresh=0,nextRefresh=0,fetchPending=false;
-let selectedTime=null,lookupToken=0,lookupTimer=0,currentResults=[];
+let selectedTime=null,selectedDay=null,lookupToken=0,lookupTimer=0,currentResults=[];
+let forecastMode=localStorage.getItem('myweather:widget-forecast-mode')==='days'?'days':'hours';
 let locating=false,placeEpoch=0;
 const fmt=(x,unit='')=>finite(x)===null?'—':rounded(x)+unit;
 const decimal=(x,unit='')=>finite(x)===null?'—':Number(x).toFixed(1).replace('.',',')+unit;
@@ -42,7 +43,7 @@ function savePlace(candidate,mode='manual'){
  places=mergeUniquePlaces([place,...places]).slice(0,12);
  safeWrite(KEY_PLACES,places);
  $('picker').hidden=true;
- selectedTime=null;forecast=null;
+ selectedTime=null;selectedDay=null;forecast=null;
  refreshToken++;
  refreshPlaceHeader();
  $('temp').textContent='--°';
@@ -102,24 +103,74 @@ function renderMountain(hours){
  $('snowline').title=lpn===null?'Limite pluie-neige non estimée':'Estimation du moteur MyWeather, non une mesure';
  $('snow-amount').textContent=decimal(futureSnowSum(hours,24),' cm');
 }
-function renderHourDetail(hour){
- const panel=$('hour-detail');
- panel.replaceChildren();panel.hidden=!hour;
- if(!hour)return;
- const values=[
-  ['Pluie',decimal(hour.precipitation,' mm')],
-  ['Risque pluie',fmt(hour.precipitation_probability,' %')],
-  ['Vent',fmt(hour.wind_speed_10m,' km/h')],
-  ['Rafales',fmt(hour.wind_gusts_10m,' km/h')],
-  ['Neige',decimal(hour.snowfall,' cm')],
-  ['LPN',fmt(hour.snowLevel,' m')]
- ];
- for(const [key,val] of values){
-  const box=document.createElement('span');
-  const label=document.createElement('span');label.textContent=key+' ';
-  const value=document.createElement('strong');value.textContent=val;
-  box.append(label,value);panel.append(box);
+/** A one-line detail strip retains clarity at compact desktop sizes. */
+function renderForecastDetail(element,title,values){
+ element.replaceChildren();
+ const heading=document.createElement('span');heading.className='detail-title';heading.textContent=title||'—';
+ const grid=document.createElement('div');grid.className='detail-metrics';
+ for(const [label,value] of values){
+  const item=document.createElement('span');item.className='detail-item';
+  const small=document.createElement('span');small.textContent=label;
+  const bold=document.createElement('strong');bold.textContent=value;
+  item.append(small,bold);grid.append(item);
  }
+ element.append(heading,grid);
+}
+function renderHourDetail(hour){
+ if(!hour){renderForecastDetail($('hour-detail'),'Horaires',[['Pluie','—'],['Vent','—'],['LPN','—']]);return;}
+ const time=String(hour.time||'').slice(11,16);
+ renderForecastDetail($('hour-detail'),time,[
+  ['Pluie',decimal(hour.precipitation,' mm')],
+  ['Vent',fmt(hour.wind_speed_10m,' km/h')],
+  ['LPN',fmt(hour.snowLevel,' m')]
+ ]);
+}
+function renderDayDetail(day){
+ if(!day){renderForecastDetail($('day-detail'),'7 jours',[['Pluie','—'],['Vent','—'],['Neige','—']]);return;}
+ renderForecastDetail($('day-detail'),dayLabel(day.time),[
+  ['Pluie',decimal(day.precipitation,' mm')],
+  ['Vent',fmt(day.windMax,' km/h')],
+  ['Neige',decimal(day.snowfall,' cm')]
+ ]);
+}
+function renderDays(days){
+ const rail=$('days'),items=days.slice(0,7);
+ const oldScroll=rail.scrollLeft;
+ if(!selectedDay||!items.some(d=>d.time===selectedDay))selectedDay=items[0]?.time||null;
+ rail.replaceChildren();
+ for(const day of items){
+  const button=document.createElement('button');button.type='button';
+  button.className='day'+(day.time===selectedDay?' selected':'');
+  button.setAttribute('aria-pressed',String(day.time===selectedDay));
+  button.title='Prévisions du '+String(day.time||'');
+  const icon=day.info?.glyph||weatherCodeInfo(day.weather_code,1).glyph;
+  for(const [cls,value] of [
+   ['day-name',dayLabel(day.time)],['day-icon',icon],
+   ['day-temp',fmt(day.max,'°')+' / '+fmt(day.min,'°')]
+  ]){
+   const span=document.createElement('span');span.className=cls;span.textContent=value;button.append(span);
+  }
+  button.addEventListener('click',()=>{
+   selectedDay=day.time;
+   rail.querySelectorAll('.day').forEach(x=>{x.classList.remove('selected');x.setAttribute('aria-pressed','false')});
+   button.classList.add('selected');button.setAttribute('aria-pressed','true');
+   renderDayDetail(day);
+  });
+  rail.append(button);
+ }
+ rail.scrollLeft=oldScroll;
+ renderDayDetail(items.find(d=>d.time===selectedDay)||null);
+}
+function selectForecastMode(mode){
+ forecastMode=mode==='days'?'days':'hours';
+ localStorage.setItem('myweather:widget-forecast-mode',forecastMode);
+ const daily=forecastMode==='days';
+ $('hourly-panel').hidden=daily;
+ $('daily-panel').hidden=!daily;
+ $('tab-hours').classList.toggle('active',!daily);
+ $('tab-days').classList.toggle('active',daily);
+ $('tab-hours').setAttribute('aria-selected',String(!daily));
+ $('tab-days').setAttribute('aria-selected',String(daily));
 }
 function renderHours(hours){
  const rail=$('hours');
@@ -159,6 +210,7 @@ function display(){
  $('condition').textContent=info.label;
  $('feels').textContent='Ressenti '+fmt(current.apparent_temperature??first.apparent_temperature,' °C');
  renderMetrics(current,first);renderMountain(hours);renderHours(hours);
+ renderDays(chooseDays(forecast,7));selectForecastMode(forecastMode);
  inform('Prévisions MyWeather');
  $('updated').textContent='Màj '+new Intl.DateTimeFormat('fr-FR',{hour:'2-digit',minute:'2-digit'}).format(new Date(lastRefresh||Date.now()));
 }
@@ -276,21 +328,29 @@ $('search').addEventListener('keydown',e=>{
  }
 });
 $('clear-search').addEventListener('click',()=>{$('search').value='';lookupToken++;$('results').replaceChildren();$('search').focus()});
-$('hours-prev').addEventListener('click',()=>$('hours').scrollBy({left:-260,behavior:'smooth'}));
-$('hours-next').addEventListener('click',()=>$('hours').scrollBy({left:260,behavior:'smooth'}));
-$('hours').addEventListener('wheel',e=>{
- const rail=$('hours');
- if(rail.scrollWidth<=rail.clientWidth)return;
- const delta=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;
- if(delta!==0){rail.scrollLeft+=delta;e.preventDefault()}
-},{passive:false});
-$('hours').addEventListener('keydown',e=>{
- if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
-  $('hours').scrollBy({left:e.key==='ArrowRight'?180:-180,behavior:'smooth'});e.preventDefault();
- }
-});
+$('tab-hours').addEventListener('click',()=>selectForecastMode('hours'));
+$('tab-days').addEventListener('click',()=>selectForecastMode('days'));
+$('hours-prev').addEventListener('click',()=>$('hours').scrollBy({left:-225,behavior:'smooth'}));
+$('hours-next').addEventListener('click',()=>$('hours').scrollBy({left:225,behavior:'smooth'}));
+$('days-prev').addEventListener('click',()=>$('days').scrollBy({left:-245,behavior:'smooth'}));
+$('days-next').addEventListener('click',()=>$('days').scrollBy({left:245,behavior:'smooth'}));
+for(const id of ['hours','days']){
+ const rail=$(id);
+ rail.addEventListener('wheel',event=>{
+  if(rail.scrollWidth<=rail.clientWidth)return;
+  const delta=Math.abs(event.deltaX)>Math.abs(event.deltaY)?event.deltaX:event.deltaY;
+  if(delta){rail.scrollLeft+=delta;event.preventDefault();}
+ },{passive:false});
+ rail.addEventListener('keydown',event=>{
+  if(event.key==='ArrowRight'||event.key==='ArrowLeft'){
+   rail.scrollBy({left:event.key==='ArrowRight'?160:-160,behavior:'smooth'});
+   event.preventDefault();
+  }
+ });
+}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('picker').hidden)setPicker(false)});
 refreshPlaceHeader();
+selectForecastMode(forecastMode);
 void refresh();
 if(locationMode!=='manual')void locate();
 setInterval(()=>{if(Date.now()>=nextRefresh&&!fetchPending)void refresh()},60_000);
