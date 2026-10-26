@@ -1,7 +1,7 @@
 {
   "name": "myweather-desktop-widget",
   "productName": "MyWeather Widget",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "main": "main.cjs",
   "scripts": {
@@ -20,7 +20,8 @@
       "main.cjs",
       "preload.cjs",
       "attach-desktop.ps1",
-      "package.json"
+      "package.json",
+      "get-location.ps1"
     ],
     "extraResources": [
       {
