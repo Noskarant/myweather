@@ -49,6 +49,20 @@ export function chooseHours(forecast,limit=36){
   if(index<0)index=hours.findIndex(h=>String(h.time||'')>=now);
   return hours.slice(index<0?Math.max(hours.length-1,0):index,index<0?hours.length:index+limit);
 }
+/** Daily forecast values are already normalized by MyWeather's existing model. */
+export function chooseDays(forecast,limit=7){
+  const days=Array.isArray(forecast?.daily)?forecast.daily:[];
+  if(!days.length)return [];
+  const today=String(forecast?.current?.time||'').slice(0,10);
+  const index=days.findIndex(day=>String(day.time||'').slice(0,10)>=today);
+  return days.slice(index<0?0:index,(index<0?0:index)+Math.max(0,limit));
+}
+export function dayLabel(dateStr){
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(dateStr)))return '—';
+  const date=new Date(String(dateStr)+'T12:00:00Z');
+  if(Number.isNaN(date.getTime()))return '—';
+  return new Intl.DateTimeFormat('fr-FR',{weekday:'short',day:'numeric',timeZone:'UTC'}).format(date).replace('.','');
+}
 export function shouldShowMountain(place,hour){
   return finite(place?.elevation)!=null && Number(place.elevation)>=650 ||
     finite(hour?.snowLevel)!=null && finite(place?.elevation)!=null && Number(place.elevation)>=450;
