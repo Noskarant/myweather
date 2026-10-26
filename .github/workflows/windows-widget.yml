@@ -39,7 +39,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MyWeather-widget-visual-preview
-          path: desktop-widget/tests/widget-ui-preview.png
+          path: desktop-widget/tests/widget-*-preview.png
           if-no-files-found: ignore
           retention-days: 7
 
