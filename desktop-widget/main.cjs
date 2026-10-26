@@ -24,16 +24,29 @@ function serve(){
 }
 function bounds(){
  const area=screen.getPrimaryDisplay().workArea;
- const fallback={width:412,height:590,x:area.x+area.width-432,y:area.y+20};
- try{
-  const b=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'bounds.json'),'utf8'));
-  if(!b||![b.x,b.y,b.width,b.height].every(Number.isFinite)||b.width>680||b.height>760)return fallback;
-  // The first release persisted a 344x265 rectangle. Automatically upgrade its
-  // dimensions; keep a safe position rather than reusing an unusably small widget.
-  if(b.width<385||b.height<510)return fallback;
-  const visible=screen.getAllDisplays().some(d=>b.x<d.bounds.x+d.bounds.width-60&&b.x+b.width>d.bounds.x+60&&b.y<d.bounds.y+d.bounds.height-60&&b.y+b.height>d.bounds.y+60);
-  return visible?b:fallback;
- }catch{return fallback}
+ const width=356,height=410,gap=14;
+ const fallback={width,height,x:area.x+area.width-width-gap,y:area.y+14};
+ const marker=path.join(app.getPath('userData'),'compact-layout-v1');
+ let previous;
+ try{previous=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'bounds.json'),'utf8'))}catch{return fallback}
+ if(!previous||![previous.x,previous.y,previous.width,previous.height].every(Number.isFinite))return fallback;
+ const visible=screen.getAllDisplays().some(d=>previous.x<d.bounds.x+d.bounds.width-60 &&
+  previous.x+previous.width>d.bounds.x+60 &&
+  previous.y<d.bounds.y+d.bounds.height-60 &&
+  previous.y+previous.height>d.bounds.y+60);
+ if(!visible)return fallback;
+ // Existing 1.1 installations stored an oversized 412x590 layout. Compact it
+ // exactly once, retaining the old right edge and top position where possible.
+ if(!fs.existsSync(marker)){
+  try{fs.writeFileSync(marker,'1')}catch(error){console.warn('Widget layout migration',error)}
+  return {
+   width,height,
+   x:Math.max(area.x+8,Math.min(area.x+area.width-width-8,previous.x+previous.width-width)),
+   y:Math.max(area.y+8,Math.min(area.y+area.height-height-8,previous.y))
+  };
+ }
+ if(previous.width<325||previous.height<365||previous.width>620||previous.height>680)return fallback;
+ return previous;
 }
 function pinDesktop(){
  if(process.platform!=='win32'||!win||win.isDestroyed())return;
@@ -52,8 +65,8 @@ function createTray(){
   {label:'Afficher le widget',click:()=>win?.showInactive()},
   {label:'Ouvrir MyWeather',click:()=>shell.openExternal(WEBSITE)},
   {type:'separator'},
-  {label:'Taille compacte',click:()=>win?.setSize(412,590)},
-  {label:'Taille confortable',click:()=>win?.setSize(480,670)},
+  {label:'Taille compacte',click:()=>win?.setSize(356,410)},
+  {label:'Taille confortable',click:()=>win?.setSize(390,470)},
   {type:'separator'},
   {label:'Démarrer avec Windows',type:'checkbox',checked:app.getLoginItemSettings().openAtLogin,click:item=>app.setLoginItemSettings({openAtLogin:item.checked})},
   {label:'Quitter',click:()=>app.quit()}
@@ -85,7 +98,7 @@ function getWindowsLocation(){
 }
 function openWindow(){
  win=new BrowserWindow({
-  ...bounds(),minWidth:385,minHeight:510,maxWidth:680,maxHeight:760,
+  ...bounds(),minWidth:325,minHeight:365,maxWidth:620,maxHeight:680,
   frame:false,transparent:true,hasShadow:false,skipTaskbar:true,
   alwaysOnTop:false,show:false,autoHideMenuBar:true,
   webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}
