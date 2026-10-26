@@ -113,13 +113,18 @@ try{
  assert.match(await page.locator('#day-detail').innerText(),/Neige/);
  assert.match(await page.locator('#day-detail').innerText(),/Pluie/);
  assert.equal(await page.evaluate(()=>localStorage.getItem('myweather:widget-forecast-mode')),'days');
+ await page.screenshot({path:path.join(here,'widget-days-preview.png')});
  const dailyFit=await page.evaluate(()=>{
   const content=document.querySelector('.widget-content');
   const detail=document.querySelector('#day-detail').getBoundingClientRect();
   const footer=document.querySelector('.widget-footer').getBoundingClientRect();
-  return content.scrollHeight<=content.clientHeight+2 && detail.bottom<=footer.top-2;
+  return {
+   bodyHeight:content.clientHeight,scrollHeight:content.scrollHeight,
+   detailBottom:detail.bottom,footerTop:footer.top,
+   fits:content.scrollHeight<=content.clientHeight+2 && detail.bottom<=footer.top-2
+  };
  });
- assert.equal(dailyFit,true,'Daily forecast should fit without vertical scrolling');
+ assert.equal(dailyFit.fits,true,'Daily forecast should fit without vertical scrolling: '+JSON.stringify(dailyFit));
  await page.locator('#tab-hours').click();
  assert.equal(await page.locator('#hourly-panel').isVisible(),true);
  await page.locator('#hours-next').click();
