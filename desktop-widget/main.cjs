@@ -24,7 +24,7 @@ function serve(){
 }
 function bounds(){
  const area=screen.getPrimaryDisplay().workArea;
- const width=356,height=410,gap=14;
+ const width=356,height=424,gap=14;
  const fallback={width,height,x:area.x+area.width-width-gap,y:area.y+14};
  const marker=path.join(app.getPath('userData'),'compact-layout-v1');
  const mark=()=>{try{if(!fs.existsSync(marker))fs.writeFileSync(marker,'1')}catch(error){console.warn('Widget layout migration',error)}};
@@ -66,7 +66,7 @@ function createTray(){
   {label:'Afficher le widget',click:()=>win?.showInactive()},
   {label:'Ouvrir MyWeather',click:()=>shell.openExternal(WEBSITE)},
   {type:'separator'},
-  {label:'Taille compacte',click:()=>win?.setSize(356,410)},
+  {label:'Taille compacte',click:()=>win?.setSize(356,424)},
   {label:'Taille confortable',click:()=>win?.setSize(390,470)},
   {type:'separator'},
   {label:'Démarrer avec Windows',type:'checkbox',checked:app.getLoginItemSettings().openAtLogin,click:item=>app.setLoginItemSettings({openAtLogin:item.checked})},
