@@ -6,7 +6,6 @@ try {
   $type=[Windows.Devices.Geolocation.Geolocator,Windows.Devices.Geolocation,ContentType=WindowsRuntime]
   $positionType=[Windows.Devices.Geolocation.Geoposition,Windows.Devices.Geolocation,ContentType=WindowsRuntime]
   $locator=[Activator]::CreateInstance($type)
-  $locator.DesiredAccuracy=[Windows.Devices.Geolocation.PositionAccuracy]::Default
   $operation=$locator.GetGeopositionAsync()
   $method=[System.WindowsRuntimeSystemExtensions].GetMethods() |
     Where-Object {
