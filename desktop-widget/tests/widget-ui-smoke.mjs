@@ -61,7 +61,7 @@ try{
  const failures=[];
  page.on('pageerror',error=>failures.push(error.message));
  await page.goto('http://127.0.0.1:'+address.port+'/widget.html',{waitUntil:'networkidle'});
- await page.locator('#temp').getByText('10°').waitFor();
+ await page.waitForFunction(()=>document.getElementById('temp')?.textContent?.trim()==='10°');
  assert.equal(await page.locator('#place').textContent(),'Oullins');
  assert.equal(await page.locator('#mountain').isVisible(),false);
 
@@ -72,7 +72,7 @@ try{
  assert.match(await result.first().innerText(),/Savoie \(73\)/);
  await result.first().click();
  await page.locator('#mountain').waitFor({state:'visible'});
- assert.equal(await page.locator('#snowline').textContent(),'2 150 m');
+ assert.match((await page.locator('#snowline').textContent()).replace(/\\s/g,' '),/^2 150 m$/);
  assert.equal(await page.locator('#place').textContent(),'Le Meiller');
  await page.screenshot({path:path.join(here,'widget-ui-preview.png')});
 
