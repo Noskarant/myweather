@@ -24,13 +24,13 @@ function serve(){
 }
 function bounds(){
  const area=screen.getPrimaryDisplay().workArea;
- const fallback={width:412,height:488,x:area.x+area.width-432,y:area.y+20};
+ const fallback={width:412,height:540,x:area.x+area.width-432,y:area.y+20};
  try{
   const b=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'bounds.json'),'utf8'));
   if(!b||![b.x,b.y,b.width,b.height].every(Number.isFinite)||b.width>680||b.height>760)return fallback;
   // The first release persisted a 344x265 rectangle. Automatically upgrade its
   // dimensions; keep a safe position rather than reusing an unusably small widget.
-  if(b.width<385||b.height<440)return fallback;
+  if(b.width<385||b.height<465)return fallback;
   const visible=screen.getAllDisplays().some(d=>b.x<d.bounds.x+d.bounds.width-60&&b.x+b.width>d.bounds.x+60&&b.y<d.bounds.y+d.bounds.height-60&&b.y+b.height>d.bounds.y+60);
   return visible?b:fallback;
  }catch{return fallback}
@@ -52,8 +52,8 @@ function createTray(){
   {label:'Afficher le widget',click:()=>win?.showInactive()},
   {label:'Ouvrir MyWeather',click:()=>shell.openExternal(WEBSITE)},
   {type:'separator'},
-  {label:'Taille compacte',click:()=>win?.setSize(412,488)},
-  {label:'Taille confortable',click:()=>win?.setSize(480,580)},
+  {label:'Taille compacte',click:()=>win?.setSize(412,540)},
+  {label:'Taille confortable',click:()=>win?.setSize(480,620)},
   {type:'separator'},
   {label:'Démarrer avec Windows',type:'checkbox',checked:app.getLoginItemSettings().openAtLogin,click:item=>app.setLoginItemSettings({openAtLogin:item.checked})},
   {label:'Quitter',click:()=>app.quit()}
@@ -85,7 +85,7 @@ function getWindowsLocation(){
 }
 function openWindow(){
  win=new BrowserWindow({
-  ...bounds(),minWidth:385,minHeight:440,maxWidth:680,maxHeight:760,
+  ...bounds(),minWidth:385,minHeight:465,maxWidth:680,maxHeight:760,
   frame:false,transparent:true,hasShadow:false,skipTaskbar:true,
   alwaysOnTop:false,show:false,autoHideMenuBar:true,
   webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}
