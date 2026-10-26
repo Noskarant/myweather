@@ -1,5 +1,5 @@
 'use strict';
-const {app,BrowserWindow,Menu,Tray,ipcMain,net,protocol,screen,shell,nativeImage}=require('electron');
+const {app,BrowserWindow,Menu,Tray,ipcMain,net,protocol,screen,shell,nativeImage,session}=require('electron');
 const path=require('node:path');
 const fs=require('node:fs');
 const {pathToFileURL}=require('node:url');
@@ -24,10 +24,13 @@ function serve(){
 }
 function bounds(){
  const area=screen.getPrimaryDisplay().workArea;
- const fallback={width:344,height:265,x:area.x+area.width-374,y:area.y+26};
+ const fallback={width:412,height:488,x:area.x+area.width-432,y:area.y+20};
  try{
   const b=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'bounds.json'),'utf8'));
-  if(!b||![b.x,b.y,b.width,b.height].every(Number.isFinite)||b.width<290||b.height<230||b.width>640||b.height>560)return fallback;
+  if(!b||![b.x,b.y,b.width,b.height].every(Number.isFinite)||b.width>680||b.height>760)return fallback;
+  // The first release persisted a 344x265 rectangle. Automatically upgrade its
+  // dimensions; keep a safe position rather than reusing an unusably small widget.
+  if(b.width<385||b.height<440)return fallback;
   const visible=screen.getAllDisplays().some(d=>b.x<d.bounds.x+d.bounds.width-60&&b.x+b.width>d.bounds.x+60&&b.y<d.bounds.y+d.bounds.height-60&&b.y+b.height>d.bounds.y+60);
   return visible?b:fallback;
  }catch{return fallback}
@@ -49,14 +52,40 @@ function createTray(){
   {label:'Afficher le widget',click:()=>win?.showInactive()},
   {label:'Ouvrir MyWeather',click:()=>shell.openExternal(WEBSITE)},
   {type:'separator'},
+  {label:'Taille compacte',click:()=>win?.setSize(412,488)},
+  {label:'Taille confortable',click:()=>win?.setSize(480,580)},
+  {type:'separator'},
   {label:'Démarrer avec Windows',type:'checkbox',checked:app.getLoginItemSettings().openAtLogin,click:item=>app.setLoginItemSettings({openAtLogin:item.checked})},
   {label:'Quitter',click:()=>app.quit()}
  ]));
  tray.on('double-click',()=>win?.showInactive());
 }
+function getWindowsLocation(){
+ return new Promise(resolve=>{
+  if(process.platform!=='win32'){resolve({ok:false,error:'Windows required'});return}
+  const script=path.join(__dirname,'get-location.ps1');
+  const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',script],{
+   windowsHide:true,stdio:['ignore','pipe','pipe']
+  });
+  let output='',err='',finished=false;
+  const done=value=>{if(!finished){finished=true;clearTimeout(timer);resolve(value)}};
+  const timer=setTimeout(()=>{child.kill();done({ok:false,error:'Windows position timeout'})},12000);
+  child.stdout.on('data',chunk=>{if(output.length<2048)output+=String(chunk)});
+  child.stderr.on('data',chunk=>{if(err.length<1024)err+=String(chunk)});
+  child.once('error',e=>done({ok:false,error:e.message}));
+  child.once('close',()=>{
+   try{
+    const result=JSON.parse(output.trim());
+    const lat=Number(result.lat),lon=Number(result.lon);
+    if(result.ok&&Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180)done({ok:true,lat,lon});
+    else done({ok:false,error:String(result.error||err||'Location unavailable').slice(0,180)});
+   }catch{done({ok:false,error:String(err||'Location provider unavailable').slice(0,180)})}
+  });
+ });
+}
 function openWindow(){
  win=new BrowserWindow({
-  ...bounds(),minWidth:290,minHeight:230,maxWidth:640,maxHeight:560,
+  ...bounds(),minWidth:385,minHeight:440,maxWidth:680,maxHeight:760,
   frame:false,transparent:true,hasShadow:false,skipTaskbar:true,
   alwaysOnTop:false,show:false,autoHideMenuBar:true,
   webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}
@@ -89,6 +118,7 @@ else{
  app.whenReady().then(()=>{
   serve();
   ipcMain.handle('myweather:openWebsite',()=>shell.openExternal(WEBSITE));
+  ipcMain.handle('myweather:locate',event=>event.sender===win?.webContents?getWindowsLocation():{ok:false,error:'Forbidden'});
   if(process.platform==='win32'&&app.isPackaged){
    const marker=path.join(app.getPath('userData'),'startup-initialized');
    if(!fs.existsSync(marker)){
@@ -96,7 +126,11 @@ else{
     try{fs.writeFileSync(marker,'enabled')}catch(error){console.warn(error)}
    }
   }
-  openWindow();createTray();
+  openWindow();
+  // Only this locally packaged trusted widget may request geolocation.
+  session.defaultSession.setPermissionRequestHandler((wc,permission,cb)=>cb(permission==='geolocation'&&wc===win?.webContents));
+  session.defaultSession.setPermissionCheckHandler((wc,permission)=>permission==='geolocation'&&wc===win?.webContents);
+  createTray();
  });
  app.on('window-all-closed',()=>app.quit());
 }
