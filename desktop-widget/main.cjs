@@ -89,7 +89,13 @@ else{
  app.whenReady().then(()=>{
   serve();
   ipcMain.handle('myweather:openWebsite',()=>shell.openExternal(WEBSITE));
-  if(process.platform==='win32'&&app.isPackaged)app.setLoginItemSettings({openAtLogin:true});
+  if(process.platform==='win32'&&app.isPackaged){
+   const marker=path.join(app.getPath('userData'),'startup-initialized');
+   if(!fs.existsSync(marker)){
+    app.setLoginItemSettings({openAtLogin:true});
+    try{fs.writeFileSync(marker,'enabled')}catch(error){console.warn(error)}
+   }
+  }
   openWindow();createTray();
  });
  app.on('window-all-closed',()=>app.quit());
