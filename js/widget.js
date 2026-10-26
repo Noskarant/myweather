@@ -263,6 +263,10 @@ $('open').addEventListener('click',()=>{if(window.myWeatherDesktop?.openWebsite)
 $('locate').addEventListener('click',()=>void locate());
 $('search').addEventListener('input',()=>{
  clearTimeout(lookupTimer);
+ lookupToken++; // Invalidate any previous request immediately, before the debounce.
+ currentResults=[];
+ $('results').replaceChildren();
+ if($('search').value.trim().length>=2)$('results').textContent='Recherche des lieux…';
  lookupTimer=setTimeout(()=>void lookup(),330);
 });
 $('search').addEventListener('keydown',e=>{
