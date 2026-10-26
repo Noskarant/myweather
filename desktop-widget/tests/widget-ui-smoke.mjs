@@ -18,8 +18,13 @@ export async function getForecast(place){
    precipitation:i%4?.2:0,precipitation_probability:i%4?35:10,
    snowfall:place.elevation>=650?.5:0,snowLevel:2150});
  }
+ const daily=Array.from({length:10},(_,i)=>{
+  const time=new Date(Date.UTC(2026,9,26+i)).toISOString().slice(0,10);
+  return {time,max:10+i,min:1+i,weather_code:i%2?71:3,precipitation:2+i,
+   snowfall:place.elevation>=650?i+1:0,windMax:13+i};
+ });
  return {current:{time:'2026-10-26T12:00',temperature_2m:10,apparent_temperature:7,
-  is_day:1,weather_code:3,wind_speed_10m:10,relative_humidity_2m:64,precipitation:0},hourly};
+  is_day:1,weather_code:3,wind_speed_10m:10,relative_humidity_2m:64,precipitation:0},hourly,daily};
 }
 export async function geocode(term){
  if(String(term).toLowerCase().includes('meiller'))return [{name:'Le Meiller',lat:45.5,lon:6.5,elevation:1150,
@@ -49,7 +54,7 @@ const address=server.address();
 let browser;
 try{
  browser=await chromium.launch({headless:true});
- const context=await browser.newContext({viewport:{width:412,height:590},deviceScaleFactor:1});
+ const context=await browser.newContext({viewport:{width:356,height:410},deviceScaleFactor:1});
  await context.addInitScript(()=>{
   localStorage.setItem('myweather:widget-location-mode','manual');
   window.myWeatherDesktop={
@@ -79,7 +84,7 @@ try{
  const overlap=await page.evaluate(()=>{
   const measure=selector=>document.querySelector(selector).getBoundingClientRect();
   const location=measure('.location-button'),weather=measure('.current');
-  const snow=measure('#mountain'),hours=measure('.hourly-section');
+  const snow=measure('#mountain'),hours=measure('.forecast-section');
   const footer=measure('.widget-footer');
   const detail=measure('#hour-detail');
   const content=measure('.widget-content');
@@ -88,12 +93,35 @@ try{
    snowNotOverlapped:snow.bottom<=hours.top+2,
    footerWithinScreen:footer.bottom<=innerHeight+1,
    detailNotClipped:detail.bottom<=footer.top-2,
+   contentFitsWithoutVerticalScroll:document.querySelector('.widget-content').scrollHeight<=document.querySelector('.widget-content').clientHeight+2,
    hoursAreScrollable:document.querySelector('#hours').scrollWidth>document.querySelector('#hours').clientWidth,
    visibleContent:content.height>200
   };
  });
  for(const [key,value] of Object.entries(overlap))assert.equal(value,true,key);
 
+ await page.locator('#tab-days').click();
+ assert.equal(await page.locator('#daily-panel').isVisible(),true);
+ assert.equal(await page.locator('#hourly-panel').isVisible(),false);
+ assert.equal(await page.locator('.day').count(),7);
+ assert.match(await page.locator('.day').first().innerText(),/lun 26/);
+ await page.locator('#days-next').click();
+ await page.waitForTimeout(500);
+ const dayScroll=await page.locator('#days').evaluate(el=>el.scrollLeft);
+ assert.ok(dayScroll>75,'Daily carousel must scroll to future days');
+ await page.locator('.day').nth(4).click();
+ assert.match(await page.locator('#day-detail').innerText(),/Neige/);
+ assert.match(await page.locator('#day-detail').innerText(),/Pluie/);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('myweather:widget-forecast-mode')),'days');
+ const dailyFit=await page.evaluate(()=>{
+  const content=document.querySelector('.widget-content');
+  const detail=document.querySelector('#day-detail').getBoundingClientRect();
+  const footer=document.querySelector('.widget-footer').getBoundingClientRect();
+  return content.scrollHeight<=content.clientHeight+2 && detail.bottom<=footer.top-2;
+ });
+ assert.equal(dailyFit,true,'Daily forecast should fit without vertical scrolling');
+ await page.locator('#tab-hours').click();
+ assert.equal(await page.locator('#hourly-panel').isVisible(),true);
  await page.locator('#hours-next').click();
  await page.waitForTimeout(550);
  const scroll=await page.locator('#hours').evaluate(el=>el.scrollLeft);
