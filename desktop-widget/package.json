@@ -1,0 +1,62 @@
+{
+  "name": "myweather-desktop-widget",
+  "productName": "MyWeather Widget",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "fr.myweather.desktopwidget",
+    "productName": "MyWeather Widget",
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "attach-desktop.ps1",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../widget.html",
+        "to": "site/widget.html"
+      },
+      {
+        "from": "../js",
+        "to": "site/js"
+      },
+      {
+        "from": "../data",
+        "to": "site/data"
+      },
+      {
+        "from": "../assets/icon-192.png",
+        "to": "site/assets/icon-192.png"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": false,
+      "runAfterFinish": true
+    },
+    "artifactName": "MyWeather-Widget-Setup-${version}.${ext}"
+  }
+}
