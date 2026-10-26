@@ -27,8 +27,9 @@ function bounds(){
  const width=356,height=410,gap=14;
  const fallback={width,height,x:area.x+area.width-width-gap,y:area.y+14};
  const marker=path.join(app.getPath('userData'),'compact-layout-v1');
+ const mark=()=>{try{if(!fs.existsSync(marker))fs.writeFileSync(marker,'1')}catch(error){console.warn('Widget layout migration',error)}};
  let previous;
- try{previous=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'bounds.json'),'utf8'))}catch{return fallback}
+ try{previous=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'bounds.json'),'utf8'))}catch{mark();return fallback}
  if(!previous||![previous.x,previous.y,previous.width,previous.height].every(Number.isFinite))return fallback;
  const visible=screen.getAllDisplays().some(d=>previous.x<d.bounds.x+d.bounds.width-60 &&
   previous.x+previous.width>d.bounds.x+60 &&
@@ -38,7 +39,7 @@ function bounds(){
  // Existing 1.1 installations stored an oversized 412x590 layout. Compact it
  // exactly once, retaining the old right edge and top position where possible.
  if(!fs.existsSync(marker)){
-  try{fs.writeFileSync(marker,'1')}catch(error){console.warn('Widget layout migration',error)}
+  mark();
   return {
    width,height,
    x:Math.max(area.x+8,Math.min(area.x+area.width-width-8,previous.x+previous.width-width)),
