@@ -19,7 +19,7 @@ let places=mergeUniquePlaces(read(KEY_PLACES,[])).map(richPlace).filter(Boolean)
 let locationMode=localStorage.getItem(KEY_LOCATION_MODE)||'auto'; // Existing installations become location-aware.
 let forecast=null,refreshToken=0,lastRefresh=0,nextRefresh=0,fetchPending=false;
 let selectedTime=null,lookupToken=0,lookupTimer=0,currentResults=[];
-let locating=false;
+let locating=false,placeEpoch=0;
 const fmt=(x,unit='')=>finite(x)===null?'—':rounded(x)+unit;
 const decimal=(x,unit='')=>finite(x)===null?'—':Number(x).toFixed(1).replace('.',',')+unit;
 function inform(text){$('status').textContent=text}
@@ -35,6 +35,7 @@ function savePlace(candidate,mode='manual'){
  const normalized=richPlace(candidate);
  if(!normalized)return;
  place=normalized;
+ placeEpoch++;
  locationMode=mode;
  safeWrite(KEY_LOCATION,place);
  localStorage.setItem(KEY_LOCATION_MODE,mode);
@@ -226,7 +227,7 @@ async function locate(){
  locating=true;
  const status=$('geo-status');
  status.textContent='Localisation en cours…';
- const manual=locationMode==='manual';
+ const startingPlaceEpoch=placeEpoch;
  try{
   let coords=null;
   // Windows location provider is preferred. Browser geolocation remains a fallback.
@@ -237,7 +238,7 @@ async function locate(){
   if(!coords)coords=await findThroughBrowser();
   if(!Number.isFinite(coords?.lat)||!Number.isFinite(coords?.lon))throw new Error('Coordonnées indisponibles');
   // A manual location chosen during the async request must never be overwritten.
-  if(manual&&locationMode==='manual'&&$('picker').hidden)return;
+  if(placeEpoch!==startingPlaceEpoch)return;
   let found;
   try{found=await reverseGeocodeApprox(coords.lat,coords.lon)}catch{}
   const named=richPlace({...found,
