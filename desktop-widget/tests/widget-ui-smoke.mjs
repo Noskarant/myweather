@@ -72,7 +72,7 @@ try{
  assert.match(await result.first().innerText(),/Savoie \(73\)/);
  await result.first().click();
  await page.locator('#mountain').waitFor({state:'visible'});
- assert.match((await page.locator('#snowline').textContent()).replace(/\\s/g,' '),/^2 150 m$/);
+ assert.match((await page.locator('#snowline').textContent()).replace(/\s/g,' '),/^2 150 m$/);
  assert.equal(await page.locator('#place').textContent(),'Le Meiller');
  await page.screenshot({path:path.join(here,'widget-ui-preview.png')});
 
