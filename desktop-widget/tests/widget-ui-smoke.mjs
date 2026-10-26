@@ -49,7 +49,7 @@ const address=server.address();
 let browser;
 try{
  browser=await chromium.launch({headless:true});
- const context=await browser.newContext({viewport:{width:412,height:540},deviceScaleFactor:1});
+ const context=await browser.newContext({viewport:{width:412,height:590},deviceScaleFactor:1});
  await context.addInitScript(()=>{
   localStorage.setItem('myweather:widget-location-mode','manual');
   window.myWeatherDesktop={
@@ -81,11 +81,13 @@ try{
   const location=measure('.location-button'),weather=measure('.current');
   const snow=measure('#mountain'),hours=measure('.hourly-section');
   const footer=measure('.widget-footer');
+  const detail=measure('#hour-detail');
   const content=measure('.widget-content');
   return {noHorizontalOverflow:document.querySelector('.widget').scrollWidth<=document.querySelector('.widget').clientWidth+2,
    locationNotOverlapped:location.bottom<=weather.top+2,
    snowNotOverlapped:snow.bottom<=hours.top+2,
    footerWithinScreen:footer.bottom<=innerHeight+1,
+   detailNotClipped:detail.bottom<=footer.top-2,
    hoursAreScrollable:document.querySelector('#hours').scrollWidth>document.querySelector('#hours').clientWidth,
    visibleContent:content.height>200
   };
