@@ -105,6 +105,7 @@ function renderMountain(hours){
 }
 /** A one-line detail strip retains clarity at compact desktop sizes. */
 function renderForecastDetail(element,title,values){
+ element.hidden=false; // Selecting another location temporarily hides the detail.
  element.replaceChildren();
  const heading=document.createElement('span');heading.className='detail-title';heading.textContent=title||'—';
  const grid=document.createElement('div');grid.className='detail-metrics';
