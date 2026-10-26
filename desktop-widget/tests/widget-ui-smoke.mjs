@@ -54,7 +54,7 @@ const address=server.address();
 let browser;
 try{
  browser=await chromium.launch({headless:true});
- const context=await browser.newContext({viewport:{width:356,height:410},deviceScaleFactor:1});
+ const context=await browser.newContext({viewport:{width:356,height:424},deviceScaleFactor:1});
  await context.addInitScript(()=>{
   localStorage.setItem('myweather:widget-location-mode','manual');
   window.myWeatherDesktop={
