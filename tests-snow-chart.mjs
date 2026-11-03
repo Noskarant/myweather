@@ -78,7 +78,7 @@ try {
   assert.equal(requests[0]?.get('elevation'),'1860');
   assert.equal(requests[0]?.get('forecast_days'),'14');
   assert.ok(nodes['#mountainSnowBars'].innerHTML.includes('mountain-snow-slot'));
-  assert.ok(nodes['#mountainSnowControls'].innerHTML.includes('3330'));
+  assert.match(nodes['#mountainSnowControls'].innerHTML,/3[\s\u202f]330/);
 
   handleClick({target:{closest(selector) {
     return selector==='[data-snow-level]'?{dataset:{snowLevel:'summit'}}:null;
