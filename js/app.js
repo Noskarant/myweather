@@ -1,4 +1,5 @@
 import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.24';
+import { createMountainSnowChart } from './mountain-snow-chart.js?v=1.8.30';
 import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.24';
 import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
 import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
@@ -46,6 +47,7 @@ const refs = {
   cockpitGrid:$('#cockpitGrid'), expertToggle:$('#expertToggle'), tempChart:$('#tempChart'), tempTimeAxis:$('#tempTimeAxis'), tempRangeLabel:$('#tempRangeLabel'), hourlyRail:$('#hourlyRail'), dailyGrid:$('#dailyGrid'),
   vigilanceToggle:$('#vigilanceToggle'), vigilanceToggleText:$('#vigilanceToggleText'), vigilanceModal:$('#vigilanceModal'), vigilanceClose:$('#closeVigilanceModal'), vigilanceContent:$('#vigilanceContent'), vigilanceHeading:$('#vigilanceHeading'),
   snowFusionToggle:$('#snowFusionToggle'), snowFusionPanel:$('#snowFusionPanel'), snowFusionClose:$('#snowFusionClose'), snowFusionSource:$('#snowFusionSource'), snowFusionHighlights:$('#snowFusionHighlights'), snowFusionTable:$('#snowFusionTable'),
+  mountainSnowChart:$('#mountainSnowChart'),
   mountainStats:$('#mountainStats'), mountainStatus:$('#mountainStatus'), mountainStatusIcon:$('#mountainStatusIcon'), mountainStatusTitle:$('#mountainStatusTitle'), mountainStatusText:$('#mountainStatusText'),
   zeroLine:$('#zeroLine'), snowLine:$('#snowLine'), placeLine:$('#placeLine'), mountainPeriodTabs:$('#mountainPeriodTabs'), mountainVisual:$('#mountainVisual'),
   mapFrame:$('#weatherMapFrame'), mapOverlayName:$('#mapOverlayName'),
@@ -56,6 +58,8 @@ const refs = {
   locationPickerModal:$('#locationPickerModal'), closeLocationPicker:$('#closeLocationPicker'), locationPickerMap:$('#locationPickerMap'), locationPickerCoords:$('#locationPickerCoords'), locationPickerMeta:$('#locationPickerMeta'), locationPickerName:$('#locationPickerName'), locationPickerUse:$('#locationPickerUse'), locationPickerSearchInput:$('#locationPickerSearchInput'), locationPickerSearchResults:$('#locationPickerSearchResults'), locationPickerLocate:$('#locationPickerLocate'), locationPickerLayers:$('#locationPickerLayers'),
   toast:$('#toast'), canvas:$('#weatherFx')
 };
+
+const snowChart = createMountainSnowChart(refs.mountainSnowChart);
 
 function normalizeFavorites(value) {
   if (!Array.isArray(value)) return [];
@@ -461,6 +465,7 @@ function renderWeatherUnavailable(location, error) {
   if(refs.snowlineChip)refs.snowlineChip.hidden=true;
   if(refs.vigilanceModal)closeVigilance();
   if(refs.mountainStats) refs.mountainStats.replaceChildren();
+  snowChart.reset();
   if(refs.snowFusionHighlights) refs.snowFusionHighlights.replaceChildren();
   if(refs.snowFusionTable) refs.snowFusionTable.replaceChildren();
 }
@@ -1787,6 +1792,7 @@ function renderMountain(fallbackHour = null) {
       </span>
     </div>
   `).join('');
+  snowChart.render(state.location,state.forecast);
 }
 
 function openHour(time) {
@@ -2190,7 +2196,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.29', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.30', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
