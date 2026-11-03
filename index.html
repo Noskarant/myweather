@@ -233,6 +233,22 @@
           </div>
         </div>
 
+        <section id="mountainSnowChart" class="mountain-snow-chart" aria-label="Chutes de neige prévues sur quatorze jours">
+          <div class="mountain-snow-head">
+            <div>
+              <span class="mountain-snow-eyebrow">NEIGE FRAÎCHE · 14 JOURS</span>
+              <h3>Chutes de neige prévues</h3>
+            </div>
+            <strong id="mountainSnowTotal" class="mountain-snow-total">Cumul 14 j · —</strong>
+          </div>
+          <div id="mountainSnowControls" class="mountain-snow-levels" role="group" aria-label="Choisir l’altitude des prévisions"></div>
+          <div id="mountainSnowMessage" class="mountain-snow-message" aria-live="polite"></div>
+          <div class="mountain-snow-scroll" tabindex="0" aria-label="Faire défiler le graphique neige sur 14 jours">
+            <div id="mountainSnowBars" class="mountain-snow-bars" role="img" aria-label="Prévisions de neige en cours de chargement"></div>
+          </div>
+          <p id="mountainSnowNote" class="mountain-snow-note"></p>
+        </section>
+
         <div id="mountainStats" class="mountain-summary-grid" aria-label="Résumé montagne et hiver"></div>
       </section>
 
@@ -391,6 +407,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="./js/app.js?v=1.8.29"></script>
+  <script type="module" src="./js/app.js?v=1.8.30"></script>
 </body>
 </html>
