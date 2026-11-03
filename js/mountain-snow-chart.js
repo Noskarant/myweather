@@ -21,8 +21,44 @@ export const SNOW_RESORTS = Object.freeze([
     latitude:45.2975, longitude:6.58,
     levels:[
       {key:'village',name:'Village',place:'Val Thorens',altitude:2300},
-      {key:'mid',name:'Mi-hauteur',place:'Péclet',altitude:3000},
+      {key:'mid',name:'Mi-hauteur',place:'Funitel 3 Vallées',altitude:2850},
       {key:'summit',name:'Sommet',place:'Cime Caron',altitude:3200}
+    ]
+  },
+  {
+    key:'alpe-dhuez', name:'Alpe d’Huez', names:['alpe d huez','alpe dhuez','pic blanc','marmottes'],
+    latitude:45.09711, longitude:6.069027,
+    levels:[
+      {key:'village',name:'Village',place:'Alpe d’Huez',altitude:1860},
+      {key:'mid',name:'Mi-hauteur',place:'Marmottes I',altitude:2300,latitude:45.103971,longitude:6.096168},
+      {key:'summit',name:'Sommet',place:'Pic Blanc',altitude:3330,latitude:45.124993,longitude:6.127293}
+    ]
+  },
+  {
+    key:'chalmazel', name:'Chalmazel', names:['chalmazel','pierre sur haute'],
+    latitude:45.67723, longitude:3.82702,
+    levels:[
+      {key:'village',name:'Bas des pistes',place:'Chalmazel, pied des pistes',altitude:1110},
+      {key:'mid',name:'Mi-hauteur',place:'Secteur intermédiaire (repère)',altitude:1350},
+      {key:'summit',name:'Sommet',place:'Haut des pistes, Pierre-sur-Haute',altitude:1600}
+    ]
+  },
+  {
+    key:'les-menuires', name:'Les Menuires', names:['les menuires','menuires','mont de la chambre','pointe de la masse'],
+    latitude:45.32444, longitude:6.5375,
+    levels:[
+      {key:'village',name:'Village',place:'Les Menuires',altitude:1850},
+      {key:'mid',name:'Mi-hauteur',place:'Roc 1',altitude:2320},
+      {key:'summit',name:'Sommet',place:'Mont de la Chambre',altitude:2850}
+    ]
+  },
+  {
+    key:'orelle', name:'Orelle', names:['orelle','francoz','plan bouchet','pointe du bouchet'],
+    latitude:45.209421, longitude:6.536404,
+    levels:[
+      {key:'village',name:'Village',place:'Francoz',altitude:900},
+      {key:'mid',name:'Mi-hauteur',place:'Plan Bouchet',altitude:2350},
+      {key:'summit',name:'Sommet',place:'Pointe du Bouchet (secteur ski)',altitude:3230}
     ]
   },
   {
@@ -44,13 +80,15 @@ export const SNOW_RESORTS = Object.freeze([
 ]);
 
 function normalizeName(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/[’'`´]/g,' ').replace(/[-‐‑–—_]/g,' ').replace(/\s+/g,' ').trim();
 }
 
 export function lookupSnowResort(location) {
   const text = normalizeName(location?.name);
   if (!text) return null;
-  return SNOW_RESORTS.find(station => station.names.some(alias => text.includes(alias))) || null;
+  return SNOW_RESORTS.find(station => station.names.some(alias => text === alias || text.startsWith(alias+' ')))
+    || SNOW_RESORTS.find(station => station.names.some(alias => text.includes(alias))) || null;
 }
 
 function validSnow(value) {
@@ -125,8 +163,8 @@ function nearestLevel(station, location) {
 }
 
 async function requestAltitudeSnow(station, location, level) {
-  const latitude = Number(station.latitude ?? location?.lat);
-  const longitude = Number(station.longitude ?? location?.lon);
+  const latitude = Number(level.latitude ?? station.latitude ?? location?.lat);
+  const longitude = Number(level.longitude ?? station.longitude ?? location?.lon);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude))
     throw new Error('Coordonnées de la station indisponibles');
   const params = new URLSearchParams({
@@ -202,7 +240,7 @@ export function createMountainSnowChart(root) {
         forecast.snowFusion?.active ? 'SnowFusion · prévision du lieu' : 'Open-Meteo · prévision du lieu');
       return;
     }
-    const key = station.key+':'+level.key+':'+(station.latitude ?? location.lat)+':'+(station.longitude ?? location.lon);
+    const key = station.key+':'+level.key+':'+(level.latitude ?? station.latitude ?? location.lat)+':'+(level.longitude ?? station.longitude ?? location.lon);
     requestKey = key;
     const cached = cache.get(key);
     if (cached && Date.now()-cached.savedAt < CACHE_MS) {
