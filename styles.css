@@ -1819,3 +1819,83 @@ body{
   .snowline-chip{padding-inline:5px;font-size:8.5px}
   .snowline-chip strong{font-size:8.5px}
 }
+
+
+/* Compact 14-day snowfall bars, aligned to the altitude panel. */
+.mountain-snow-chart{
+  margin-top:14px;padding:16px 18px 13px;
+  border:1px solid rgba(127,208,246,.18);border-radius:17px;
+  background:linear-gradient(145deg,rgba(7,32,54,.88),rgba(5,22,42,.92));
+}
+.mountain-snow-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.mountain-snow-eyebrow{display:block;color:#8fc5e8;font-size:9px;letter-spacing:1.55px;font-weight:750}
+.mountain-snow-head h3{margin:4px 0 0;color:#f1faff;font-size:17px;letter-spacing:-.25px}
+.mountain-snow-total{color:#b4e5ff;font-size:12px;font-variant-numeric:tabular-nums}
+.mountain-snow-levels{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:13px 0 8px}
+.mountain-snow-station{font-size:10px;font-weight:700;color:#aac5d8;margin-right:8px}
+.mountain-snow-level{
+  border:1px solid rgba(130,197,237,.22);border-radius:10px;padding:8px 11px;
+  color:#bcd6e7;background:rgba(19,59,87,.48);font:inherit;font-size:11px;
+  font-weight:750;cursor:pointer;transition:background .15s,border-color .15s;
+}
+.mountain-snow-level small{margin-left:4px;color:#8aabc1;font-size:10px}
+.mountain-snow-level:hover,.mountain-snow-level:focus-visible{background:rgba(45,113,160,.52);outline-offset:2px}
+.mountain-snow-level.active{
+  color:#f4fbff;border-color:rgba(121,213,255,.65);
+  background:linear-gradient(135deg,rgba(30,111,171,.92),rgba(33,144,198,.72));
+}
+.mountain-snow-level.active small{color:#e5f7ff}
+.mountain-snow-scroll{overflow-x:auto;max-width:100%;scrollbar-width:thin;scrollbar-color:#39637d transparent}
+.mountain-snow-scroll:focus-visible{outline:2px solid #58c5f0;outline-offset:2px}
+.mountain-snow-bars{min-width:630px;width:100%;padding:4px 0 0}
+.mountain-snow-horizons{display:grid;grid-template-columns:4fr 5fr 5fr;gap:5px;margin-bottom:7px}
+.mountain-snow-horizons span{
+  position:relative;border-top:1px solid rgba(133,184,225,.55);
+  padding-top:5px;font-size:9px;letter-spacing:1px;font-weight:750;color:#a9c8dc;
+}
+.mountain-snow-horizons span:nth-child(3){border-top-style:dashed;color:#eab777}
+.mountain-snow-columns{
+  display:grid;grid-template-columns:repeat(var(--snow-day-count,14),minmax(0,1fr));
+  gap:4px;align-items:end;
+}
+.mountain-snow-slot{min-width:0;text-align:center}
+.mountain-snow-stem{height:145px;position:relative;border-bottom:1px solid rgba(100,160,201,.3)}
+.mountain-snow-column{
+  position:absolute;bottom:0;left:13%;width:74%;height:var(--snow-height);
+  min-height:3px;border-radius:3px 3px 0 0;background:#8bcef7;
+}
+.mountain-snow-probable .mountain-snow-column{background:#61a9d4}
+.mountain-snow-trend .mountain-snow-column{
+  background:repeating-linear-gradient(135deg,#72b8e4 0 2px,rgba(67,139,192,.28) 2px 5px);
+  border:1px solid rgba(108,190,232,.5);
+}
+.mountain-snow-highlight .mountain-snow-column{
+  background:#ffba50;border-color:#ffc56f;
+}
+.mountain-snow-value{
+  position:absolute;bottom:calc(var(--snow-height) + 5px);left:0;right:0;
+  font-size:11px;line-height:1.1;font-weight:800;color:#d8efff;font-variant-numeric:tabular-nums;
+}
+.mountain-snow-highlight .mountain-snow-value{color:#ffca7e}
+.mountain-snow-value.unavailable{color:#7b93a3}
+.mountain-snow-date{padding-top:7px;color:#a7c8dd;font-size:10px;line-height:1.25;text-transform:capitalize}
+.mountain-snow-date strong{display:block;color:#d1e9f7;font-size:11px;font-weight:750}
+.mountain-snow-note{margin:10px 0 0;color:#7899af;font-size:10px;line-height:1.45}
+.mountain-snow-message{color:#b0cadb;font-size:11px}
+.mountain-snow-message:empty{display:none}
+.mountain-snow-loading{min-height:195px;display:grid;place-items:center;color:#93bbd1;font-size:12px}
+.mountain-snow-retry{
+  padding:5px 8px;margin-left:7px;border:1px solid #6baed0;border-radius:8px;
+  background:rgba(40,105,148,.4);color:#e5f5ff;cursor:pointer;
+}
+@media(max-width:620px){
+  .mountain-snow-chart{margin-top:10px;padding:13px 10px;border-radius:15px}
+  .mountain-snow-head h3{font-size:15px}
+  .mountain-snow-total{font-size:10px}
+  .mountain-snow-levels{gap:5px;margin-top:10px}
+  .mountain-snow-station{flex-basis:100%;margin:0 0 1px}
+  .mountain-snow-level{flex:1;padding:8px 3px;font-size:10px}
+  .mountain-snow-level small{margin-left:2px;font-size:9px}
+  .mountain-snow-stem{height:125px}
+  .mountain-snow-bars{min-width:630px}
+}
