@@ -1,5 +1,5 @@
 import { createDemoForecast, geocode, getForecast, precipitationSignal, reverseGeocodeApprox } from './weather.js?v=1.8.24';
-import { createMountainSnowChart } from './mountain-snow-chart.js?v=1.8.30';
+import { createMountainSnowChart } from './mountain-snow-chart.js?v=1.8.31';
 import { hourlyRailWindow } from './hourly-navigation.js?v=1.8.24';
 import { buildNextHoursMessages } from './weather-nowcast.js?v=1.8.21';
 import { fetchRadarTransition } from './radar-nowcast.js?v=1.8.21';
@@ -2196,7 +2196,7 @@ async function registerServiceWorker() {
   if (OFFLINE_TEST || !('serviceWorker' in navigator) || !(location.protocol==='https:'||location.hostname==='localhost')) return;
   try {
     const hadController = Boolean(navigator.serviceWorker.controller);
-    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.30', {updateViaCache:'none'});
+    const registration = await navigator.serviceWorker.register('./sw.js?v=1.8.31', {updateViaCache:'none'});
     let refreshing = false;
     const checkForUpdate = () => registration.update().catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange', () => {
