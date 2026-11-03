@@ -162,7 +162,7 @@ export function createMountainSnowChart(root) {
   let currentLocation = null;
   let currentForecast = null;
   let requestKey = '';
-  let updateId = 0;
+
 
   function showDays(days, source, station, level) {
     const summary = displayDays(bars,days,source);
@@ -185,7 +185,6 @@ export function createMountainSnowChart(root) {
       locationKey = nextLocationKey;
       selected = station ? nearestLevel(station,location) : 'place';
       requestKey = '';
-      updateId++;
     }
     const level = station?.levels.find(item => item.key === selected) || station?.levels[0];
     const altitudeText = HEIGHT.format(Number(location.elevation) || Number(forecast.elevation) || 0)+' m';
@@ -215,15 +214,14 @@ export function createMountainSnowChart(root) {
     if (message) message.textContent = 'Chargement des chutes de neige à '+HEIGHT.format(level.altitude)+' m…';
     if (bars) bars.innerHTML = '<div class="mountain-snow-loading">Prévisions en cours de chargement…</div>';
     if (pending.has(key)) return;
-    const ticket = ++updateId;
     const promise = requestAltitudeSnow(station,location,level);
     pending.set(key,promise);
     promise.then(days => {
       cache.set(key,{days,savedAt:Date.now()});
-      if (requestKey === key && updateId === ticket)
+      if (requestKey === key)
         showDays(days,'Open-Meteo · altitude corrigée par le modèle',station,level);
     }).catch(() => {
-      if (requestKey !== key || updateId !== ticket) return;
+      if (requestKey !== key) return;
       if (message) message.innerHTML = 'Prévisions momentanément indisponibles. <button class="mountain-snow-retry" type="button">Réessayer</button>';
       if (bars) bars.innerHTML = '';
       if (note) note.textContent = 'Aucune quantité n’est affichée sans données météo valides.';
@@ -235,7 +233,6 @@ export function createMountainSnowChart(root) {
     if (button && root.contains(button)) {
       selected = button.dataset.snowLevel;
       requestKey = '';
-      updateId++;
       render(currentLocation,currentForecast);
       controls?.querySelector('[data-snow-level="'+selected+'"]')?.focus();
     }
@@ -246,7 +243,6 @@ export function createMountainSnowChart(root) {
   });
 
   function reset() {
-    updateId++;
     requestKey = '';
     if (bars) bars.innerHTML = '';
     if (message) message.textContent = 'Prévisions indisponibles.';
