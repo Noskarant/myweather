@@ -138,7 +138,7 @@ async function openMeteoGeocode(name, count) {
   if (!r.ok) throw new Error(`Géocodage indisponible (${r.status})`);
   const data = await r.json();
   return (data.results || []).map(x => ({
-    id:`om-${x.id}`, name:x.name, admin1:x.admin1 || x.admin2 || '', country:x.country || '', countryCode:x.country_code || '',
+    id:`om-${x.id}`, name:x.name, admin1:x.admin1 || x.admin2 || '', department:x.admin2 || '', country:x.country || '', countryCode:x.country_code || '',
     lat:x.latitude, lon:x.longitude, elevation:x.elevation ?? null, timezone:x.timezone || 'auto', type:'Localité', source:'open-meteo'
   }));
 }
@@ -177,6 +177,9 @@ export async function geocode(name, count = 8) {
           id:`osm-${x.osm_type}-${x.osm_id}`,
           name:displayPlaceName(x),
           admin1:address.state || address.region || address.county || address.municipality || address.city || address.town || '',
+          department:address.county || address.state_district || '',
+          departmentCode:(address['ISO3166-2-lvl6'] || '').replace(/^FR-/i,''),
+          postcode:address.postcode || '',
           country:address.country || '', countryCode:(address.country_code || '').toUpperCase(),
           lat:Number(x.lat), lon:Number(x.lon), elevation:Number.isFinite(taggedEle) ? taggedEle : null,
           timezone:'auto', type:placeTypeLabel(x.category, x.type, address), source:'openstreetmap', importance:Number(x.importance || 0)
