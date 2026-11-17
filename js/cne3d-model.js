@@ -135,6 +135,14 @@ export function cneColor(value,layer) {
     return [240,115,76,178];
   }
   if(layer==='iso0')return [89,190,233,140];
+  if(layer==='lpn') {
+    if(value<500)return [59,132,221,188];
+    if(value<1000)return [92,180,235,185];
+    if(value<1500)return [108,203,232,182];
+    if(value<2000)return [134,183,160,182];
+    if(value<2500)return [239,185,106,184];
+    return [232,135,102,191];
+  }
   if(value<0.2)return [0,0,0,0];
   if(value<2)return [185,226,251,136];
   if(value<5)return [119,187,245,165];
