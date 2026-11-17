@@ -1,27 +1,16 @@
 import { CNE_ZONES, cneGrid, cneNearest, cneValue, cneInterpolate, cneSnowline, cneColor } from './cne3d-model.js?v=1';
 import { mountCNEChronology } from './cne3d-timeline.js?v=1';
 
-// Private experimental entry point. Public navigation is not changed.
-// Open MyWeather with ?cne3d=1 to reveal the button for the current tab session.
-const qs = new URLSearchParams(window.location.search);
-let enabled = qs.get('cne3d') === '1';
-try {
-  if (enabled) sessionStorage.setItem('myweather:cne3d:preview','1');
-  enabled = enabled || sessionStorage.getItem('myweather:cne3d:preview') === '1';
-} catch { /* Browser may restrict storage. URL flag still works. */ }
-
-if (enabled) startCNE();
+// 3D CNE is intentionally out of primary navigation: the discreet launcher is
+// the final block of the scrollable Prévisions page, below Sources principales.
+// ?cne3d=1 remains supported as a direct link and auto-opens the prototype.
+const directOpen = new URLSearchParams(window.location.search).get('cne3d') === '1';
+startCNE();
 
 function startCNE() {
   const main=document.querySelector('main'), nav=document.querySelector('.bottom-nav');
-  if(!main || !nav)return;
-
-  const button=document.createElement('button');
-  button.id='cne3dNav';
-  button.type='button';
-  button.setAttribute('aria-label','3D CNE, couche neige expérimentale');
-  button.innerHTML='<span aria-hidden="true">❄</span><small>3D CNE</small>';
-  nav.appendChild(button);
+  const button=document.querySelector('#cne3dLaunch');
+  if(!main || !nav || !button)return;
 
   const view=document.createElement('section');
   view.id='cne3dView';
@@ -86,7 +75,7 @@ function startCNE() {
     document.querySelectorAll('main > .view').forEach(v=>v.classList.remove('active'));
     view.classList.add('active');
     nav.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-    button.classList.add('active');
+    button.setAttribute('aria-expanded','true');
     active=true;
     window.scrollTo(0,0);
     if(!map)await makeMap();
@@ -98,11 +87,13 @@ function startCNE() {
   document.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click',()=>{
     if(!view.classList.contains('active'))return;
     view.classList.remove('active');
-    button.classList.remove('active');
+    button.setAttribute('aria-expanded','false');
     active=false;
     endImmersive();
   }));
   $('cneClose').addEventListener('click',()=>document.querySelector('[data-nav="forecast"]')?.click());
+  // Deep-link opens the same view without requiring the user to scroll.
+  if (directOpen) queueMicrotask(()=>button.click());
 
   el.zone.addEventListener('change',()=>{
     zoneId=el.zone.value;
