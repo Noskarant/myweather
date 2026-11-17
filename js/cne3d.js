@@ -402,6 +402,7 @@ function startCNE() {
     }
   }
   async function loadForecast(){
+    pointController?.abort();pointRequestId++;pointForecast=null;
     // Deliberately independent from WebGL: preserve temperatures and timeline
     // even if the 3D engine is unavailable on an older phone or blocked CDN.
     if(request)request.abort();
@@ -538,19 +539,23 @@ function startCNE() {
     });
   }
   function updateChronology(){
-    chronology.update({rows,times:time,position,layer:el.layer.value,selected});
+    chronology.update({
+      rows:pointForecast?[pointForecast]:rows,
+      times:time,position,layer:el.layer.value,selected
+    });
   }
   function updateSelection(){
     if(!position||!rows.length)return;
     const {lat,lon}=position;
-    const depth=cneInterpolate(rows,lon,lat,selected,'depth');
-    const fresh=cneInterpolate(rows,lon,lat,selected,'fresh');
-    const temp=cneInterpolate(rows,lon,lat,selected,'temp');
-    const iso=cneInterpolate(rows,lon,lat,selected,'iso0');
+    const depth=selectedReading('depth');
+    const fresh=selectedReading('fresh');
+    const temp=selectedReading('temp');
+    const iso=selectedReading('iso0');
     const lpn=cneSnowline(iso);
-    const elev=map?.queryTerrainElevation?.([lon,lat])??null;
+    const elev=selectedElevation();
     const fmt=(v,unit)=>v===null?'indisponible':Math.round(v)+(unit||'');
     const title=escapeText(position.name||'Point sélectionné');
+    const sourceNote=pointForecast?'prévision demandée pour ce point'+(elev===null?'':' avec altitude du relief DEM'):'interpolation spatiale entre sorties de modèles';
     el.selection.innerHTML='<strong>'+title+'</strong>'+
       '<div class="cne-readings"><span>Neige au sol <b>'+fmt(depth,' cm')+'</b></span>'+
       '<span>Neige 24 h <b>'+fmt(fresh,' cm')+'</b></span>'+
@@ -558,6 +563,7 @@ function startCNE() {
       '<span>Altitude DEM <b>'+fmt(elev,' m')+'</b></span>'+
       '<span>ISO 0 °C <b>'+fmt(iso,' m')+'</b></span>'+
       '<span>LPN indicative <b>'+fmt(lpn,' m')+'</b></span></div>'+
-      '<small>'+lat.toFixed(4)+'° N, '+lon.toFixed(4)+'° E · valeurs interpolées entre mailles météo. LPN = approximation.</small>';
+      '<small>'+lat.toFixed(4)+'° N, '+lon.toFixed(4)+'° E · '+sourceNote+'. Neige = prévision non mesurée, LPN = approximation.</small>';
+    updateHitCard();
   }
 }
