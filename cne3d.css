@@ -115,3 +115,19 @@ body.cne-lock-scroll .bottom-nav{display:none}
   #cne3dView .cne-map-hint{max-width:50%}
   #cne3dView.cne-immersive .cne-chart{width:min(250px,calc(100% - 18px));bottom:10px}
 }
+
+
+/* Discreet footer entry, actually below the source strip at the very end of Prévisions. */
+.cne-footer-entry{display:flex;justify-content:center;margin:24px auto 0;padding:0 0 20px}
+.cne-footer-launch{width:min(100%,330px);min-height:58px;display:flex;align-items:center;gap:11px;padding:10px 16px;border-radius:16px;border:1px solid rgba(130,192,220,.28);background:rgba(10,44,66,.85);color:#dbeaf2;cursor:pointer;text-align:left;box-shadow:0 8px 26px rgba(0,16,31,.16);transition:background .2s ease,border-color .2s ease,transform .2s ease}
+.cne-footer-launch:hover{background:rgba(17,71,104,.94);border-color:rgba(146,220,247,.52);transform:translateY(-2px)}
+.cne-footer-launch:focus-visible{outline:3px solid #93e0ff;outline-offset:3px}
+.cne-footer-symbol{font-size:22px;color:#8ddcff}
+.cne-footer-copy{flex:1;display:grid;gap:3px}
+.cne-footer-copy strong{font-size:14px;font-weight:800;letter-spacing:.2px}
+.cne-footer-copy small{font-size:11px;color:#9fbfce;line-height:1.25}
+.cne-footer-arrow{font-size:18px;color:#88c7df}
+@media(max-width:600px){
+  .cne-footer-entry{margin-top:20px;padding-bottom:28px}
+  .cne-footer-launch{min-height:60px;width:min(100%,360px);padding:12px 15px}
+}

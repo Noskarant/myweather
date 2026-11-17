@@ -1,8 +1,8 @@
 # MyWeather
 
-## 3D CNE — aperçu expérimental masqué
+## 3D CNE — accès expérimental tout en bas de la page
 
-**Statut : prototype privé, non publié dans la navigation ordinaire.** Sur une version déployée de la branche (ou après intégration), ajouter **?cne3d=1** à l’URL MyWeather pour révéler **3D CNE** comme dernier bouton de navigation. Le bouton reste visible pendant la session du navigateur ; aucun visiteur ordinaire ne le voit sans cette URL de test.
+**Statut : prototype expérimental, discret et non présent dans la navigation fixe.** Sur la page **Prévisions**, faire défiler complètement jusqu'après **Sources principales** : le dernier bloc est le bouton **3D CNE**. Un clic ouvre l'interface 3D. Le lien direct **?cne3d=1** ouvre également la vue sans défilement. Le bouton est visible aux visiteurs qui atteignent le bas de la page : **ce n'est pas un accès privé ni une authentification**. Ne pas promouvoir comme fonctionnalité finalisée avant la validation terrain.
 
 - Trois zones limitées : Monts du Lyonnais (Oullins, Yzeron, Saint-Martin-en-Haut, Saint-André-la-Côte), Valmorel et Pilat.
 - Carte MapLibre GL JS avec terrain réel 3D basé sur DEM Terrarium AWS, sans exagération verticale, contrôles de vue, zoom, inclinaison et navigation au doigt / souris.

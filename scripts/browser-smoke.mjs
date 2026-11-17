@@ -64,7 +64,7 @@ try{
        (result.condition.includes('indisponible')||result.dailyCount<10||!result.updated.includes('Secours Open-Meteo')))
       throw new Error('Safari WebKit did not recover from blocked Open-Meteo using the real published fallback');
   } finally {await fallbackCtx.close();}
-  // 3D CNE preview: check the actual navigation and chronology on desktop and iPhone dimensions.
+  // 3D CNE preview: check real scroll-to-bottom entry and chronology on desktop and iPhone.
   // The terrain tile/CDN delivery still requires separate on-device QA.
   for (const device of [
     {name:'desktop',viewport:{width:1440,height:900},isMobile:false,hasTouch:false},
@@ -73,12 +73,17 @@ try{
     const previewCtx=await browser.newContext({...device,serviceWorkers:'block'});
     try {
       const preview=await previewCtx.newPage();
-      await preview.goto(base+'?cne3d=1',{waitUntil:'domcontentloaded',timeout:30000});
-      if(await preview.locator('#cne3dNav').count()!==1)
-        throw new Error(device.name+': experimental navigation button missing');
-      if(await preview.locator('.bottom-nav button:last-child').getAttribute('id')!=='cne3dNav')
-        throw new Error(device.name+': 3D CNE is not last in navigation');
-      await preview.locator('#cne3dNav').click();
+      await preview.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
+      if(await preview.locator('#cne3dLaunch').count()!==1)
+        throw new Error(device.name+': 3D CNE footer launcher missing');
+      if(await preview.locator('#cne3dFooter').evaluate(el=>el.parentElement?.lastElementChild!==el))
+        throw new Error(device.name+': experimental launcher is not the last forecast block');
+      if(await preview.locator('.bottom-nav #cne3dNav').count()!==0)
+        throw new Error(device.name+': experimental launcher must not appear in fixed navigation');
+      await preview.locator('#cne3dLaunch').scrollIntoViewIfNeeded();
+      if(!await preview.locator('#cne3dLaunch').isVisible())
+        throw new Error(device.name+': footer launcher not visible after scrolling');
+      await preview.locator('#cne3dLaunch').click();
       if(!await preview.locator('#cne3dView').isVisible())throw new Error(device.name+': 3D page not visible');
       if(await preview.locator('#cneZone option').count()!==3)throw new Error(device.name+': missing zones');
       await preview.locator('#cneZone').selectOption('pilat');
@@ -98,7 +103,7 @@ try{
       await preview.locator('#cneFull').click();
       if(await preview.locator('#cne3dView').evaluate(el=>el.classList.contains('cne-immersive')))
         throw new Error(device.name+': fullscreen terrain mode did not close');
-      console.log('3D CNE WebKit '+device.name+': preview navigation, zones, chronology and layout OK');
+      console.log('3D CNE WebKit '+device.name+': footer access, zones, chronology and layout OK');
     } finally {await previewCtx.close();}
   }
 } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}
