@@ -83,6 +83,8 @@ try{
             this.sources=new Map();
             this.layers=new Map();
             this.pitch=options.pitch;
+            this.zoom=options.zoom;this.center=options.center;this.bearing=options.bearing;
+            window.__cneTestMap=this;
             setTimeout(()=>this.handlers.load?.forEach(callback=>callback()),20);
           }
           on(event,callback){(this.handlers[event]??=[]).push(callback);return this;}
@@ -96,7 +98,13 @@ try{
           setTerrain(){}
           fitBounds(){}
           getPitch(){return this.pitch;}
-          easeTo(options){if(options.pitch!==undefined)this.pitch=options.pitch;}
+          getZoom(){return this.zoom;}
+          easeTo(options){
+            if(options.pitch!==undefined)this.pitch=options.pitch;
+            if(options.zoom!==undefined)this.zoom=options.zoom;
+            if(options.center!==undefined)this.center=options.center;
+            if(options.bearing!==undefined)this.bearing=options.bearing;
+          }
           resize(){}
           queryTerrainElevation(){return 1100;}
         }
@@ -122,7 +130,7 @@ try{
             freezing_level_height:time.map(()=>1700)
           }
         }));
-        await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)});
+        await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload.length===1?payload[0]:payload)});
       });
       const previewErrors=[];
       preview.on('pageerror',error=>previewErrors.push(error.stack||error.message));
@@ -150,12 +158,42 @@ try{
       if(cneErrors.length)throw new Error(device.name+': 3D module exceptions: '+cneErrors.join('; '));
       if(await preview.locator('#cneMapWait').isVisible())
         throw new Error(device.name+': terrain startup overlay never closed');
-      if(await preview.locator('#cneChartPlot path').count()===0)
-        throw new Error(device.name+': timeline does not plot actual hourly snow');
+      await preview.locator('#cneChartPlot path').first().waitFor({state:'attached',timeout:15000}).catch(async()=>{
+        throw new Error(device.name+': timeline did not render after forecast load: '+await preview.locator('#cneChartPlot').innerText());
+      });
       if(!await preview.locator('#cneSelection').innerText().then(s=>s.includes('Neige au sol')))
         throw new Error(device.name+': local snow values never loaded');
       if(await preview.locator('#cneZone option').count()!==3)throw new Error(device.name+': missing zones');
+      const firstCamera=await preview.evaluate(()=>({pitch:window.__cneTestMap?.pitch,zoom:window.__cneTestMap?.zoom}));
+      if(firstCamera.pitch<75||firstCamera.zoom<12)
+        throw new Error(device.name+': Lyonnais camera is too high or too far: '+JSON.stringify(firstCamera));
+      await preview.locator('#cneZone').selectOption('valmorel');
+      const alpineCamera=await preview.evaluate(()=>({pitch:window.__cneTestMap.pitch,zoom:window.__cneTestMap.zoom}));
+      if(alpineCamera.pitch<75||alpineCamera.zoom<12.5)
+        throw new Error(device.name+': Valmorel must open close to the ridge: '+JSON.stringify(alpineCamera));
       await preview.locator('#cneZone').selectOption('pilat');
+      const pilatCamera=await preview.evaluate(()=>({pitch:window.__cneTestMap.pitch,zoom:window.__cneTestMap.zoom}));
+      if(pilatCamera.pitch<75||pilatCamera.zoom<12)
+        throw new Error(device.name+': Pilat must open in low-angle relief: '+JSON.stringify(pilatCamera));
+      await preview.waitForFunction(()=>document.querySelector('#cneStatus')?.textContent?.includes('25 points'),{timeout:15000});
+      // Click arbitrary terrain, not a named place: a point-specific forecast
+      // must become visible on the map without scrolling to the bottom details.
+      await preview.evaluate(()=>{
+        window.__cneTestMap.handlers.click.forEach(callback=>callback({lngLat:{lat:45.3825,lng:4.5728}}));
+      });
+      await preview.waitForFunction(()=>{
+        const card=document.querySelector('#cneMapHit');
+        return !card?.hidden && document.querySelector('#cneHitInfo')?.textContent?.includes('Prévision au point');
+      },{timeout:15000});
+      if(!(await preview.locator('#cneHitSnow').innerText()).includes('cm'))
+        throw new Error(device.name+': missing local snow depth on the clicked terrain');
+      if(!(await preview.locator('#cneHitAltitude').innerText()).includes('1100'))
+        throw new Error(device.name+': terrain elevation not surfaced');
+      if(!(await preview.locator('#cneHitInfo').innerText()).includes('altitude DEM'))
+        throw new Error(device.name+': point-specific terrain-aware forecast not used');
+      await preview.locator('#cneLayer').selectOption('depth');
+      if(await preview.locator('#cneChartPlot path').count()===0)
+        throw new Error(device.name+': timeline does not update for the selected point');
       await preview.locator('#cneLayer').selectOption('lpn');
       await preview.locator('[data-cne-chart-mode="day"]').click();
       if(await preview.locator('[data-cne-chart-mode="day"]').getAttribute('aria-pressed')!=='true')

@@ -1,4 +1,4 @@
-import { CNE_ZONES, cneGrid, cneNearest, cneValue, cneInterpolate, cneSnowline, cneColor } from './cne3d-model.js?v=1';
+import { CNE_ZONES, cneGrid, cneNearest, cneValue, cneInterpolate, cneSnowline, cneColor } from './cne3d-model.js?v=2';
 import { mountCNEChronology } from './cne3d-timeline.js?v=1';
 
 // 3D CNE is intentionally out of primary navigation: the discreet launcher is
@@ -27,13 +27,19 @@ function startCNE() {
       '<div class="cne-toolbar" aria-label="Commandes de la carte">',
         '<label>Zone<select id="cneZone"><option value="lyonnais">Monts du Lyonnais</option><option value="valmorel">Valmorel</option><option value="pilat">Pilat</option></select></label>',
         '<label>Couche<select id="cneLayer"><option value="depth">Neige au sol · cm</option><option value="fresh">Neige fraîche · 24 h</option><option value="temp">Température · °C</option><option value="lpn">LPN indicative · m</option></select></label>',
-        '<button id="cneReset" type="button" title="Recentrer la vue 3D">⌖ Recentrer</button>',
+        '<button id="cneReset" type="button" title="Revenir à la vue rapprochée sur le relief">⌖ Relief</button>',
         '<button id="cneCamera" type="button" title="Basculer vue aérienne et vue inclinée">◫ Vue 3D</button>',
         '<button id="cneFull" type="button" title="Agrandir la carte">⛶ Agrandir</button>',
       '</div>',
       '<div class="cne-map-wrap" id="cneMapWrap">',
         '<div id="cneMap" role="application" aria-label="Carte 3D interactive des prévisions de neige"></div>',
-        '<div class="cne-map-hint" id="cneMapHint">Glisser : déplacer · Pincer : zoomer · Deux doigts : orienter</div>',
+        '<div class="cne-map-hint" id="cneMapHint">Molette / + − : zoomer · Glisser : déplacer · Deux doigts : orienter · Cliquer : neige locale</div>',
+        '<div class="cne-map-hit" id="cneMapHit" hidden role="status" aria-live="polite">',
+          '<div class="cne-map-hit-head"><strong id="cneHitName">Point choisi</strong><button type="button" id="cneHitClose" aria-label="Fermer la fiche météo">×</button></div>',
+          '<div class="cne-map-hit-primary"><span>Neige au sol</span><strong id="cneHitSnow">—</strong></div>',
+          '<div class="cne-map-hit-mini"><span id="cneHitTemp">Temp. —</span><span id="cneHitAltitude">Altitude —</span></div>',
+          '<small id="cneHitInfo">Prévision modélisée, non mesurée</small>',
+        '</div>',
         '<div class="cne-map-credit">© OpenStreetMap · DEM AWS Terrarium · Open-Meteo</div>',
         '<div class="cne-map-wait" id="cneMapWait" role="status">Initialisation du relief 3D…</div>',
       '</div>',
@@ -64,12 +70,15 @@ function startCNE() {
   const el={
     zone:$('cneZone'), layer:$('cneLayer'), map:$('cneMap'), wrap:$('cneMapWrap'),
     hint:$('cneMapHint'), wait:$('cneMapWait'), slider:$('cneTime'),
+    hit:$('cneMapHit'),hitName:$('cneHitName'),hitSnow:$('cneHitSnow'),
+    hitTemp:$('cneHitTemp'),hitAltitude:$('cneHitAltitude'),hitInfo:$('cneHitInfo'),
     when:$('cneWhen'), status:$('cneStatus'), selection:$('cneSelection'),
     legend:$('cneLegendTitle'), scale:$('cneLegendScale'), note:$('cneLegendNote')
   };
   let map=null, mapReady=false, rows=[], time=[], selected=0, active=false, zoneId='lyonnais';
   const chronology=mountCNEChronology(el.wrap, index=>selectTime(index));
   let markers=[], request=null, requestNumber=0, position=null, raf=0, loadingMap=null, immersive=false;
+  let pointForecast=null, pointController=null, pointRequestId=0, pointPin=null;
 
   button.addEventListener('click',async()=>{
     document.querySelectorAll('main > .view').forEach(v=>v.classList.remove('active'));
@@ -98,6 +107,8 @@ function startCNE() {
   el.zone.addEventListener('change',()=>{
     zoneId=el.zone.value;
     rows=[];time=[]; selected=0; position=null;
+    pointController?.abort();pointRequestId++;pointForecast=null;
+    pointPin?.remove();pointPin=null;el.hit.hidden=true;el.hint.hidden=false;
     el.selection.innerHTML='<strong>Lecture locale</strong><p>Choisis un point sur la carte.</p>';
     chronology.update({rows:[],times:[],selected:0,position:null,layer:el.layer.value});
     if(mapReady) {
@@ -125,10 +136,15 @@ function startCNE() {
   }));
   $('cneReload').addEventListener('click',loadForecast);
   $('cneReset').addEventListener('click',setZoneView);
+  $('cneHitClose').addEventListener('click',()=>{
+    el.hit.hidden=true;el.hint.hidden=false;
+    pointPin?.remove();pointPin=null;
+  });
   $('cneCamera').addEventListener('click',()=>{
     if(!map)return;
     const is3d=map.getPitch()>20;
-    map.easeTo({pitch:is3d?0:65,bearing:is3d?-18:0,duration:850});
+    const zone=CNE_ZONES[zoneId];
+    map.easeTo({pitch:is3d?0:zone.pitch,bearing:is3d?0:zone.bearing,duration:850});
   });
   $('cneFull').addEventListener('click',()=>{
     if(immersive)endImmersive();
@@ -216,11 +232,11 @@ function startCNE() {
           sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'© OpenStreetMap contributors'}},
           layers:[{id:'background',type:'background',paint:{'background-color':'#162f41'}},{id:'osm',type:'raster',source:'osm'}]
         },
-        center:zone.center,zoom:zone.zoom,pitch:zone.pitch,bearing:-16,
-        maxPitch:80,minZoom:8,maxZoom:16,
+        center:zone.center,zoom:zone.zoom,pitch:zone.pitch,bearing:zone.bearing,
+        maxPitch:85,minZoom:8,maxZoom:18.5,cooperativeGestures:false,
         antialias:false,pixelRatio:Math.min(window.devicePixelRatio||1,1.8)
       });
-      map.addControl(new ml.NavigationControl({showCompass:true,showZoom:true}),'top-right');
+      map.addControl(new ml.NavigationControl({showCompass:true,showZoom:true,visualizePitch:true}),'top-right');
       map.on('load',()=>{
         mapReady=true;
         // Actual elevations from a real DEM, not a synthetic height field.
@@ -231,9 +247,7 @@ function startCNE() {
         setZoneView();setMarkers();loadForecast();
       });
       map.on('click',event=>{
-        position={lon:event.lngLat.lng,lat:event.lngLat.lat,name:'Point sélectionné'};
-        updateSelection();
-        updateChronology();
+        choosePoint({lon:event.lngLat.lng,lat:event.lngLat.lat,name:'Point sélectionné'});
       });
       map.on('error',e=>{
         // A missing tile must not silently be reported as valid terrain or forecast.
@@ -256,9 +270,16 @@ function startCNE() {
   function setZoneView(){
     if(!map)return;
     const z=CNE_ZONES[zoneId];
-    map.fitBounds(z.bounds,{padding:window.innerWidth<700?36:64,duration:800,pitch:z.pitch,bearing:-16,maxZoom:z.zoom+0.4});
-    // fitBounds may reset pitch depending on MapLibre version; explicitly restore it.
-    setTimeout(()=>{if(map&&active)map.easeTo({pitch:z.pitch,bearing:-16,duration:500});},850);
+    // A ridge-level camera makes the actual 3D terrain legible on entry.
+    // Do not fit the entire forecast sampling bounds: that was too far away.
+    map.easeTo({
+      center:z.center,
+      zoom:z.zoom-(window.innerWidth<650?0.35:0),
+      pitch:z.pitch,
+      bearing:z.bearing,
+      duration:900,
+      essential:true
+    });
   }
   function setMarkers(){
     for(const marker of markers)marker.marker.remove();
@@ -272,16 +293,116 @@ function startCNE() {
       element.append(name,info);
       element.addEventListener('click',event=>{
         event.stopPropagation();
-        position={...point};
-        updateSelection();
-        updateChronology();
-        map.easeTo({center:[point.lon,point.lat],duration:650});
+        choosePoint(point);
+        map.easeTo({center:[point.lon,point.lat],zoom:Math.max(map.getZoom?.()??12,13.4),duration:650});
       });
       const marker=new window.maplibregl.Marker({element,anchor:'bottom'}).setLngLat([point.lon,point.lat]).addTo(map);
       markers.push({marker,point,info});
     }
   }
+  function selectedReading(layer) {
+    if(!position || !time.length || !rows.length)return null;
+    // A single point request uses this exact point and the DEM altitude when available.
+    if(pointForecast?.hourly?.time?.[selected]===time[selected])
+      return cneValue(pointForecast,layer,selected);
+    // Until that response arrives, only a coarse spatial interpolation is available.
+    return cneInterpolate(rows,position.lon,position.lat,selected,layer);
+  }
+  function selectedElevation() {
+    if(!map || !position || typeof map.queryTerrainElevation!=='function')return null;
+    const elevation=map.queryTerrainElevation([position.lon,position.lat]);
+    return Number.isFinite(elevation)?elevation:null;
+  }
+  function updateHitCard() {
+    if(el.hit.hidden || !position)return;
+    el.hitName.textContent=position.name||'Point sélectionné';
+    const depth=selectedReading('depth');
+    const temp=selectedReading('temp');
+    const elevation=selectedElevation();
+    el.hitSnow.textContent=depth===null?'—':Math.round(depth)+' cm';
+    el.hitTemp.textContent=temp===null?'Temp. indisponible':'Temp. '+Math.round(temp)+' °C';
+    el.hitAltitude.textContent=elevation===null?'Altitude DEM —':'Terrain '+Math.round(elevation)+' m';
+    el.hitInfo.textContent=pointStatus;
+  }
+  let pointStatus='Prévision interpolée · non mesurée';
+  function choosePoint(point) {
+    pointController?.abort();
+    pointRequestId++;
+    pointForecast=null;
+    position={lat:Number(point.lat),lon:Number(point.lon),name:point.name||'Point sélectionné',explicit:true};
+    pointStatus='Interpolation provisoire · calcul au point…';
+    pointPin?.remove();
+    if(map){
+      const dot=document.createElement('span');
+      dot.className='cne-selected-dot';
+      dot.setAttribute('aria-hidden','true');
+      pointPin=new window.maplibregl.Marker({element:dot,anchor:'center'})
+        .setLngLat([position.lon,position.lat]).addTo(map);
+    }
+    el.hit.hidden=false;
+    el.hint.hidden=true;
+    updateSelection();
+    updateChronology();
+    updateHitCard();
+    if(time.length)void loadPointForecast();
+  }
+  async function loadPointForecast() {
+    if(!position?.explicit || !time.length)return;
+    pointController?.abort();
+    const controller=new AbortController();
+    pointController=controller;
+    const requestId=++pointRequestId;
+    const requested={lat:position.lat,lon:position.lon};
+    const activeZone=zoneId;
+    const elevation=selectedElevation();
+    const hasElevation=Number.isFinite(elevation)&&elevation>-500&&elevation<5000;
+    const params=new URLSearchParams({
+      latitude:requested.lat.toFixed(5),
+      longitude:requested.lon.toFixed(5),
+      hourly:'temperature_2m,snow_depth,snowfall,freezing_level_height',
+      forecast_days:'7',
+      timezone:'Europe/Paris',
+      models:'best_match'
+    });
+    if(hasElevation)params.set('elevation',String(Math.round(elevation)));
+    pointStatus='Calcul de la prévision à cet endroit…';
+    updateHitCard();
+    try {
+      const response=await fetch('https://api.open-meteo.com/v1/forecast?'+params,{signal:controller.signal,cache:'no-store'});
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      const data=await response.json();
+      if(data.error)throw new Error(data.reason||'Réponse météo invalide');
+      if(!Array.isArray(data.hourly?.time))throw new Error('Prévisions horaires absentes');
+      if(controller.signal.aborted||requestId!==pointRequestId||zoneId!==activeZone)return;
+      const sourceIndex=new Map(data.hourly.time.map((date,i)=>[date,i]));
+      if(!time.some(date=>sourceIndex.has(date)))throw new Error('Horaires incompatibles');
+      const aligned={...data,latitude:requested.lat,longitude:requested.lon,hourly:{time:[...time]}};
+      for(const field of ['temperature_2m','snow_depth','snowfall','freezing_level_height']){
+        const arr=data.hourly[field];
+        aligned.hourly[field]=time.map(date=>{
+          const i=sourceIndex.get(date);
+          return i===undefined||!Array.isArray(arr)?null:arr[i]??null;
+        });
+      }
+      pointForecast=aligned;
+      pointStatus=hasElevation
+        ?'Prévision au point · altitude DEM fournie au modèle (neige non mesurée)'
+        :'Prévision au point · altitude du modèle (neige non mesurée)';
+      updateSelection();
+      updateChronology();
+      updateHitCard();
+    } catch(error){
+      if(controller.signal.aborted||requestId!==pointRequestId)return;
+      pointForecast=null;
+      pointStatus='Prévision au point indisponible · interpolation indicative';
+      console.warn('[3D CNE] Prévision locale indisponible :',error);
+      updateSelection();
+      updateChronology();
+      updateHitCard();
+    }
+  }
   async function loadForecast(){
+    pointController?.abort();pointRequestId++;pointForecast=null;
     // Deliberately independent from WebGL: preserve temperatures and timeline
     // even if the 3D engine is unavailable on an older phone or blocked CDN.
     if(request)request.abort();
@@ -320,6 +441,7 @@ function startCNE() {
       el.wait.hidden=true;
       if(!position)position={...CNE_ZONES[zoneId].points[0]};
       updateLegend();updateVisual();
+      if(position.explicit)loadPointForecast();
     }catch(error){
       if(error.name==='AbortError')return;
       if(localRequest!==requestNumber)return;
@@ -391,7 +513,7 @@ function startCNE() {
     if(source)source.updateImage({url,coordinates});
     else{
       map.addSource('cne-forecast-image',{type:'image',url,coordinates});
-      map.addLayer({id:'cne-forecast-raster',type:'raster',source:'cne-forecast-image',paint:{'raster-opacity':0.83}});
+      map.addLayer({id:'cne-forecast-raster',type:'raster',source:'cne-forecast-image',paint:{'raster-opacity':0.69}});
     }
   }
   function updateVisual(){
@@ -417,19 +539,23 @@ function startCNE() {
     });
   }
   function updateChronology(){
-    chronology.update({rows,times:time,position,layer:el.layer.value,selected});
+    chronology.update({
+      rows:pointForecast?[pointForecast]:rows,
+      times:time,position,layer:el.layer.value,selected
+    });
   }
   function updateSelection(){
     if(!position||!rows.length)return;
     const {lat,lon}=position;
-    const depth=cneInterpolate(rows,lon,lat,selected,'depth');
-    const fresh=cneInterpolate(rows,lon,lat,selected,'fresh');
-    const temp=cneInterpolate(rows,lon,lat,selected,'temp');
-    const iso=cneInterpolate(rows,lon,lat,selected,'iso0');
+    const depth=selectedReading('depth');
+    const fresh=selectedReading('fresh');
+    const temp=selectedReading('temp');
+    const iso=selectedReading('iso0');
     const lpn=cneSnowline(iso);
-    const elev=map?.queryTerrainElevation?.([lon,lat])??null;
+    const elev=selectedElevation();
     const fmt=(v,unit)=>v===null?'indisponible':Math.round(v)+(unit||'');
     const title=escapeText(position.name||'Point sélectionné');
+    const sourceNote=pointForecast?'prévision demandée pour ce point'+(elev===null?'':' avec altitude du relief DEM'):'interpolation spatiale entre sorties de modèles';
     el.selection.innerHTML='<strong>'+title+'</strong>'+
       '<div class="cne-readings"><span>Neige au sol <b>'+fmt(depth,' cm')+'</b></span>'+
       '<span>Neige 24 h <b>'+fmt(fresh,' cm')+'</b></span>'+
@@ -437,6 +563,7 @@ function startCNE() {
       '<span>Altitude DEM <b>'+fmt(elev,' m')+'</b></span>'+
       '<span>ISO 0 °C <b>'+fmt(iso,' m')+'</b></span>'+
       '<span>LPN indicative <b>'+fmt(lpn,' m')+'</b></span></div>'+
-      '<small>'+lat.toFixed(4)+'° N, '+lon.toFixed(4)+'° E · valeurs interpolées entre mailles météo. LPN = approximation.</small>';
+      '<small>'+lat.toFixed(4)+'° N, '+lon.toFixed(4)+'° E · '+sourceNote+'. Neige = prévision non mesurée, LPN = approximation.</small>';
+    updateHitCard();
   }
 }
