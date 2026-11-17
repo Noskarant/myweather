@@ -179,7 +179,9 @@ function startCNE() {
     el.wait.hidden=false;el.wait.textContent='Chargement du relief 3D…';
     try {
       const ml=await loadMapLibre();
-      if(!ml.supported())throw new Error('Cette carte nécessite WebGL, indisponible sur cet appareil');
+      // MapLibre GL JS 5.x no longer exports supported(). The Map constructor
+      // verifies WebGL support itself. Calling supported() prevented ALL devices from loading.
+      if (typeof ml.Map !== 'function') throw new Error('Bibliothèque 3D incomplète : MapLibre.Map absent');
       const zone=CNE_ZONES[zoneId];
       map=new ml.Map({
         container:el.map,
@@ -215,9 +217,14 @@ function startCNE() {
         }
       });
     } catch(error){
-      el.wait.textContent='Carte indisponible : '+String(error?.message||error);
+      const reason=String(error?.message||error);
+      console.error('[3D CNE] Impossible de créer la carte 3D :',error);
+      el.wait.textContent='Carte 3D indisponible : '+reason;
       el.wait.hidden=false;
-      setStatus('Carte 3D non prise en charge',true);
+      // The real error is visible rather than the false unsupported-browser diagnosis.
+      setStatus('Échec carte : '+reason,true);
+      // Weather can still load on its own even when graphics/WebGL/CDN fail.
+      loadForecast();
     }
   }
   function setZoneView(){
@@ -249,7 +256,8 @@ function startCNE() {
     }
   }
   async function loadForecast(){
-    if(!mapReady)return;
+    // Deliberately independent from WebGL: preserve temperatures and timeline
+    // even if the 3D engine is unavailable on an older phone or blocked CDN.
     if(request)request.abort();
     const localRequest=++requestNumber;
     request=new AbortController();
