@@ -158,8 +158,9 @@ try{
       if(cneErrors.length)throw new Error(device.name+': 3D module exceptions: '+cneErrors.join('; '));
       if(await preview.locator('#cneMapWait').isVisible())
         throw new Error(device.name+': terrain startup overlay never closed');
-      if(await preview.locator('#cneChartPlot path').count()===0)
-        throw new Error(device.name+': timeline does not plot actual hourly snow');
+      await preview.locator('#cneChartPlot path').first().waitFor({state:'attached',timeout:15000}).catch(async()=>{
+        throw new Error(device.name+': timeline did not render after forecast load: '+await preview.locator('#cneChartPlot').innerText());
+      });
       if(!await preview.locator('#cneSelection').innerText().then(s=>s.includes('Neige au sol')))
         throw new Error(device.name+': local snow values never loaded');
       if(await preview.locator('#cneZone option').count()!==3)throw new Error(device.name+': missing zones');
