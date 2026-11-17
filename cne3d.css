@@ -1,0 +1,89 @@
+/* 3D CNE — isolated responsive experimental interface. */
+#cne3dView { --cne-ink:#eaf6ff; color:var(--cne-ink); }
+#cne3dView .cne-shell{width:min(1450px,calc(100% - 36px));margin:0 auto;display:grid;gap:16px}
+#cne3dView .cne-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+#cne3dView .cne-heading h1{font-size:clamp(29px,3vw,45px);line-height:1.1;margin:0 0 8px}
+#cne3dView .cne-heading p{font-size:14px;color:#aac7d8;margin:0;line-height:1.55}
+#cne3dView .cne-experiment{display:inline-flex;vertical-align:middle;font-size:10px;font-weight:800;letter-spacing:.6px;border:1px solid #64bdd5;border-radius:999px;padding:5px 9px;color:#9ae0f2;background:rgba(31,109,143,.21)}
+#cne3dView button,#cne3dView select{font:inherit;color:inherit;cursor:pointer}
+#cne3dView .cne-quiet,#cne3dView .cne-toolbar button,#cne3dView .cne-time-shortcuts button,#cne3dView .cne-time-slider button{padding:12px 15px;border-radius:12px;border:1px solid rgba(156,214,238,.2);background:#153c56;transition:background .18s ease;min-height:44px}
+#cne3dView button:focus-visible,#cne3dView input:focus-visible,#cne3dView select:focus-visible{outline:3px solid #92dfff;outline-offset:2px}
+#cne3dView button:hover{background:#206180}
+#cne3dView .cne-toolbar{display:flex;align-items:end;gap:10px;padding:12px;border:1px solid rgba(157,213,239,.19);border-radius:18px;background:rgba(13,44,66,.88);flex-wrap:wrap}
+#cne3dView .cne-toolbar label{min-width:180px;flex:1 1 220px;display:grid;gap:5px;color:#a9cddd;font-size:11px;font-weight:700}
+#cne3dView .cne-toolbar select{width:100%;min-height:46px;appearance:none;border:1px solid rgba(177,227,248,.17);border-radius:12px;background:#103550;padding:11px 14px;font-size:14px;font-weight:650}
+#cne3dView .cne-map-wrap{height:clamp(420px,62dvh,900px);position:relative;overflow:hidden;border-radius:20px;border:1px solid #315d78;background:radial-gradient(circle at 55% 40%,#205c7b,#0c283e 80%);isolation:isolate}
+#cne3dView #cneMap{position:absolute;inset:0;width:100%;height:100%;touch-action:pan-x pan-y}
+#cne3dView .cne-map-wait{position:absolute;z-index:5;top:50%;left:50%;transform:translate(-50%,-50%);padding:17px 24px;border-radius:14px;text-align:center;color:#fff;background:rgba(8,34,51,.88);max-width:80%;box-shadow:0 8px 30px rgba(0,0,0,.3)}
+#cne3dView .cne-map-hint{position:absolute;z-index:3;top:14px;left:14px;background:rgba(9,41,57,.86);border:1px solid rgba(150,210,235,.18);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.35;pointer-events:none;max-width:min(340px,68%);color:#dceaf1}
+#cne3dView .cne-map-credit{position:absolute;bottom:7px;left:8px;font-size:9px;pointer-events:none;background:rgba(5,28,41,.75);padding:4px 7px;border-radius:5px;color:#c7d9e4;z-index:1}
+#cne3dView .maplibregl-control-container .maplibregl-ctrl-group{background:#103a53;border:1px solid #6a98ad}
+#cne3dView .maplibregl-ctrl-group button{background:#e6f5fb;min-height:30px}
+#cne3dView .maplibregl-ctrl-attrib{font-size:9px}
+#cne3dView .cne-place-pin{border:1px solid #b9ebf8;border-radius:10px;padding:6px 9px;background:rgba(9,51,76,.95);box-shadow:0 4px 18px rgba(0,0,0,.3);display:grid;gap:1px;min-width:92px;max-width:145px;text-align:center;white-space:normal;color:#fff;line-height:1.12}
+#cne3dView .cne-place-pin strong{font-weight:800;font-size:11px}
+#cne3dView .cne-place-pin small{font-size:10px;color:#d2edf8}
+#cne3dView .cne-place-pin:after{content:"";position:absolute;bottom:-6px;left:calc(50% - 6px);height:9px;width:9px;transform:rotate(45deg);background:#09334c;border-bottom:1px solid #b9ebf8;border-right:1px solid #b9ebf8}
+#cne3dView .cne-timeline,#cne3dView .cne-selection,#cne3dView .cne-legend{border-radius:17px;background:rgba(12,46,68,.95);border:1px solid rgba(145,204,227,.18);padding:16px}
+#cne3dView .cne-time-top{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:11px;flex-wrap:wrap}
+#cne3dView .cne-time-top strong{font-size:15px;text-transform:capitalize}
+#cne3dView .cne-time-top span{color:#89bfd4;font-size:12px}
+#cne3dView .cne-time-top span.cne-error{color:#ffafaf}
+#cne3dView .cne-time-slider{display:flex;align-items:center;gap:12px}
+#cne3dView .cne-time-slider input{flex:1;width:100%;min-width:60px;height:32px;accent-color:#6be0ff;cursor:pointer}
+#cne3dView .cne-time-slider button{font-size:19px;width:48px;padding:6px 0}
+#cne3dView .cne-time-shortcuts{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+#cne3dView .cne-time-shortcuts button{padding:8px 14px;min-height:38px;font-size:12px}
+#cne3dView .cne-lower{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(280px,1fr);gap:16px}
+#cne3dView .cne-selection strong,#cne3dView .cne-legend strong{display:block;margin-bottom:8px}
+#cne3dView .cne-selection p,#cne3dView .cne-legend p{font-size:12px;color:#a2c5d8;margin:5px 0;line-height:1.5}
+#cne3dView .cne-readings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}
+#cne3dView .cne-readings span{display:grid;gap:4px;padding:10px;border-radius:10px;background:#123b55;color:#afcede;font-size:11px}
+#cne3dView .cne-readings b{font-size:16px;color:#effaff}
+#cne3dView .cne-selection small{font-size:11px;color:#9dbdd0}
+#cne3dView .cne-legend-scale{display:flex;min-height:35px;overflow:hidden;border-radius:10px;margin:10px 0}
+#cne3dView .cne-legend-scale span{display:flex;align-items:center;justify-content:center;flex:1;font-size:10px;min-width:0;font-weight:750;color:white;text-shadow:0 1px 4px #193447;padding:3px}
+#cne3dView .cne-method{font-size:12px;line-height:1.65;color:#aac4d3;margin:0 0 30px;max-width:1200px}
+#cne3dView.cne-immersive{position:fixed;inset:0;z-index:150;background:#082b40;overflow:auto;padding:12px 12px max(12px,env(safe-area-inset-bottom));overscroll-behavior:contain}
+#cne3dView.cne-immersive .cne-shell{width:100%;gap:8px}
+#cne3dView.cne-immersive .cne-map-wrap{height:calc(100dvh - 280px);min-height:240px}
+#cne3dView.cne-immersive .cne-method{display:none}
+#cne3dView.cne-immersive .cne-lower{display:none}
+body.cne-lock-scroll{overflow:hidden}
+body.cne-lock-scroll .bottom-nav{display:none}
+@media(max-width:850px){
+  #cne3dView .cne-lower{grid-template-columns:1fr}
+  #cne3dView .cne-toolbar{gap:8px}
+  #cne3dView .cne-heading p{font-size:13px}
+}
+@media(max-width:600px){
+  #cne3dView .cne-shell{width:calc(100% - 16px);gap:10px}
+  #cne3dView .cne-heading{align-items:start;gap:8px}
+  #cne3dView .cne-heading h1{font-size:28px}
+  #cne3dView .cne-experiment{font-size:8px;padding:4px 6px}
+  #cne3dView .cne-heading p{font-size:12px;max-width:95%}
+  #cne3dView .cne-quiet{min-width:48px;flex:none;padding:11px 8px;font-size:11px;max-width:95px}
+  #cne3dView .cne-toolbar{padding:9px}
+  #cne3dView .cne-toolbar label{flex:1 1 calc(50% - 7px);min-width:0}
+  #cne3dView .cne-toolbar select{font-size:12px;min-height:44px;padding:9px 6px}
+  #cne3dView .cne-toolbar button{flex:1;min-height:44px;padding:8px 5px;font-size:11px}
+  #cne3dView .cne-map-wrap{height:clamp(365px,51dvh,700px);border-radius:15px}
+  #cne3dView .cne-map-hint{font-size:10px;max-width:62%;padding:8px 9px;top:9px;left:8px}
+  #cne3dView .cne-place-pin{min-width:62px;max-width:102px;padding:5px 6px}
+  #cne3dView .cne-place-pin strong{font-size:9px}
+  #cne3dView .cne-place-pin small{font-size:9px}
+  #cne3dView .cne-timeline,#cne3dView .cne-selection,#cne3dView .cne-legend{padding:12px;border-radius:14px}
+  #cne3dView .cne-time-top strong{font-size:13px}
+  #cne3dView .cne-time-top span{font-size:10px}
+  #cne3dView .cne-time-slider{gap:5px}
+  #cne3dView .cne-time-slider button{width:44px;min-width:44px}
+  #cne3dView .cne-time-shortcuts{gap:5px}
+  #cne3dView .cne-time-shortcuts button{flex:1;padding:8px 5px;font-size:10px}
+  #cne3dView .cne-readings{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #cne3dView .cne-method{font-size:11px}
+  #cne3dView.cne-immersive{padding:8px 8px max(8px,env(safe-area-inset-bottom))}
+  #cne3dView.cne-immersive .cne-heading p{display:none}
+  #cne3dView.cne-immersive .cne-map-wrap{height:calc(100dvh - 280px);min-height:205px}
+  #cne3dView.cne-immersive .cne-map-hint{display:none}
+}
+@media(prefers-reduced-motion:reduce){#cne3dView *{scroll-behavior:auto;transition:none!important}}
