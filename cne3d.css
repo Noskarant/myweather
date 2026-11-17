@@ -87,3 +87,31 @@ body.cne-lock-scroll .bottom-nav{display:none}
   #cne3dView.cne-immersive .cne-map-hint{display:none}
 }
 @media(prefers-reduced-motion:reduce){#cne3dView *{scroll-behavior:auto;transition:none!important}}
+
+/* Chronologie accessible, bas-droite sur PC ; superposition compacte sur mobile. */
+#cne3dView .cne-chart{position:absolute;z-index:6;bottom:28px;right:16px;width:min(340px,calc(100% - 30px));border:1px solid rgba(171,219,239,.34);border-radius:16px;background:rgba(7,39,59,.94);box-shadow:0 12px 36px rgba(0,13,26,.44);backdrop-filter:blur(12px);padding:10px 12px;color:#e9faff}
+#cne3dView .cne-chart-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px}
+#cne3dView .cne-chart-title{font-size:13px;font-weight:800;display:grid;gap:2px}
+#cne3dView .cne-chart-title small{font-size:10px;font-weight:550;color:#a9cddd}
+#cne3dView .cne-chart-fold{background:#184c68;border:1px solid #346b83;border-radius:8px;width:33px;height:33px;display:grid;place-items:center;font-size:20px;cursor:pointer}
+#cne3dView .cne-chart-switch{display:flex;gap:4px;margin:6px 0}
+#cne3dView .cne-chart-switch button{flex:1;min-height:35px;border-radius:8px;border:1px solid #285b76;background:#113a56;color:#c4e2f2;font-size:11px;font-weight:650}
+#cne3dView .cne-chart-switch button.active{background:#247bb0;color:white}
+#cne3dView .cne-chart-plot{min-height:118px;cursor:crosshair;display:grid;place-items:center;touch-action:manipulation;outline-offset:2px}
+#cne3dView .cne-chart-plot svg{height:118px;width:100%;overflow:visible}
+#cne3dView .cne-chart-plot .cne-chart-empty{font-size:11px;color:#a5bfd1;text-align:center}
+#cne3dView .cne-chart-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid rgba(137,202,227,.18);padding-top:8px;font-size:11px;color:#b8d5e4}
+#cne3dView .cne-chart-foot strong{font-size:14px;color:#fff}
+#cne3dView .cne-chart-collapsed .cne-chart-body{display:none}
+@media(max-width:600px){
+  #cne3dView .cne-chart{width:min(235px,calc(100% - 18px));right:8px;bottom:27px;border-radius:12px;padding:7px 9px}
+  #cne3dView .cne-chart-title{font-size:11px}
+  #cne3dView .cne-chart-title small{font-size:9px}
+  #cne3dView .cne-chart-fold{width:28px;height:28px}
+  #cne3dView .cne-chart-switch button{min-height:33px}
+  #cne3dView .cne-chart-plot{min-height:77px}
+  #cne3dView .cne-chart-plot svg{height:77px}
+  #cne3dView .cne-chart-foot{font-size:10px}
+  #cne3dView .cne-map-hint{max-width:50%}
+  #cne3dView.cne-immersive .cne-chart{width:min(250px,calc(100% - 18px));bottom:10px}
+}
