@@ -73,6 +73,59 @@ try{
     const previewCtx=await browser.newContext({...device,serviceWorkers:'block'});
     try {
       const preview=await previewCtx.newPage();
+      // A deterministic map engine with Map but intentionally NO deprecated supported().
+      // This exercises real module initialization instead of merely checking layout.
+      await preview.addInitScript(() => {
+        class TestMap {
+          constructor(options) {
+            this.options=options;
+            this.handlers={};
+            this.sources=new Map();
+            this.layers=new Map();
+            this.pitch=options.pitch;
+            setTimeout(()=>this.handlers.load?.forEach(callback=>callback()),20);
+          }
+          on(event,callback){(this.handlers[event]??=[]).push(callback);return this;}
+          addControl(){return this;}
+          addSource(id,options){const item={...options,updateImage(image){Object.assign(this,image);}};this.sources.set(id,item);}
+          getSource(id){return this.sources.get(id);}
+          removeSource(id){this.sources.delete(id);}
+          addLayer(item){this.layers.set(item.id,item);}
+          getLayer(id){return this.layers.get(id);}
+          removeLayer(id){this.layers.delete(id);}
+          setTerrain(){}
+          fitBounds(){}
+          getPitch(){return this.pitch;}
+          easeTo(options){if(options.pitch!==undefined)this.pitch=options.pitch;}
+          resize(){}
+          queryTerrainElevation(){return 1100;}
+        }
+        class TestMarker {
+          constructor({element}){this.element=element;}
+          setLngLat(){return this;}
+          addTo(map){map.options.container.appendChild(this.element);return this;}
+          remove(){this.element.remove();}
+        }
+        window.maplibregl={Map:TestMap,Marker:TestMarker,NavigationControl:class{}};
+      });
+      await preview.route('https://api.open-meteo.com/v1/forecast**',async route=>{
+        const requestUrl=new URL(route.request().url());
+        const latitudes=requestUrl.searchParams.get('latitude').split(',').map(Number);
+        const longitudes=requestUrl.searchParams.get('longitude').split(',').map(Number);
+        const time=Array.from({length:168},(_,i)=>'2026-11-'+String(17+Math.floor(i/24)).padStart(2,'0')+'T'+String(i%24).padStart(2,'0')+':00');
+        const payload=latitudes.map((latitude,i)=>({
+          latitude,longitude:longitudes[i],hourly:{
+            time,
+            temperature_2m:time.map((_,h)=>2-h*0.03),
+            snow_depth:time.map((_,h)=>Math.max(0,h-10)/1000),
+            snowfall:time.map(()=>0.7),
+            freezing_level_height:time.map(()=>1700)
+          }
+        }));
+        await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)});
+      });
+      const previewErrors=[];
+      preview.on('pageerror',error=>previewErrors.push(error.stack||error.message));
       await preview.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
       if(await preview.locator('#cne3dLaunch').count()!==1)
         throw new Error(device.name+': 3D CNE footer launcher missing');
@@ -85,6 +138,22 @@ try{
         throw new Error(device.name+': footer launcher not visible after scrolling');
       await preview.locator('#cne3dLaunch').click();
       if(!await preview.locator('#cne3dView').isVisible())throw new Error(device.name+': 3D page not visible');
+      await preview.waitForFunction(()=>{
+        const s=document.querySelector('#cneStatus')?.textContent||'';
+        const pins=document.querySelectorAll('#cneMap .cne-place-pin').length;
+        return s.includes('25 points') && pins>=3;
+      },{timeout:15000});
+      // The ordinary forecast view may report unrelated Windy iframe failures.
+      // Assert only crashes of the new CNE modules; the map/weather readiness
+      // assertions above independently detect all initialization failures.
+      const cneErrors=previewErrors.filter(message=>/cne3d(?:-model|-timeline)?\.js|maplibre-gl/i.test(message));
+      if(cneErrors.length)throw new Error(device.name+': 3D module exceptions: '+cneErrors.join('; '));
+      if(await preview.locator('#cneMapWait').isVisible())
+        throw new Error(device.name+': terrain startup overlay never closed');
+      if(await preview.locator('#cneChartPlot path').count()===0)
+        throw new Error(device.name+': timeline does not plot actual hourly snow');
+      if(!await preview.locator('#cneSelection').innerText().then(s=>s.includes('Neige au sol')))
+        throw new Error(device.name+': local snow values never loaded');
       if(await preview.locator('#cneZone option').count()!==3)throw new Error(device.name+': missing zones');
       await preview.locator('#cneZone').selectOption('pilat');
       await preview.locator('#cneLayer').selectOption('lpn');

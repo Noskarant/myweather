@@ -23,6 +23,8 @@ jobs:
           node --check scripts/build-forecast-fallback.mjs
       - name: Run application and network-failure regression tests
         run: npm test
+      - name: Check real 3D CNE CDN and weather model grids
+        run: node scripts/probe-cne3d-providers.mjs
       - name: Prepare real fallback snapshots for WebKit test
         run: node scripts/build-forecast-fallback.mjs
       - name: Install browser for iPhone WebKit smoke

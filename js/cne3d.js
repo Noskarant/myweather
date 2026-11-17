@@ -160,26 +160,54 @@ function startCNE() {
     return String(text).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
   function loadMapLibre(){
-    if(window.maplibregl)return Promise.resolve(window.maplibregl);
-    if(loadingMap)return loadingMap;
-    const link=document.createElement('link');
-    link.rel='stylesheet';
-    link.href='https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css';
-    document.head.appendChild(link);
-    loadingMap=new Promise((resolve,reject)=>{
-      const script=document.createElement('script');
-      script.src='https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js';
-      script.onload=()=>window.maplibregl?resolve(window.maplibregl):reject(new Error('MapLibre non chargé'));
-      script.onerror=()=>reject(new Error('Bibliothèque de cartographie indisponible'));
-      document.head.appendChild(script);
-    });
+    if (window.maplibregl?.Map) return Promise.resolve(window.maplibregl);
+    if (loadingMap) return loadingMap;
+    const providers=[
+      {
+        js:'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js',
+        css:'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css'
+      },
+      {
+        js:'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.1/maplibre-gl.js',
+        css:'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.1/maplibre-gl.css'
+      }
+    ];
+    loadingMap=(async()=>{
+      for (const provider of providers) {
+        try {
+          if (!document.querySelector('link[data-cne-maplibre]')) {
+            const link=document.createElement('link');
+            link.rel='stylesheet';
+            link.dataset.cneMaplibre='1';
+            link.href=provider.css;
+            document.head.appendChild(link);
+          }
+          await new Promise((resolve,reject)=>{
+            const script=document.createElement('script');
+            const timeout=setTimeout(()=>{script.remove();reject(new Error('CDN trop lent'));},10000);
+            script.src=provider.js;
+            script.onload=()=>{clearTimeout(timeout);resolve();};
+            script.onerror=()=>{clearTimeout(timeout);reject(new Error('CDN indisponible'));};
+            document.head.appendChild(script);
+          });
+          if (window.maplibregl?.Map) return window.maplibregl;
+        } catch (error) {
+          console.warn('[3D CNE] MapLibre CDN indisponible :',provider.js,error);
+          const stylesheet=document.querySelector('link[data-cne-maplibre]');
+          if (stylesheet) stylesheet.remove();
+        }
+      }
+      throw new Error('Chargement de MapLibre impossible sur les deux CDN');
+    })();
     return loadingMap;
   }
   async function makeMap(){
     el.wait.hidden=false;el.wait.textContent='Chargement du relief 3D…';
     try {
       const ml=await loadMapLibre();
-      if(!ml.supported())throw new Error('Cette carte nécessite WebGL, indisponible sur cet appareil');
+      // MapLibre GL JS 5.x no longer exports supported(). The Map constructor
+      // verifies WebGL support itself. Calling supported() prevented ALL devices from loading.
+      if (typeof ml.Map !== 'function') throw new Error('Bibliothèque 3D incomplète : MapLibre.Map absent');
       const zone=CNE_ZONES[zoneId];
       map=new ml.Map({
         container:el.map,
@@ -215,9 +243,14 @@ function startCNE() {
         }
       });
     } catch(error){
-      el.wait.textContent='Carte indisponible : '+String(error?.message||error);
+      const reason=String(error?.message||error);
+      console.error('[3D CNE] Impossible de créer la carte 3D :',error);
+      el.wait.textContent='Carte 3D indisponible : '+reason;
       el.wait.hidden=false;
-      setStatus('Carte 3D non prise en charge',true);
+      // The real error is visible rather than the false unsupported-browser diagnosis.
+      setStatus('Échec carte : '+reason,true);
+      // Weather can still load on its own even when graphics/WebGL/CDN fail.
+      loadForecast();
     }
   }
   function setZoneView(){
@@ -249,7 +282,8 @@ function startCNE() {
     }
   }
   async function loadForecast(){
-    if(!mapReady)return;
+    // Deliberately independent from WebGL: preserve temperatures and timeline
+    // even if the 3D engine is unavailable on an older phone or blocked CDN.
     if(request)request.abort();
     const localRequest=++requestNumber;
     request=new AbortController();
