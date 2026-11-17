@@ -160,19 +160,45 @@ function startCNE() {
     return String(text).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
   function loadMapLibre(){
-    if(window.maplibregl)return Promise.resolve(window.maplibregl);
-    if(loadingMap)return loadingMap;
-    const link=document.createElement('link');
-    link.rel='stylesheet';
-    link.href='https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css';
-    document.head.appendChild(link);
-    loadingMap=new Promise((resolve,reject)=>{
-      const script=document.createElement('script');
-      script.src='https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js';
-      script.onload=()=>window.maplibregl?resolve(window.maplibregl):reject(new Error('MapLibre non chargé'));
-      script.onerror=()=>reject(new Error('Bibliothèque de cartographie indisponible'));
-      document.head.appendChild(script);
-    });
+    if (window.maplibregl?.Map) return Promise.resolve(window.maplibregl);
+    if (loadingMap) return loadingMap;
+    const providers=[
+      {
+        js:'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js',
+        css:'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css'
+      },
+      {
+        js:'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.1/maplibre-gl.js',
+        css:'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.1/maplibre-gl.css'
+      }
+    ];
+    loadingMap=(async()=>{
+      for (const provider of providers) {
+        try {
+          if (!document.querySelector('link[data-cne-maplibre]')) {
+            const link=document.createElement('link');
+            link.rel='stylesheet';
+            link.dataset.cneMaplibre='1';
+            link.href=provider.css;
+            document.head.appendChild(link);
+          }
+          await new Promise((resolve,reject)=>{
+            const script=document.createElement('script');
+            const timeout=setTimeout(()=>{script.remove();reject(new Error('CDN trop lent'));},10000);
+            script.src=provider.js;
+            script.onload=()=>{clearTimeout(timeout);resolve();};
+            script.onerror=()=>{clearTimeout(timeout);reject(new Error('CDN indisponible'));};
+            document.head.appendChild(script);
+          });
+          if (window.maplibregl?.Map) return window.maplibregl;
+        } catch (error) {
+          console.warn('[3D CNE] MapLibre CDN indisponible :',provider.js,error);
+          const stylesheet=document.querySelector('link[data-cne-maplibre]');
+          if (stylesheet) stylesheet.remove();
+        }
+      }
+      throw new Error('Chargement de MapLibre impossible sur les deux CDN');
+    })();
     return loadingMap;
   }
   async function makeMap(){
