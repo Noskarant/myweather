@@ -300,6 +300,107 @@ function startCNE() {
       markers.push({marker,point,info});
     }
   }
+  function selectedReading(layer) {
+    if(!position || !time.length || !rows.length)return null;
+    // A single point request uses this exact point and the DEM altitude when available.
+    if(pointForecast?.hourly?.time?.[selected]===time[selected])
+      return cneValue(pointForecast,layer,selected);
+    // Until that response arrives, only a coarse spatial interpolation is available.
+    return cneInterpolate(rows,position.lon,position.lat,selected,layer);
+  }
+  function selectedElevation() {
+    if(!map || !position || typeof map.queryTerrainElevation!=='function')return null;
+    const elevation=map.queryTerrainElevation([position.lon,position.lat]);
+    return Number.isFinite(elevation)?elevation:null;
+  }
+  function updateHitCard() {
+    if(el.hit.hidden || !position)return;
+    el.hitName.textContent=position.name||'Point sélectionné';
+    const depth=selectedReading('depth');
+    const temp=selectedReading('temp');
+    const elevation=selectedElevation();
+    el.hitSnow.textContent=depth===null?'—':Math.round(depth)+' cm';
+    el.hitTemp.textContent=temp===null?'Temp. indisponible':'Temp. '+Math.round(temp)+' °C';
+    el.hitAltitude.textContent=elevation===null?'Altitude DEM —':'Terrain '+Math.round(elevation)+' m';
+    el.hitInfo.textContent=pointStatus;
+  }
+  let pointStatus='Prévision interpolée · non mesurée';
+  function choosePoint(point) {
+    pointController?.abort();
+    pointRequestId++;
+    pointForecast=null;
+    position={lat:Number(point.lat),lon:Number(point.lon),name:point.name||'Point sélectionné',explicit:true};
+    pointStatus='Interpolation provisoire · calcul au point…';
+    pointPin?.remove();
+    if(map){
+      const dot=document.createElement('span');
+      dot.className='cne-selected-dot';
+      dot.setAttribute('aria-hidden','true');
+      pointPin=new window.maplibregl.Marker({element:dot,anchor:'center'})
+        .setLngLat([position.lon,position.lat]).addTo(map);
+    }
+    el.hit.hidden=false;
+    el.hint.hidden=true;
+    updateSelection();
+    updateChronology();
+    updateHitCard();
+    if(time.length)void loadPointForecast();
+  }
+  async function loadPointForecast() {
+    if(!position?.explicit || !time.length)return;
+    pointController?.abort();
+    const controller=new AbortController();
+    pointController=controller;
+    const requestId=++pointRequestId;
+    const requested={lat:position.lat,lon:position.lon};
+    const activeZone=zoneId;
+    const elevation=selectedElevation();
+    const hasElevation=Number.isFinite(elevation)&&elevation>-500&&elevation<5000;
+    const params=new URLSearchParams({
+      latitude:requested.lat.toFixed(5),
+      longitude:requested.lon.toFixed(5),
+      hourly:'temperature_2m,snow_depth,snowfall,freezing_level_height',
+      forecast_days:'7',
+      timezone:'Europe/Paris',
+      models:'best_match'
+    });
+    if(hasElevation)params.set('elevation',String(Math.round(elevation)));
+    pointStatus='Calcul de la prévision à cet endroit…';
+    updateHitCard();
+    try {
+      const response=await fetch('https://api.open-meteo.com/v1/forecast?'+params,{signal:controller.signal,cache:'no-store'});
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      const data=await response.json();
+      if(data.error)throw new Error(data.reason||'Réponse météo invalide');
+      if(!Array.isArray(data.hourly?.time))throw new Error('Prévisions horaires absentes');
+      if(controller.signal.aborted||requestId!==pointRequestId||zoneId!==activeZone)return;
+      const sourceIndex=new Map(data.hourly.time.map((date,i)=>[date,i]));
+      if(!time.some(date=>sourceIndex.has(date)))throw new Error('Horaires incompatibles');
+      const aligned={...data,latitude:requested.lat,longitude:requested.lon,hourly:{time:[...time]}};
+      for(const field of ['temperature_2m','snow_depth','snowfall','freezing_level_height']){
+        const arr=data.hourly[field];
+        aligned.hourly[field]=time.map(date=>{
+          const i=sourceIndex.get(date);
+          return i===undefined||!Array.isArray(arr)?null:arr[i]??null;
+        });
+      }
+      pointForecast=aligned;
+      pointStatus=hasElevation
+        ?'Prévision au point, ajustée à l’altitude du relief (modèle maillé)'
+        :'Prévision au point (altitude estimée par le modèle)';
+      updateSelection();
+      updateChronology();
+      updateHitCard();
+    } catch(error){
+      if(controller.signal.aborted||requestId!==pointRequestId)return;
+      pointForecast=null;
+      pointStatus='Prévision au point indisponible · interpolation indicative';
+      console.warn('[3D CNE] Prévision locale indisponible :',error);
+      updateSelection();
+      updateChronology();
+      updateHitCard();
+    }
+  }
   async function loadForecast(){
     // Deliberately independent from WebGL: preserve temperatures and timeline
     // even if the 3D engine is unavailable on an older phone or blocked CDN.
