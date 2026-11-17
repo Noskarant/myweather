@@ -1,4 +1,4 @@
-import { CNE_ZONES, cneGrid, cneNearest, cneValue, cneInterpolate, cneSnowline, cneColor } from './cne3d-model.js?v=1';
+import { CNE_ZONES, cneGrid, cneNearest, cneValue, cneInterpolate, cneSnowline, cneColor } from './cne3d-model.js?v=2';
 import { mountCNEChronology } from './cne3d-timeline.js?v=1';
 
 // 3D CNE is intentionally out of primary navigation: the discreet launcher is
@@ -386,8 +386,8 @@ function startCNE() {
       }
       pointForecast=aligned;
       pointStatus=hasElevation
-        ?'Prévision au point, ajustée à l’altitude du relief (modèle maillé)'
-        :'Prévision au point (altitude estimée par le modèle)';
+        ?'Prévision au point · altitude DEM fournie au modèle (neige non mesurée)'
+        :'Prévision au point · altitude du modèle (neige non mesurée)';
       updateSelection();
       updateChronology();
       updateHitCard();
