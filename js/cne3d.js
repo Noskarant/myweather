@@ -27,13 +27,19 @@ function startCNE() {
       '<div class="cne-toolbar" aria-label="Commandes de la carte">',
         '<label>Zone<select id="cneZone"><option value="lyonnais">Monts du Lyonnais</option><option value="valmorel">Valmorel</option><option value="pilat">Pilat</option></select></label>',
         '<label>Couche<select id="cneLayer"><option value="depth">Neige au sol · cm</option><option value="fresh">Neige fraîche · 24 h</option><option value="temp">Température · °C</option><option value="lpn">LPN indicative · m</option></select></label>',
-        '<button id="cneReset" type="button" title="Recentrer la vue 3D">⌖ Recentrer</button>',
+        '<button id="cneReset" type="button" title="Revenir à la vue rapprochée sur le relief">⌖ Relief</button>',
         '<button id="cneCamera" type="button" title="Basculer vue aérienne et vue inclinée">◫ Vue 3D</button>',
         '<button id="cneFull" type="button" title="Agrandir la carte">⛶ Agrandir</button>',
       '</div>',
       '<div class="cne-map-wrap" id="cneMapWrap">',
         '<div id="cneMap" role="application" aria-label="Carte 3D interactive des prévisions de neige"></div>',
-        '<div class="cne-map-hint" id="cneMapHint">Glisser : déplacer · Pincer : zoomer · Deux doigts : orienter</div>',
+        '<div class="cne-map-hint" id="cneMapHint">Molette / + − : zoomer · Glisser : déplacer · Deux doigts : orienter · Cliquer : neige locale</div>',
+        '<div class="cne-map-hit" id="cneMapHit" hidden role="status" aria-live="polite">',
+          '<div class="cne-map-hit-head"><strong id="cneHitName">Point choisi</strong><button type="button" id="cneHitClose" aria-label="Fermer la fiche météo">×</button></div>',
+          '<div class="cne-map-hit-primary"><span>Neige au sol</span><strong id="cneHitSnow">—</strong></div>',
+          '<div class="cne-map-hit-mini"><span id="cneHitTemp">Temp. —</span><span id="cneHitAltitude">Altitude —</span></div>',
+          '<small id="cneHitInfo">Prévision modélisée, non mesurée</small>',
+        '</div>',
         '<div class="cne-map-credit">© OpenStreetMap · DEM AWS Terrarium · Open-Meteo</div>',
         '<div class="cne-map-wait" id="cneMapWait" role="status">Initialisation du relief 3D…</div>',
       '</div>',
@@ -64,12 +70,15 @@ function startCNE() {
   const el={
     zone:$('cneZone'), layer:$('cneLayer'), map:$('cneMap'), wrap:$('cneMapWrap'),
     hint:$('cneMapHint'), wait:$('cneMapWait'), slider:$('cneTime'),
+    hit:$('cneMapHit'),hitName:$('cneHitName'),hitSnow:$('cneHitSnow'),
+    hitTemp:$('cneHitTemp'),hitAltitude:$('cneHitAltitude'),hitInfo:$('cneHitInfo'),
     when:$('cneWhen'), status:$('cneStatus'), selection:$('cneSelection'),
     legend:$('cneLegendTitle'), scale:$('cneLegendScale'), note:$('cneLegendNote')
   };
   let map=null, mapReady=false, rows=[], time=[], selected=0, active=false, zoneId='lyonnais';
   const chronology=mountCNEChronology(el.wrap, index=>selectTime(index));
   let markers=[], request=null, requestNumber=0, position=null, raf=0, loadingMap=null, immersive=false;
+  let pointForecast=null, pointController=null, pointRequestId=0, pointPin=null;
 
   button.addEventListener('click',async()=>{
     document.querySelectorAll('main > .view').forEach(v=>v.classList.remove('active'));
@@ -98,6 +107,8 @@ function startCNE() {
   el.zone.addEventListener('change',()=>{
     zoneId=el.zone.value;
     rows=[];time=[]; selected=0; position=null;
+    pointController?.abort();pointRequestId++;pointForecast=null;
+    pointPin?.remove();pointPin=null;el.hit.hidden=true;el.hint.hidden=false;
     el.selection.innerHTML='<strong>Lecture locale</strong><p>Choisis un point sur la carte.</p>';
     chronology.update({rows:[],times:[],selected:0,position:null,layer:el.layer.value});
     if(mapReady) {
@@ -125,10 +136,15 @@ function startCNE() {
   }));
   $('cneReload').addEventListener('click',loadForecast);
   $('cneReset').addEventListener('click',setZoneView);
+  $('cneHitClose').addEventListener('click',()=>{
+    el.hit.hidden=true;el.hint.hidden=false;
+    pointPin?.remove();pointPin=null;
+  });
   $('cneCamera').addEventListener('click',()=>{
     if(!map)return;
     const is3d=map.getPitch()>20;
-    map.easeTo({pitch:is3d?0:65,bearing:is3d?-18:0,duration:850});
+    const zone=CNE_ZONES[zoneId];
+    map.easeTo({pitch:is3d?0:zone.pitch,bearing:is3d?0:zone.bearing,duration:850});
   });
   $('cneFull').addEventListener('click',()=>{
     if(immersive)endImmersive();
@@ -216,11 +232,11 @@ function startCNE() {
           sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'© OpenStreetMap contributors'}},
           layers:[{id:'background',type:'background',paint:{'background-color':'#162f41'}},{id:'osm',type:'raster',source:'osm'}]
         },
-        center:zone.center,zoom:zone.zoom,pitch:zone.pitch,bearing:-16,
-        maxPitch:80,minZoom:8,maxZoom:16,
+        center:zone.center,zoom:zone.zoom,pitch:zone.pitch,bearing:zone.bearing,
+        maxPitch:85,minZoom:8,maxZoom:18.5,cooperativeGestures:false,
         antialias:false,pixelRatio:Math.min(window.devicePixelRatio||1,1.8)
       });
-      map.addControl(new ml.NavigationControl({showCompass:true,showZoom:true}),'top-right');
+      map.addControl(new ml.NavigationControl({showCompass:true,showZoom:true,visualizePitch:true}),'top-right');
       map.on('load',()=>{
         mapReady=true;
         // Actual elevations from a real DEM, not a synthetic height field.
@@ -231,9 +247,7 @@ function startCNE() {
         setZoneView();setMarkers();loadForecast();
       });
       map.on('click',event=>{
-        position={lon:event.lngLat.lng,lat:event.lngLat.lat,name:'Point sélectionné'};
-        updateSelection();
-        updateChronology();
+        choosePoint({lon:event.lngLat.lng,lat:event.lngLat.lat,name:'Point sélectionné'});
       });
       map.on('error',e=>{
         // A missing tile must not silently be reported as valid terrain or forecast.
@@ -256,9 +270,16 @@ function startCNE() {
   function setZoneView(){
     if(!map)return;
     const z=CNE_ZONES[zoneId];
-    map.fitBounds(z.bounds,{padding:window.innerWidth<700?36:64,duration:800,pitch:z.pitch,bearing:-16,maxZoom:z.zoom+0.4});
-    // fitBounds may reset pitch depending on MapLibre version; explicitly restore it.
-    setTimeout(()=>{if(map&&active)map.easeTo({pitch:z.pitch,bearing:-16,duration:500});},850);
+    // A ridge-level camera makes the actual 3D terrain legible on entry.
+    // Do not fit the entire forecast sampling bounds: that was too far away.
+    map.easeTo({
+      center:z.center,
+      zoom:z.zoom-(window.innerWidth<650?0.35:0),
+      pitch:z.pitch,
+      bearing:z.bearing,
+      duration:900,
+      essential:true
+    });
   }
   function setMarkers(){
     for(const marker of markers)marker.marker.remove();
@@ -272,10 +293,8 @@ function startCNE() {
       element.append(name,info);
       element.addEventListener('click',event=>{
         event.stopPropagation();
-        position={...point};
-        updateSelection();
-        updateChronology();
-        map.easeTo({center:[point.lon,point.lat],duration:650});
+        choosePoint(point);
+        map.easeTo({center:[point.lon,point.lat],zoom:Math.max(map.getZoom?.()??12,13.4),duration:650});
       });
       const marker=new window.maplibregl.Marker({element,anchor:'bottom'}).setLngLat([point.lon,point.lat]).addTo(map);
       markers.push({marker,point,info});
@@ -320,6 +339,7 @@ function startCNE() {
       el.wait.hidden=true;
       if(!position)position={...CNE_ZONES[zoneId].points[0]};
       updateLegend();updateVisual();
+      if(position.explicit)loadPointForecast();
     }catch(error){
       if(error.name==='AbortError')return;
       if(localRequest!==requestNumber)return;
@@ -391,7 +411,7 @@ function startCNE() {
     if(source)source.updateImage({url,coordinates});
     else{
       map.addSource('cne-forecast-image',{type:'image',url,coordinates});
-      map.addLayer({id:'cne-forecast-raster',type:'raster',source:'cne-forecast-image',paint:{'raster-opacity':0.83}});
+      map.addLayer({id:'cne-forecast-raster',type:'raster',source:'cne-forecast-image',paint:{'raster-opacity':0.69}});
     }
   }
   function updateVisual(){
