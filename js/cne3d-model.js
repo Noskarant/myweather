@@ -73,8 +73,9 @@ export function cneValue(row, layer, index) {
   }
   if (layer==='fresh') {
     // Rolling 24-hour forecast total. Do not fill absent hourly values with zero.
+    if(index<23)return null; // A full rolling 24 h period is required.
     let total=0;
-    for (let i=Math.max(0,index-23);i<=index;i++){
+    for (let i=index-23;i<=index;i++){
       const v=cneAt(row,'snowfall',i);
       if(v===null)return null;
       total+=Math.max(0,v);
