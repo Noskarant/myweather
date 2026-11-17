@@ -188,7 +188,7 @@ try{
         throw new Error(device.name+': missing local snow depth on the clicked terrain');
       if(!(await preview.locator('#cneHitAltitude').innerText()).includes('1100'))
         throw new Error(device.name+': terrain elevation not surfaced');
-      if(!(await preview.locator('#cneHitInfo').innerText()).includes('altitude du relief'))
+      if(!(await preview.locator('#cneHitInfo').innerText()).includes('altitude DEM'))
         throw new Error(device.name+': point-specific terrain-aware forecast not used');
       await preview.locator('#cneLayer').selectOption('depth');
       if(await preview.locator('#cneChartPlot path').count()===0)
