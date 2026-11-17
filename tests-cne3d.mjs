@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { CNE_ZONES,cneGrid,cneFinite,cneAt,cneValue,cneInterpolate,cneNearest,cneSnowline,cneColor } from './js/cne3d-model.js';
 import { cneChartPoints } from './js/cne3d-timeline.js';
 
@@ -56,4 +57,16 @@ assert.equal(daily.length,3);
 assert.ok(daily.every(p=>p.time.endsWith('T12:00')));
 const missing=cneChartPoints([],times,pos,'temp','day');
 assert.ok(missing.every(p=>p.value===null));
-console.log('3D CNE: geographic zones, model values, snowline, timeline: OK');
+const footerHTML=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+const moduleSource=readFileSync(new URL('./js/cne3d.js',import.meta.url),'utf8');
+assert.ok(footerHTML.includes('id="cne3dLaunch"'),'Footer launcher missing');
+assert.ok(footerHTML.includes('id="cne3dFooter"'),'Footer section missing');
+const forecastHTML=footerHTML.split('<section id="routeView"')[0];
+const afterSources=forecastHTML.lastIndexOf('class="page-width source-strip glass"');
+assert.ok(afterSources>=0 && forecastHTML.indexOf('id="cne3dFooter"',afterSources)>afterSources,
+  'Footer launcher must follow source strip at the very bottom of forecast content');
+assert.ok(!moduleSource.includes("nav.appendChild(button)"),'3D CNE must not be in the fixed bottom navigation');
+assert.ok(moduleSource.includes("document.querySelector('#cne3dLaunch')"),'3D CNE footer launcher must be bound');
+assert.ok(moduleSource.includes("if (directOpen) queueMicrotask(()=>button.click())"),'Direct link must remain usable');
+
+console.log('3D CNE: geographic zones, forecast values, bottom access, timeline: OK');
