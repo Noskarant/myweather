@@ -1,5 +1,21 @@
 # MyWeather
 
+## 3D CNE — aperçu expérimental masqué
+
+**Statut : prototype privé, non publié dans la navigation ordinaire.** Sur une version déployée de la branche (ou après intégration), ajouter **?cne3d=1** à l’URL MyWeather pour révéler **3D CNE** comme dernier bouton de navigation. Le bouton reste visible pendant la session du navigateur ; aucun visiteur ordinaire ne le voit sans cette URL de test.
+
+- Trois zones limitées : Monts du Lyonnais (Oullins, Yzeron, Saint-Martin-en-Haut, Saint-André-la-Côte), Valmorel et Pilat.
+- Carte MapLibre GL JS avec terrain réel 3D basé sur DEM Terrarium AWS, sans exagération verticale, contrôles de vue, zoom, inclinaison et navigation au doigt / souris.
+- Carte colorée de **neige totale au sol**, **neige fraîche (24 h)**, **température** ou **LPN indicative**, avec consultation de points nommés et de points libres. Les chiffres de neige sont des **prévisions**, pas des mesures ni un volume réel de neige sculpté.
+- Courbe en bas à droite, **par heure** ou **par jour**, cliquable pour changer l'heure affichée sur le relief. Le mode jour échantillonne l'échéance locale de **12 h** (ce n'est ni une somme ni une moyenne quotidienne).
+- Vue carte agrandie, commandes tactiles d'au moins 44 px, panneaux adaptatifs, repères de lieux et légende.
+- Météo du prototype : **Open-Meteo Best Match** sur une grille de 25 points par zone. Les couleurs sont interpolées entre points météo sans prétendre résoudre les microclimats, la redistribution de la neige par le vent ou l'épaisseur sous les arbres.
+- **LPN indicative seulement** : ISO 0 °C moins 300 m (heuristique incertaine), et non une sortie directe de modèle. Les données manquantes ne sont jamais remplacées par des mesures fictives.
+- Aucun jeton météo exposé ; module et bibliothèque MapLibre chargés à la demande. Des services tiers (Open-Meteo, OpenStreetMap, AWS Terrarium, CDN MapLibre) sont nécessaires ; une défaillance produit un état explicite.
+- Le rendu WebGL, le tactile réel et les quotas fournisseurs doivent encore être validés sur plusieurs appareils avant publication générale.
+
+Tests à exécuter : **npm run check && npm test** (incluant tests-cne3d.mjs).
+
 Cockpit météo scientifique et visuel conçu pour fonctionner directement sur GitHub Pages, sans backend obligatoire.
 
 ## Fonctionnalités V1

@@ -64,4 +64,41 @@ try{
        (result.condition.includes('indisponible')||result.dailyCount<10||!result.updated.includes('Secours Open-Meteo')))
       throw new Error('Safari WebKit did not recover from blocked Open-Meteo using the real published fallback');
   } finally {await fallbackCtx.close();}
+  // 3D CNE preview: check the actual navigation and chronology on desktop and iPhone dimensions.
+  // The terrain tile/CDN delivery still requires separate on-device QA.
+  for (const device of [
+    {name:'desktop',viewport:{width:1440,height:900},isMobile:false,hasTouch:false},
+    {name:'iPhone',viewport:{width:390,height:844},isMobile:true,hasTouch:true}
+  ]) {
+    const previewCtx=await browser.newContext({...device,serviceWorkers:'block'});
+    try {
+      const preview=await previewCtx.newPage();
+      await preview.goto(base+'?cne3d=1',{waitUntil:'domcontentloaded',timeout:30000});
+      if(await preview.locator('#cne3dNav').count()!==1)
+        throw new Error(device.name+': experimental navigation button missing');
+      if(await preview.locator('.bottom-nav button:last-child').getAttribute('id')!=='cne3dNav')
+        throw new Error(device.name+': 3D CNE is not last in navigation');
+      await preview.locator('#cne3dNav').click();
+      if(!await preview.locator('#cne3dView').isVisible())throw new Error(device.name+': 3D page not visible');
+      if(await preview.locator('#cneZone option').count()!==3)throw new Error(device.name+': missing zones');
+      await preview.locator('#cneZone').selectOption('pilat');
+      await preview.locator('#cneLayer').selectOption('lpn');
+      await preview.locator('[data-cne-chart-mode="day"]').click();
+      if(await preview.locator('[data-cne-chart-mode="day"]').getAttribute('aria-pressed')!=='true')
+        throw new Error(device.name+': daily timeline selection failed');
+      const chart=await preview.locator('.cne-chart').boundingBox();
+      const map=await preview.locator('#cneMapWrap').boundingBox();
+      if(!chart||!map||chart.x<map.x||chart.x+chart.width>map.x+map.width+2)
+        throw new Error(device.name+': chart overlay escapes map bounds');
+      if(Math.abs((chart.x+chart.width)-(map.x+map.width))>40)
+        throw new Error(device.name+': timeline is not anchored to bottom right');
+      await preview.locator('#cneFull').click();
+      if(!await preview.locator('#cne3dView').evaluate(el=>el.classList.contains('cne-immersive')))
+        throw new Error(device.name+': fullscreen terrain mode not activated');
+      await preview.locator('#cneFull').click();
+      if(await preview.locator('#cne3dView').evaluate(el=>el.classList.contains('cne-immersive')))
+        throw new Error(device.name+': fullscreen terrain mode did not close');
+      console.log('3D CNE WebKit '+device.name+': preview navigation, zones, chronology and layout OK');
+    } finally {await previewCtx.close();}
+  }
 } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}
