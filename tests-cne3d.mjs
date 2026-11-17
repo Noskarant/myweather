@@ -28,7 +28,7 @@ const row={latitude:45.66,longitude:4.59,hourly:{
 assert.equal(cneAt(row,'temperature_2m',0),-2);
 assert.equal(cneAt(row,'bad',1),null);
 assert.equal(cneValue(row,'depth',20),2);
-assert.equal(cneValue(row,'fresh',0),0.5);
+assert.equal(cneValue(row,'fresh',0),null);
 assert.equal(cneValue(row,'fresh',23),12);
 assert.equal(cneValue(row,'fresh',24),12);
 assert.equal(cneValue(row,'fresh',-1),null);
