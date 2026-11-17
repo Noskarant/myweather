@@ -1,4 +1,5 @@
 import { CNE_ZONES, cneGrid, cneNearest, cneValue, cneInterpolate, cneSnowline, cneColor } from './cne3d-model.js?v=1';
+import { mountCNEChronology } from './cne3d-timeline.js?v=1';
 
 // Private experimental entry point. Public navigation is not changed.
 // Open MyWeather with ?cne3d=1 to reveal the button for the current tab session.
@@ -36,7 +37,7 @@ function startCNE() {
       '</div>',
       '<div class="cne-toolbar" aria-label="Commandes de la carte">',
         '<label>Zone<select id="cneZone"><option value="lyonnais">Monts du Lyonnais</option><option value="valmorel">Valmorel</option><option value="pilat">Pilat</option></select></label>',
-        '<label>Couche<select id="cneLayer"><option value="depth">Neige au sol · cm</option><option value="fresh">Neige fraîche · 24 h</option><option value="temp">Température · °C</option></select></label>',
+        '<label>Couche<select id="cneLayer"><option value="depth">Neige au sol · cm</option><option value="fresh">Neige fraîche · 24 h</option><option value="temp">Température · °C</option><option value="lpn">LPN indicative · m</option></select></label>',
         '<button id="cneReset" type="button" title="Recentrer la vue 3D">⌖ Recentrer</button>',
         '<button id="cneCamera" type="button" title="Basculer vue aérienne et vue inclinée">◫ Vue 3D</button>',
         '<button id="cneFull" type="button" title="Agrandir la carte">⛶ Agrandir</button>',
@@ -78,6 +79,7 @@ function startCNE() {
     legend:$('cneLegendTitle'), scale:$('cneLegendScale'), note:$('cneLegendNote')
   };
   let map=null, mapReady=false, rows=[], time=[], selected=0, active=false, zoneId='lyonnais';
+  const chronology=mountCNEChronology(el.wrap, index=>selectTime(index));
   let markers=[], request=null, requestNumber=0, position=null, raf=0, loadingMap=null, immersive=false;
 
   button.addEventListener('click',async()=>{
@@ -106,6 +108,7 @@ function startCNE() {
     zoneId=el.zone.value;
     rows=[];time=[]; selected=0; position=null;
     el.selection.innerHTML='<strong>Lecture locale</strong><p>Choisis un point sur la carte.</p>';
+    chronology.update({rows:[],times:[],selected:0,position:null,layer:el.layer.value});
     if(mapReady) {
       setZoneView();
       setMarkers();
@@ -211,6 +214,7 @@ function startCNE() {
       map.on('click',event=>{
         position={lon:event.lngLat.lng,lat:event.lngLat.lat,name:'Point sélectionné'};
         updateSelection();
+        updateChronology();
       });
       map.on('error',e=>{
         // A missing tile must not silently be reported as valid terrain or forecast.
@@ -246,6 +250,7 @@ function startCNE() {
         event.stopPropagation();
         position={...point};
         updateSelection();
+        updateChronology();
         map.easeTo({center:[point.lon,point.lat],duration:650});
       });
       const marker=new window.maplibregl.Marker({element,anchor:'bottom'}).setLngLat([point.lon,point.lat]).addTo(map);
@@ -279,15 +284,14 @@ function startCNE() {
       if(!list.every(item=>item.hourly.time[0]===list[0].hourly.time[0]))throw new Error('Horaires des modèles incompatibles');
       rows=list;
       // Use Open-Meteo's returned model grid/elevation, never fabricate snow at unsampled spots.
-      time=list[0].hourly.time.map(s=>s+':00+01:00');
-      // Hourly API timestamps are Europe/Paris local; avoid DST offset assumptions in display.
+      // Open-Meteo returns local timestamps for the requested timezone.
       time=list[0].hourly.time;
       const now=new Date();
       selected=0;
       const clockTime=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit'}).format(now).replace(' ','T');
       for(let i=0;i<time.length;i++){if(time[i]>=clockTime){selected=i;break;}}
       el.slider.max=String(time.length-1);el.slider.disabled=false;
-      setStatus('25 points · Open-Meteo Best Match · prévision, pas mesure');
+      setStatus(list.length+' points · Open-Meteo Best Match · prévision, pas mesure');
       el.wait.hidden=true;
       if(!position)position={...CNE_ZONES[zoneId].points[0]};
       updateLegend();updateVisual();
@@ -296,6 +300,7 @@ function startCNE() {
       if(localRequest!==requestNumber)return;
       rows=[];time=[];
       clearRaster();
+      updateChronology();
       el.when.textContent='Prévision indisponible';
       setStatus(String(error?.message||error),true);
     }
@@ -309,7 +314,11 @@ function startCNE() {
   }
   function updateLegend(){
     const mode=el.layer.value;
-    if(mode==='temp'){
+    if(mode==='lpn'){
+      el.legend.textContent='Limite pluie-neige indicative (m)';
+      el.scale.innerHTML='<span style="background:#3b84dd">≤ 500</span><span style="background:#6ccbe8">1000</span><span style="background:#86b7a0">1500</span><span style="background:#efb96a">2000</span><span style="background:#e88766">2500+</span>';
+      el.note.textContent='Calcul simplifié ISO 0 °C − 300 m, pas une LPN prévue directement par le modèle.';
+    }else if(mode==='temp'){
       el.legend.textContent='Température modélisée à 2 m (°C)';
       el.scale.innerHTML='<span style="background:#4a6dd4">≤ −8</span><span style="background:#55aae5">−2</span><span style="background:#66cae6">+2</span><span style="background:#f8c768">+8</span><span style="background:#f0734c">≥ +9</span>';
       el.note.textContent='Couleur = température du modèle, pas une mesure en chaque point.';
@@ -338,7 +347,7 @@ function startCNE() {
       const lat=north-(north-south)*y/(size-1);
       for(let x=0;x<size;x++){
         const lon=west+(east-west)*x/(size-1);
-        const value=cneInterpolate(rows,lon,lat,selected,layer);
+        const value=layer==='lpn'?cneSnowline(cneInterpolate(rows,lon,lat,selected,'iso0')):cneInterpolate(rows,lon,lat,selected,layer);
         const color=cneColor(value,layer);
         const index=(y*size+x)*4;
         data.data[index]=color[0];data.data[index+1]=color[1];
@@ -364,8 +373,7 @@ function startCNE() {
     if(!time.length)return;
     el.slider.value=String(selected);
     const date=time[selected];
-    el.when.textContent=new Date(date+'+01:00').toLocaleString('fr-FR',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Paris'});
-    // The source timestamps are local Paris wall times; text formatting never changes their hour.
+    // Format wall-clock data directly, including daylight-saving transitions.
     const parts=date.split('T');
     if(parts.length===2){
       const [y,m,d]=parts[0].split('-').map(Number);
@@ -380,7 +388,11 @@ function startCNE() {
         marker.info.textContent=(temp===null?'T° —':Math.round(temp)+' °C')+' · '+(snow===null?'neige —':Math.round(snow)+' cm');
       }
       updateSelection();
+      updateChronology();
     });
+  }
+  function updateChronology(){
+    chronology.update({rows,times:time,position,layer:el.layer.value,selected});
   }
   function updateSelection(){
     if(!position||!rows.length)return;
