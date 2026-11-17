@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="./styles.css?v=1.8.31" />
-  <link rel="stylesheet" href="./cne3d.css?v=1" />
+  <link rel="stylesheet" href="./cne3d.css?v=2" />
 </head>
 <body data-season="autumn" data-weather="cloudy">
   <canvas id="weatherFx" aria-hidden="true"></canvas>
@@ -278,6 +278,15 @@
         <div><strong>Sources principales</strong><span>SnowFusion (AROME · ICON · ECMWF) / Open‑Meteo · Windy · OpenStreetMap · OSRM</span></div>
         <div><strong>Philosophie</strong><span>Données réelles, incertitude visible, aucune fausse précision.</span></div>
       </section>
+
+      <!-- Dernier élément de la page Prévisions : accès discret au prototype, pas un onglet fixe. -->
+      <section id="cne3dFooter" class="page-width cne-footer-entry" aria-label="Fonction expérimentale 3D CNE">
+        <button id="cne3dLaunch" class="cne-footer-launch" type="button" aria-controls="cne3dView" aria-expanded="false">
+          <span class="cne-footer-symbol" aria-hidden="true">❄</span>
+          <span class="cne-footer-copy"><strong>3D CNE</strong><small>Couche neige 3D · expérimentale</small></span>
+          <span class="cne-footer-arrow" aria-hidden="true">↗</span>
+        </button>
+      </section>
     </section>
 
     <section id="routeView" class="view page-width">
@@ -409,7 +418,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script type="module" src="./js/app.js?v=1.8.31"></script>
-  <!-- Preview-only: add ?cne3d=1 to reveal the 3D CNE button. -->
-  <script type="module" src="./js/cne3d.js?v=1"></script>
+  <!-- Footer launcher visible at the bottom of the forecast page; ?cne3d=1 opens directly. -->
+  <script type="module" src="./js/cne3d.js?v=2"></script>
 </body>
 </html>
