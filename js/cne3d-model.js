@@ -6,9 +6,11 @@ export const CNE_ZONES = Object.freeze({
     title:'Monts du Lyonnais',
     subtitle:'Oullins · Yzeron · Saint-Martin-en-Haut · Saint-André-la-Côte',
     bounds:[[4.50,45.60],[4.85,45.78]],
-    center:[4.668,45.692],
-    zoom:10.55,
-    pitch:65,
+    // Initial exploration concentrates on the ridge; full bounds remain available for weather sampling.
+    center:[4.622,45.681],
+    zoom:12.65,
+    pitch:78,
+    bearing:-85,
     points:[
       {name:'Oullins',lat:45.716,lon:4.807},
       {name:'Yzeron',lat:45.707,lon:4.591},
@@ -20,9 +22,10 @@ export const CNE_ZONES = Object.freeze({
     title:'Valmorel et vallée du Morel',
     subtitle:'Le Meiller · station · Planchamp · haute vallée',
     bounds:[[6.37,45.39],[6.56,45.53]],
-    center:[6.453,45.463],
-    zoom:11.25,
-    pitch:67,
+    center:[6.447,45.459],
+    zoom:13.15,
+    pitch:78,
+    bearing:-25,
     points:[
       {name:'Le Meiller',lat:45.4795,lon:6.45696},
       {name:'Valmorel',lat:45.461,lon:6.443},
@@ -33,9 +36,10 @@ export const CNE_ZONES = Object.freeze({
     title:'Massif du Pilat',
     subtitle:'Le Bessat · crêts · vallées proches',
     bounds:[[4.44,45.27],[4.73,45.47]],
-    center:[4.574,45.384],
-    zoom:11,
-    pitch:67,
+    center:[4.566,45.383],
+    zoom:12.9,
+    pitch:78,
+    bearing:-35,
     points:[
       {name:'Le Bessat',lat:45.369,lon:4.516},
       {name:'Crêt de la Perdrix',lat:45.3825,lon:4.5728},
@@ -145,8 +149,8 @@ export function cneColor(value,layer) {
     return [232,135,102,191];
   }
   if(value<0.2)return [0,0,0,0];
-  if(value<2)return [185,226,251,136];
-  if(value<5)return [119,187,245,165];
+  if(value<2)return [185,226,251,85];
+  if(value<5)return [119,187,245,125];
   if(value<10)return [87,136,227,179];
   if(value<20)return [113,101,220,191];
   if(value<40)return [183,75,181,196];
